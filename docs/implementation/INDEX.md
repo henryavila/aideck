@@ -1,5 +1,7 @@
 # Implementation Plan — aiDeck v0.1
 
+> **New to this repo?** Read [`00-start-here.md`](./00-start-here.md) first. It captures the load-bearing decisions from prior planning sessions and the recommended reading order before writing any code.
+
 This index lists every implementation step needed to reach v0.1. Each step is sized for **one focused implementation session** and lives in its own file under `docs/implementation/`. Steps proceed **layer-by-layer** (backend → MCP → CLI/demo → frontend → closeout) per the design decision recorded on 2026-05-19.
 
 Before executing any step, the agent MUST:
