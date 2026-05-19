@@ -15,6 +15,7 @@ Espelhar os types TypeScript existentes em `src/schemas/*.ts` como schemas Zod r
 
 ## Arquivos a criar/editar
 
+- `vitest.config.ts` — **remover `passWithNoTests: true`** (era transitional para etapa 01; agora que esta etapa landa testes reais, o gate de coverage threshold só fica acionável sem essa flag — finding F-001 do code-review 2026-05-19-1539 sobre o scaffold).
 - `src/schemas/validators/common.ts` — Zod schemas para `ArtifactRef`, `Annotation`, `AnnotationTarget`, `Highlight`, `Decision`, `InboxItem`, `ErrorResponse`, `SchemaVersioned`, **`Resolution`** (refId → annotation/highlight resolved), **`Acknowledgement`** (refId → highlight acked), **`IntentRecord`** (MCP mutation intent), **`IntentApplication`** (consumer ack de aplicação), **`VerifierResult`** (exit-gate verifier output)
 - `src/schemas/validators/project-status.ts` — Zod schemas para `Plan`, `PhaseDescriptor`, `PhaseExitGate`, `ExitCriterion`, `ExitCriterionVerifier` (discriminated union), `InterPhaseGate`, `PlanSupersedeRef`, `Principle`, `GlossaryTerm`, `Track`, `Initiative`, `InitiativeScope`, `StackFrame`, `Task`, `TaskOutput`, `ParkedItem`, `EmergedItem`, `CrossTaskRef`, `ProjectStatusState`, `AdHocSession`, `NextActionProjection`, `DriftReport`, `HealthReport`
 - `src/schemas/validators/index.ts` — re-exports + `parseOrError<T>(schema, raw): Result<T, ErrorResponse>` helper + `Result<T, E>` type
@@ -120,6 +121,7 @@ export interface VerifierResult extends SchemaVersioned {
 
 ## Definition of Done
 
+- [ ] `passWithNoTests: true` removido de `vitest.config.ts` (closes F-001 do code-review do scaffold)
 - [ ] Todos os schemas Zod compilam com `npm run typecheck` zero erros
 - [ ] Todos os 20 testes passam (`npm test`)
 - [ ] Cobertura ≥ 90% em `src/schemas/validators/**` (esses arquivos são puros — fácil cobrir)
