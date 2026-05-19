@@ -34,7 +34,7 @@ Before executing any step, the agent MUST:
 
 ### MCP
 
-06. [MCP bootstrap + read tools](./06-mcp-read.md) — `@modelcontextprotocol/sdk` server over stdio, tool registration framework, the 7 read tools (`get_state`, `get_plan`, `get_phase`, `get_initiative`, `get_task`, `get_next_action`, `get_dependencies`), Zod-validated inputs, integration tests via MCP test harness. Covers F4 (read half).
+06. [MCP bootstrap + read tools](./06-mcp-read.md) — `@modelcontextprotocol/sdk` server over stdio, tool registration framework, the 7 read tools (`get_state`, `get_plan`, `get_phase`, `get_initiative`, `get_task`, `get_next_action`, `get_dependencies`), Zod-validated inputs, integration tests via MCP test harness. Covers F4 (read half). · done 2026-05-19
 
 07. [MCP mutation tools (append-only intents)](./07-mcp-mutate.md) — the 9 mutation tools as **append-only `IntentRecord` JSONL writes to `inbox/`** — aiDeck never mutates `plans/*.md` or `initiatives/*.md` (Iron Law 1). Consumer skill (or demo `fake-consumer`) tails inbox and applies. Tools: `mark_task_done`, `update_initiative_status`, `update_next_action`, `push_frame`, `pop_frame`, `park_item`, `emerge_item`, `promote_parked`, `add_task`. Covers F4 (mutate half).
 
