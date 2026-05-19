@@ -38,7 +38,7 @@ Before executing any step, the agent MUST:
 
 07. [MCP mutation tools (append-only intents)](./07-mcp-mutate.md) — the 9 mutation tools as **append-only `IntentRecord` JSONL writes to `inbox/`** — aiDeck never mutates `plans/*.md` or `initiatives/*.md` (Iron Law 1). Consumer skill (or demo `fake-consumer`) tails inbox and applies. Tools: `mark_task_done`, `update_initiative_status`, `update_next_action`, `push_frame`, `pop_frame`, `park_item`, `emerge_item`, `promote_parked`, `add_task`. Covers F4 (mutate half). · done 2026-05-19 (fake-consumer deferred to step 09)
 
-08. [MCP exit-gate + feedback + meta + verifier execution](./08-mcp-rest-tools.md) — `verify_exit_gate` (shell + manual paths fully working; appends `VerifierResult` JSONL — never mutates frontmatter; `query` and `test` schemas accepted but execution returns `precondition_failed` with v0.2 hint), `annotate`/`highlight`/`record_decision`/`inbox` (JSONL writes via step 04 writers), `list_consumers`/`health`/`schema_version` (toolCount: **24**). Covers F4 (remainder) + F13 (shell+manual) + data side of F11/F12.
+08. [MCP exit-gate + feedback + meta + verifier execution](./08-mcp-rest-tools.md) — `verify_exit_gate` (shell + manual paths fully working; appends `VerifierResult` JSONL — never mutates frontmatter; `query` and `test` schemas accepted but execution returns `precondition_failed` with v0.2 hint), `annotate`/`highlight`/`record_decision`/`inbox` (JSONL writes via step 04 writers), `list_consumers`/`health`/`schema_version` (toolCount: **24**). Covers F4 (remainder) + F13 (shell+manual) + data side of F11/F12. · done 2026-05-19
 
 ### CLI + demo
 
