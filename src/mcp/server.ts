@@ -5,6 +5,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js'
 import { ToolRegistry } from './registry.js'
 import { readTools } from './tools/read.js'
+import { mutateTools } from './tools/mutate.js'
 import type { McpToolContext } from './types.js'
 
 export interface McpServerOptions {
@@ -26,6 +27,7 @@ export function createMcpServer(opts: McpServerOptions): McpBundle {
   }
   const registry = new ToolRegistry()
   for (const tool of readTools) registry.register(tool)
+  for (const tool of mutateTools) registry.register(tool)
   opts.extraRegistrar?.(registry)
 
   const server = new Server(
