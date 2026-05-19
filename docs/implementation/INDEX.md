@@ -28,7 +28,7 @@ Before executing any step, the agent MUST:
 
 03. [Canonical parser — project-status](./03-parser-project-status.md) — YAML frontmatter + Markdown body parser for `plans/*.md` and `initiatives/*.md`, JSONL line parser for `annotations/`/`highlights/`/`inbox/`, fixture round-trip test (parse → re-serialize frontmatter → byte-equal), performance test (1000-line file < 50ms). Covers F1 (parsing half). · done 2026-05-19
 
-04. [Writers + watcher + event bus](./04-writers-watcher.md) — atomic JSONL appender (open in `a`, write+newline+flush), chokidar watcher on `.atomic-skills/**/*.{md,yaml,jsonl}`, in-process event bus with 60-second `Last-Event-ID` ring buffer. Covers F2 plumbing (server-side).
+04. [Writers + watcher + event bus](./04-writers-watcher.md) — atomic JSONL appender (open in `a`, write+newline+flush), chokidar watcher on `.atomic-skills/**/*.{md,yaml,jsonl}`, in-process event bus with 60-second `Last-Event-ID` ring buffer. Covers F2 plumbing (server-side). · done 2026-05-19
 
 05. [Hono server: REST + SSE](./05-hono-rest-sse.md) — Hono app bound to `127.0.0.1:7777`, all 10 endpoints from [api-examples.md](../api-examples.md), `/sse` stream emitting `state-change`/`annotation-added`/`highlight-added`/`error`/`health-tick`, CORS allowlist for `localhost`/`127.0.0.1`, all errors shaped as `ErrorResponse`. Covers F2 (SSE wire) + F3.
 

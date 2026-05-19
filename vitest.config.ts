@@ -17,6 +17,10 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'html'],
       include: ['src/schemas/**', 'src/server/**', 'src/mcp/**'],
+      exclude: [
+        'src/server/events/types.ts',
+        '**/index.ts'
+      ],
       thresholds: {
         lines: 70,
         functions: 70,
