@@ -96,3 +96,84 @@ export interface ErrorResponse {
   suggestion?: string
   details?: Record<string, unknown>
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// APPEND-ONLY JSONL RECORDS
+// Every mutation of state is a new JSONL line. aiDeck never edits a line that
+// was previously written; consumers (or the demo fake-consumer) read the
+// append-only stream and apply the projection into the canonical files.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Closes an annotation by reference. Original annotation line is NEVER edited. */
+export interface Resolution extends SchemaVersioned {
+  kind: 'resolution'
+  refId: string
+  by: 'human' | 'ai'
+  resolvedAt: IsoTimestamp
+  note?: string
+}
+
+/** Closes a highlight by reference. Original highlight line is NEVER edited. */
+export interface Acknowledgement extends SchemaVersioned {
+  kind: 'acknowledgement'
+  refId: string
+  by: 'human' | 'ai'
+  acknowledgedAt: IsoTimestamp
+}
+
+/**
+ * MCP mutation tool intent. aiDeck writes this to `inbox/`; the consumer skill
+ * tails the inbox and applies the operation to the canonical entity file.
+ */
+export interface IntentRecord extends SchemaVersioned {
+  kind: 'intent'
+  intentId: string
+  operation:
+    | 'mark_task_done'
+    | 'update_initiative_status'
+    | 'update_next_action'
+    | 'push_frame'
+    | 'pop_frame'
+    | 'park_item'
+    | 'emerge_item'
+    | 'promote_parked'
+    | 'add_task'
+  target: {
+    initiativeSlug?: string
+    taskId?: string
+    planSlug?: string
+    phaseId?: string
+  }
+  args: Record<string, unknown>
+  by: 'human' | 'ai'
+  requestedAt: IsoTimestamp
+}
+
+/** Consumer skill ack of an applied (or rejected) intent. */
+export interface IntentApplication extends SchemaVersioned {
+  kind: 'intent_application'
+  refId: string
+  appliedAt: IsoTimestamp
+  by: string
+  result: 'applied' | 'rejected' | 'partial'
+  note?: string
+}
+
+/** Exit-gate verifier execution result. */
+export interface VerifierResult extends SchemaVersioned {
+  kind: 'verifier_result'
+  verifierResultId: string
+  criterionRef: {
+    target: 'plan' | 'phase' | 'initiative' | 'task'
+    planSlug?: string
+    initiativeSlug?: string
+    phaseId?: string
+    taskId?: string
+    criterionId: string
+  }
+  result: 'met' | 'pending' | 'deferred'
+  evidence?: string
+  verifierOutput?: string
+  ranAt: IsoTimestamp
+  by: 'human' | 'ai'
+}

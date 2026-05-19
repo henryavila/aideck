@@ -1,0 +1,472 @@
+import { describe, expect, it } from 'vitest'
+import {
+  parseAcknowledgement,
+  parseAnnotation,
+  parseArtifactRef,
+  parseDecision,
+  parseDriftReport,
+  parseErrorResponse,
+  parseHealthReport,
+  parseHighlight,
+  parseInboxItem,
+  parseInitiative,
+  parseIntentApplication,
+  parseIntentRecord,
+  parseNextActionProjection,
+  parseOrError,
+  parsePlan,
+  parseProjectStatusState,
+  parseResolution,
+  parseVerifierResult
+} from '@schemas/validators/index.js'
+import { exitCriterionSchema, taskSchema } from '@schemas/validators/project-status.js'
+
+const TS = '2026-05-19T12:00:00-03:00'
+
+const minimalPlan = () => ({
+  schemaVersion: '0.1',
+  slug: 'v3-redesign',
+  title: 'v3 Redesign',
+  version: '3.0',
+  narrative: '',
+  status: 'active',
+  started: TS,
+  lastUpdated: TS,
+  currentPhase: null,
+  parallelismAllowed: false,
+  phases: []
+})
+
+const samplePhase = () => ({
+  id: 'F0',
+  slug: 'foundation',
+  title: 'Foundation',
+  goal: 'establish baseline',
+  dependsOn: [],
+  subPhaseCount: 3,
+  status: 'pending',
+  exitGate: {
+    summary: 'F0 ready',
+    criteria: [
+      {
+        id: 'F0.G1',
+        description: 'tests green',
+        status: 'pending',
+        verifier: { kind: 'shell', command: 'npm test' }
+      }
+    ]
+  }
+})
+
+const baseInitiative = () => ({
+  schemaVersion: '0.1',
+  slug: 'v3-f0',
+  title: 'F0 — Foundation',
+  goal: 'land baseline',
+  status: 'active',
+  branch: 'feat/f0',
+  started: TS,
+  lastUpdated: TS,
+  nextAction: null,
+  exitGates: [],
+  stack: [],
+  tasks: [],
+  parked: [],
+  emerged: []
+})
+
+const baseAnnotation = () => ({
+  id: 'ann-001',
+  target: { consumer: 'project-status', slug: 'v3-f0', path: 'tasks.T-001' },
+  author: 'human',
+  body: 'looks risky',
+  createdAt: TS
+})
+
+const baseHighlight = () => ({
+  id: 'hl-001',
+  target: { consumer: 'project-status', slug: 'v3-f0', path: 'tasks.T-001' },
+  reason: 'race condition possible',
+  source: 'ai',
+  severity: 'critical',
+  createdAt: TS
+})
+
+describe('parsePlan — happy', () => {
+  it('accepts a full Plan with phases, principles, glossary, tracks', () => {
+    const raw = {
+      ...minimalPlan(),
+      principles: [{ id: 'P1', title: 'Files canonical', body: 'never own state' }],
+      glossary: [{ term: 'phase', definition: 'unit of work in a plan' }],
+      tracks: [{ id: 'DATA', title: 'Data plane' }],
+      currentPhase: 'F0',
+      parallelismAllowed: true,
+      phases: [samplePhase()],
+      references: [{ kind: 'file', path: 'README.md' }],
+      whatStaysValid: ['legacy auth flow']
+    }
+    const res = parsePlan(raw)
+    expect(res.ok).toBe(true)
+    if (res.ok) {
+      expect(res.value.slug).toBe('v3-redesign')
+      expect(res.value.phases).toHaveLength(1)
+    }
+  })
+
+  it('accepts a minimal Plan with only required fields', () => {
+    const res = parsePlan(minimalPlan())
+    expect(res.ok).toBe(true)
+  })
+})
+
+describe('parseInitiative — happy', () => {
+  it('accepts an Initiative with parentPlan', () => {
+    const raw = {
+      ...baseInitiative(),
+      parentPlan: 'v3-redesign',
+      phaseId: 'F0',
+      tasks: [
+        {
+          id: 'T-001',
+          title: 'wire repo',
+          status: 'pending',
+          lastUpdated: TS
+        }
+      ]
+    }
+    const res = parseInitiative(raw)
+    expect(res.ok).toBe(true)
+    if (res.ok) {
+      expect(res.value.parentPlan).toBe('v3-redesign')
+      expect(res.value.tasks).toHaveLength(1)
+    }
+  })
+
+  it('accepts a standalone Initiative with no parentPlan', () => {
+    const res = parseInitiative(baseInitiative())
+    expect(res.ok).toBe(true)
+    if (res.ok) expect(res.value.parentPlan).toBeUndefined()
+  })
+})
+
+describe('parseTask — happy', () => {
+  it('accepts a pending task with no optional fields', () => {
+    const res = parseOrError(taskSchema, {
+      id: 'T-001',
+      title: 'do the thing',
+      status: 'pending',
+      lastUpdated: TS
+    })
+    expect(res.ok).toBe(true)
+  })
+
+  it('accepts a task with a per-task verifier', () => {
+    const res = parseOrError(taskSchema, {
+      id: 'T-002',
+      title: 'run pact',
+      status: 'active',
+      lastUpdated: TS,
+      verifier: { kind: 'test', runner: 'vitest', pattern: 'tests/contract/*' }
+    })
+    expect(res.ok).toBe(true)
+  })
+})
+
+describe('parseAnnotation — happy', () => {
+  it('accepts a human-authored annotation', () => {
+    const res = parseAnnotation(baseAnnotation())
+    expect(res.ok).toBe(true)
+  })
+
+  it('accepts an ai-authored annotation with resolved:true', () => {
+    const res = parseAnnotation({
+      ...baseAnnotation(),
+      id: 'ann-002',
+      author: 'ai',
+      resolved: true,
+      resolvedAt: TS
+    })
+    expect(res.ok).toBe(true)
+  })
+})
+
+describe('parseHighlight + parseDecision — happy', () => {
+  it('accepts a critical highlight', () => {
+    const res = parseHighlight(baseHighlight())
+    expect(res.ok).toBe(true)
+  })
+
+  it('accepts a decision of kind "approve"', () => {
+    const res = parseDecision({
+      id: 'dec-001',
+      target: { consumer: 'project-status', slug: 'v3-f0', path: 'exitGates.0' },
+      decision: 'approve',
+      reason: 'all criteria met',
+      by: 'human',
+      createdAt: TS
+    })
+    expect(res.ok).toBe(true)
+  })
+})
+
+describe('exitCriterionSchema — happy', () => {
+  it('accepts an ExitCriterion with a shell verifier', () => {
+    const res = parseOrError(exitCriterionSchema, {
+      id: 'G1',
+      description: 'compile',
+      verifier: { kind: 'shell', command: 'npm run typecheck', expectExitCode: 0 },
+      status: 'pending'
+    })
+    expect(res.ok).toBe(true)
+  })
+
+  it('accepts an ExitCriterion with a manual verifier', () => {
+    const res = parseOrError(exitCriterionSchema, {
+      id: 'G2',
+      description: 'a11y audit',
+      verifier: { kind: 'manual', description: 'axe DevTools, AA pass' },
+      status: 'met',
+      metAt: TS
+    })
+    expect(res.ok).toBe(true)
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ERROR paths
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('parsePlan — error', () => {
+  it('rejects a Plan missing schemaVersion with invalid_input', () => {
+    const { schemaVersion: _, ...rest } = minimalPlan()
+    const res = parsePlan(rest)
+    expect(res.ok).toBe(false)
+    if (!res.ok) {
+      expect(res.error.code).toBe('invalid_input')
+      expect(res.error.message).toContain('schemaVersion')
+    }
+  })
+
+  it('rejects schemaVersion "0.0.9" with schema_version_mismatch + migrate suggestion', () => {
+    const res = parsePlan({ ...minimalPlan(), schemaVersion: '0.0.9' })
+    expect(res.ok).toBe(false)
+    if (!res.ok) {
+      expect(res.error.code).toBe('schema_version_mismatch')
+      expect(res.error.suggestion ?? '').toContain('migrate')
+      expect(res.error.suggestion ?? '').toContain('0.0.9')
+    }
+  })
+
+  it('rejects PhaseDescriptor missing goal, with path "phases.0.goal"', () => {
+    const phase = samplePhase() as Record<string, unknown>
+    delete phase.goal
+    const res = parsePlan({ ...minimalPlan(), phases: [phase] })
+    expect(res.ok).toBe(false)
+    if (!res.ok) {
+      expect(res.error.code).toBe('invalid_input')
+      expect(res.error.message).toContain('phases.0.goal')
+    }
+  })
+})
+
+describe('exit-gate verifier — error', () => {
+  it('rejects an ExitCriterion with verifier.kind "unknown" as invalid_input', () => {
+    const res = parseOrError(exitCriterionSchema, {
+      id: 'G3',
+      description: 'broken',
+      verifier: { kind: 'unknown', description: 'nope' },
+      status: 'pending'
+    })
+    expect(res.ok).toBe(false)
+    if (!res.ok) expect(res.error.code).toBe('invalid_input')
+  })
+})
+
+describe('Initiative / Annotation / Highlight — error enums', () => {
+  it('rejects Initiative with invalid status', () => {
+    const res = parseInitiative({ ...baseInitiative(), status: 'unstarted' })
+    expect(res.ok).toBe(false)
+    if (!res.ok) expect(res.error.code).toBe('invalid_input')
+  })
+
+  it('rejects Annotation with author "bot"', () => {
+    const res = parseAnnotation({ ...baseAnnotation(), author: 'bot' })
+    expect(res.ok).toBe(false)
+    if (!res.ok) {
+      expect(res.error.code).toBe('invalid_input')
+      expect(res.error.message.toLowerCase()).toContain('author')
+    }
+  })
+
+  it('rejects Highlight with severity "extreme"', () => {
+    const res = parseHighlight({ ...baseHighlight(), severity: 'extreme' })
+    expect(res.ok).toBe(false)
+    if (!res.ok) {
+      expect(res.error.code).toBe('invalid_input')
+      expect(res.error.message.toLowerCase()).toContain('severity')
+    }
+  })
+})
+
+describe('parseOrError — payload null', () => {
+  it('rejects a null payload as invalid_input', () => {
+    const res = parsePlan(null)
+    expect(res.ok).toBe(false)
+    if (!res.ok) expect(res.error.code).toBe('invalid_input')
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Smoke for append-only JSONL record schemas (used by writers in step 04+)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('parseResolution + parseProjectStatusState smoke', () => {
+  it('accepts a Resolution record', () => {
+    const res = parseResolution({
+      schemaVersion: '0.1',
+      kind: 'resolution',
+      refId: 'ann-001',
+      by: 'human',
+      resolvedAt: TS,
+      note: 'addressed inline'
+    })
+    expect(res.ok).toBe(true)
+  })
+
+  it('accepts an empty ProjectStatusState aggregate', () => {
+    const res = parseProjectStatusState({
+      schemaVersion: '0.1',
+      consumer: 'project-status',
+      generatedAt: TS,
+      plans: [],
+      initiatives: [],
+      adHocSessions: []
+    })
+    expect(res.ok).toBe(true)
+  })
+})
+
+describe('append-only + projection helpers — smoke', () => {
+  it('parseAcknowledgement accepts a valid record', () => {
+    expect(
+      parseAcknowledgement({
+        schemaVersion: '0.1',
+        kind: 'acknowledgement',
+        refId: 'hl-001',
+        by: 'ai',
+        acknowledgedAt: TS
+      }).ok
+    ).toBe(true)
+  })
+
+  it('parseIntentRecord accepts a mark_task_done intent', () => {
+    expect(
+      parseIntentRecord({
+        schemaVersion: '0.1',
+        kind: 'intent',
+        intentId: 'int-001',
+        operation: 'mark_task_done',
+        target: { initiativeSlug: 'v3-f0', taskId: 'T-001' },
+        args: {},
+        by: 'ai',
+        requestedAt: TS
+      }).ok
+    ).toBe(true)
+  })
+
+  it('parseIntentApplication accepts a consumer ack', () => {
+    expect(
+      parseIntentApplication({
+        schemaVersion: '0.1',
+        kind: 'intent_application',
+        refId: 'int-001',
+        appliedAt: TS,
+        by: 'atomic-skills:project-status',
+        result: 'applied'
+      }).ok
+    ).toBe(true)
+  })
+
+  it('parseVerifierResult accepts a met result', () => {
+    expect(
+      parseVerifierResult({
+        schemaVersion: '0.1',
+        kind: 'verifier_result',
+        verifierResultId: 'vr-001',
+        criterionRef: {
+          target: 'phase',
+          planSlug: 'v3-redesign',
+          phaseId: 'F0',
+          criterionId: 'F0.G1'
+        },
+        result: 'met',
+        evidence: 'tests green',
+        ranAt: TS,
+        by: 'ai'
+      }).ok
+    ).toBe(true)
+  })
+
+  it('parseInboxItem wraps a highlight payload', () => {
+    expect(
+      parseInboxItem({
+        id: 'inb-001',
+        consumer: 'project-status',
+        kind: 'highlight',
+        payload: {
+          id: 'hl-001',
+          target: { consumer: 'project-status', slug: 'v3-f0', path: 'tasks.T-001' },
+          reason: 'r',
+          source: 'human',
+          severity: 'warn',
+          createdAt: TS
+        },
+        createdAt: TS
+      }).ok
+    ).toBe(true)
+  })
+
+  it('parseArtifactRef accepts a file ref', () => {
+    expect(parseArtifactRef({ kind: 'file', path: 'README.md' }).ok).toBe(true)
+  })
+
+  it('parseErrorResponse accepts a well-formed error', () => {
+    expect(
+      parseErrorResponse({ code: 'slug_not_found', message: 'no such plan' }).ok
+    ).toBe(true)
+  })
+
+  it('parseNextActionProjection accepts a minimal projection', () => {
+    expect(
+      parseNextActionProjection({
+        consumer: 'project-status',
+        description: 'do X',
+        rationale: 'because Y'
+      }).ok
+    ).toBe(true)
+  })
+
+  it('parseDriftReport accepts an empty drift report', () => {
+    expect(
+      parseDriftReport({
+        consumer: 'project-status',
+        expectedScope: [],
+        actualWrites: [],
+        driftingPaths: []
+      }).ok
+    ).toBe(true)
+  })
+
+  it('parseHealthReport accepts an empty health report', () => {
+    expect(
+      parseHealthReport({
+        schemaVersion: '0.1',
+        generatedAt: TS,
+        staleInitiatives: [],
+        unmetGates: [],
+        openHighlights: [],
+        inboxUnconsumed: 0
+      }).ok
+    ).toBe(true)
+  })
+})

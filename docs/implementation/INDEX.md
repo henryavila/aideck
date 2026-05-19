@@ -24,7 +24,7 @@ Before executing any step, the agent MUST:
 
 01. [Foundation + dependencies](./01-foundation-deps.md) — pin missing deps (Zod, pinia, vue-router, marked, mermaid, coverage tooling), create `vitest.config.ts`, scaffold empty directories for every layer, ensure `typecheck` + `test` + `dev:client` all run on a clean checkout. · done 2026-05-19
 
-02. [Runtime schema validators (Zod)](./02-zod-validators.md) — write Zod schemas mirroring the existing TypeScript types in `src/schemas/*.ts`, expose `parsePlan`/`parseInitiative`/`parseAnnotation`/etc. helpers that return `Result<T, ErrorResponse>` and enforce `schemaVersion === '0.1'`. Covers F1 (validation half).
+02. [Runtime schema validators (Zod)](./02-zod-validators.md) — write Zod schemas mirroring the existing TypeScript types in `src/schemas/*.ts`, expose `parsePlan`/`parseInitiative`/`parseAnnotation`/etc. helpers that return `Result<T, ErrorResponse>` and enforce `schemaVersion === '0.1'`. Covers F1 (validation half). · done 2026-05-19
 
 03. [Canonical parser — project-status](./03-parser-project-status.md) — YAML frontmatter + Markdown body parser for `plans/*.md` and `initiatives/*.md`, JSONL line parser for `annotations/`/`highlights/`/`inbox/`, fixture round-trip test (parse → re-serialize frontmatter → byte-equal), performance test (1000-line file < 50ms). Covers F1 (parsing half).
 

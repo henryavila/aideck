@@ -176,3 +176,27 @@ First implementation session executed `docs/implementation/01-foundation-deps.md
 
 ### Server placeholder pattern
 `src/server/index.ts` exits 0 when invoked as entrypoint (so `tsx watch` doesn't crash-loop before step 05 lands the Hono app) but does nothing when imported by tests. Used `import.meta.url === \`file://${process.argv[1]}\`` for the gate — standard Node ESM idiom.
+
+---
+
+## 2026-05-19 (later) — Etapa 02: Zod validators + schemaVersion error discrimination
+
+Step 02 landed Zod runtime validators for every canonical type plus the 5 new append-only JSONL types (`Resolution`, `Acknowledgement`, `IntentRecord`, `IntentApplication`, `VerifierResult`). 32 tests, 100% function coverage on `src/schemas/validators/`, 99.3% lines.
+
+### Non-obvious decision: distinguishing missing vs wrong `schemaVersion`
+
+Step 02 spec mandates two distinct error codes:
+- Plan **without** `schemaVersion` → `invalid_input`
+- Plan **with** `schemaVersion: '0.0.9'` (or any non-'0.1' value) → `schema_version_mismatch` with a `migrate` suggestion
+
+Zod's `z.literal('0.1')` emits `code: 'invalid_literal'` for **both** cases — the `received` field is the only discriminator (undefined when the key is absent, string when present-but-wrong). The validator's `isSchemaVersionMismatch` checks `'received' in issue && issue.received !== undefined` before flagging as a mismatch; otherwise it falls through to `invalid_input`.
+
+This matters because users hitting an old payload need to know to run `aideck migrate`, while users hitting a malformed payload need to know to fix the field — different next actions.
+
+### Coverage scope clarification
+
+The global 70% threshold in `vitest.config.ts` is computed across `src/schemas/**`, `src/server/**`, `src/mcp/**`. With only step 02 landed, placeholder files (`src/server/index.ts`, `src/mcp/index.ts`, `src/schemas/index.ts` barrel) show 0% — but the validators cover enough to push the global numbers above 70 (97/86/96/97). When steps 04-08 land real code those placeholders go away.
+
+### `passWithNoTests: true` removed
+
+Closes F-001 from `.atomic-skills/reviews/2026-05-19-1539-aideck-step01-scaffold.md` as documented in that review's "Fixes applied" log. Coverage gate now actually enforces thresholds because tests exist.
