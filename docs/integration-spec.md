@@ -93,6 +93,94 @@ HTTP-only mode (no MCP):
 aideck serve --no-mcp
 ```
 
+## Detection / lifecycle (how consumers know aiDeck is running)
+
+aiDeck publishes its presence so consumers can detect it without probing.
+
+### Runtime file
+
+On `aideck serve` (or `aideck mcp` in HTTP+MCP mode) startup, aiDeck writes:
+
+```
+~/.aideck/runtime.json
+```
+
+```json
+{
+  "schemaVersion": "0.1",
+  "apiVersion": "0.1",
+  "pid": 12345,
+  "url": "http://127.0.0.1:7777",
+  "port": 7777,
+  "modes": ["http", "sse", "mcp"],
+  "startedAt": "2026-05-19T18:00:00Z",
+  "version": "0.1.0"
+}
+```
+
+On graceful shutdown (SIGINT, SIGTERM, clean exit): aiDeck removes the file.
+
+On crash or `kill -9`: file remains. Consumers MUST verify PID liveness before trusting the URL.
+
+If the user runs multiple aiDeck instances simultaneously (different ports), the runtime file holds the LAST started — `kill -0 $pid` on a stale entry returns failure, so consumers know to ignore stale files.
+
+### Detection patterns
+
+#### For AI agents running inside an MCP-capable IDE (Claude Code, Cursor)
+
+Use **MCP tool availability** as the signal — no probing needed:
+
+```
+If aideck_get_state, aideck_annotate, etc. appear in the AI's tool list:
+  → aiDeck MCP server is registered AND running.
+  → Use MCP tools.
+Otherwise:
+  → Fall back to direct file mutation (canonical files in .atomic-skills/).
+```
+
+The IDE's MCP discovery handles the connection. The AI doesn't need to read `runtime.json`.
+
+#### For CLI consumers / shell scripts
+
+```bash
+# 1. Stat the runtime file
+test -f ~/.aideck/runtime.json || { echo "aiDeck not running"; exit 0; }
+
+# 2. Read URL + PID
+URL=$(jq -r .url ~/.aideck/runtime.json)
+PID=$(jq -r .pid ~/.aideck/runtime.json)
+
+# 3. Verify PID alive (POSIX)
+kill -0 "$PID" 2>/dev/null || { echo "aiDeck pid $PID dead — stale runtime file"; exit 0; }
+
+# 4. Final liveness check via HTTP (200ms timeout)
+curl -fsS --max-time 0.2 "$URL/api/health" >/dev/null || { echo "aiDeck unreachable at $URL"; exit 0; }
+
+# All good — proceed with API calls
+curl -fsS "$URL/api/state/project-status"
+```
+
+#### For skill markdown files (instructions to AI)
+
+Recommended directive in skill source:
+
+> "Before mutating state files, check if `aideck_*` MCP tools are available.
+> If yes: use the appropriate MCP tool (e.g., `aideck_mark_task_done`).
+> If no: write directly to canonical files in `.atomic-skills/<consumer>/`.
+> Both paths are valid — MCP is an optimization, not a requirement."
+
+This graceful-degradation pattern keeps skills compatible with environments where aiDeck is not installed or not running.
+
+### Concurrency / multiple instances
+
+aiDeck v0.1 supports ONE running instance per machine. Starting a second instance writes a new `runtime.json`, overwriting the first. The first instance keeps running but becomes "undiscoverable" via the runtime file.
+
+This is intentional for v0.1 simplicity. Multi-instance discovery (multiple ports, multiple projects) is deferred to v0.2+.
+
+### Permissions
+
+`~/.aideck/` is created with mode `0700` (user-only access). The runtime file is mode `0600`. No other users on the machine can read aiDeck's runtime state.
+
 ## Reference implementation
 
 See `@henryavila/atomic-skills` for a reference Tier 2 consumer. Its `project-status` skill writes canonical files AND consumes the aiDeck inbox.

@@ -81,3 +81,21 @@ Reorganized into 5 categories:
 
 ### Rationale
 A minimalist MCP forces consumers (atomic-skills skills) to fall back to direct file mutation, defeating the purpose of MCP-first integration. The expanded surface covers the full operational loop: read → decide → mutate → verify → feedback.
+
+---
+
+## 2026-05-19 (continued) — Detection / lifecycle spec
+
+Identified during atomic-skills design session that aiDeck contracts didn't specify how consumers detect aiDeck is running. Filled the gap.
+
+### Decisions
+- **Runtime file**: `~/.aideck/runtime.json` written on startup, removed on graceful shutdown.
+- **Mode bits**: `~/.aideck/` is 0700; runtime file is 0600.
+- **Detection for AI agents**: MCP tool availability is the canonical signal (no probing — `aideck_*` tools either exist in the IDE's tool list or don't).
+- **Detection for CLI consumers**: stat runtime file → verify PID alive → curl /api/health (200ms timeout).
+- **Multi-instance**: NOT supported in v0.1. Second instance overwrites the runtime file. Deferred to v0.2+.
+
+### Rationale
+- MCP availability is the natural signal because IDEs handle MCP discovery natively. No need to invent a new probing protocol.
+- Runtime file covers non-AI consumers (shell scripts, CLI tools) that don't have MCP access.
+- PID liveness check handles crash scenarios where the file wasn't cleaned up.
