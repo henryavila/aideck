@@ -30,7 +30,7 @@ Before executing any step, the agent MUST:
 
 04. [Writers + watcher + event bus](./04-writers-watcher.md) — atomic JSONL appender (open in `a`, write+newline+flush), chokidar watcher on `.atomic-skills/**/*.{md,yaml,jsonl}`, in-process event bus with 60-second `Last-Event-ID` ring buffer. Covers F2 plumbing (server-side). · done 2026-05-19
 
-05. [Hono server: REST + SSE](./05-hono-rest-sse.md) — Hono app bound to `127.0.0.1:7777`, all 10 endpoints from [api-examples.md](../api-examples.md), `/sse` stream emitting `state-change`/`annotation-added`/`highlight-added`/`error`/`health-tick`, CORS allowlist for `localhost`/`127.0.0.1`, all errors shaped as `ErrorResponse`. Covers F2 (SSE wire) + F3.
+05. [Hono server: REST + SSE](./05-hono-rest-sse.md) — Hono app bound to `127.0.0.1:7777`, all 10 endpoints from [api-examples.md](../api-examples.md), `/sse` stream emitting `state-change`/`annotation-added`/`highlight-added`/`error`/`health-tick`, CORS allowlist for `localhost`/`127.0.0.1`, all errors shaped as `ErrorResponse`. Covers F2 (SSE wire) + F3. · done 2026-05-19
 
 ### MCP
 
