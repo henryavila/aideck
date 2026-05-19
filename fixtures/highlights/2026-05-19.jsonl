@@ -1,0 +1,2 @@
+{"schemaVersion":"0.1","id":"hl-2026-05-19-001","target":{"consumer":"project-status","slug":"v3-redesign","path":"phases.F3"},"reason":"Detected drift: writes touched F3 paths while currentPhase is F0.","severity":"warn","source":"ai","createdAt":"2026-05-19T16:42:00Z"}
+{"schemaVersion":"0.1","id":"hl-2026-05-19-002","target":{"consumer":"project-status","slug":"v3-f0-foundation-repair","path":"tasks.T-005"},"reason":"Critical task — blocked for 8 hours. Investigate.","severity":"critical","source":"ai","createdAt":"2026-05-19T18:00:00Z"}
