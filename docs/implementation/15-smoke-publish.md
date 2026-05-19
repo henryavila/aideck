@@ -64,16 +64,16 @@ Validar fim-a-fim que aiDeck v0.1 atende a definition of done composta de [featu
      - F1: parser não erra; round-trip OK.
      - F2: editar arquivo → SSE event visto no DevTools < 200ms.
      - F3: cada endpoint manual via curl.
-     - F4: MCP conectado em Claude Code; tools/list mostra 18 tools.
+     - F4: MCP conectado em Claude Code (via `aideck mcp` em config do IDE — processo separado, não é o `serve`); `tools/list` mostra **24 tools**.
      - F5: render plan completo sem overflow.
      - F6: navega initiative; cross-refs funcionam.
      - F7: help page renderiza.
-     - F8: demo cleanup OK.
+     - F8: demo cleanup OK; mutation flow no demo funciona (chamada MCP → intent JSONL → fake-consumer aplica → SSE atualiza UI).
      - F9: axe DevTools rodando (Chrome extension) — zero violations críticas.
-     - F10: CLI flags todas funcionais.
-     - F11: panel + resolve OK.
-     - F12: badges + acknowledge OK.
-     - F13: shell verifier roda comando real (ex.: `git tag | grep core-v2`), output capturado.
+     - F10: CLI flags todas funcionais (`--no-mcp` foi removida; conferir que não está em help).
+     - F11: panel + resolve OK (Resolution JSONL append-only).
+     - F12: badges + acknowledge OK (Acknowledgement JSONL append-only).
+     - F13: shell verifier roda comando real (ex.: `git tag | grep core-v2`), output capturado, **`VerifierResult` aparece no inbox JSONL** (entity file não muda — consumer skill aplica).
 
 5. **Accessibility (F9)**:
    - axe DevTools Chrome scan em cada view.
@@ -100,23 +100,24 @@ Validar fim-a-fim que aiDeck v0.1 atende a definition of done composta de [featu
    ### Features
    - **F1** Canonical-data parser (YAML+MD frontmatter, JSONL).
    - **F2** chokidar file watcher + SSE event stream.
-   - **F3** Hono HTTP REST API with 10 endpoints.
-   - **F4** MCP server exposing 18 tools (read, mutate, exit-gate, feedback, meta).
+   - **F3** Hono HTTP REST API with 11 endpoints (10 spec + `POST /api/annotation/:id/resolve` and `POST /api/highlight/:id/acknowledge`).
+   - **F4** MCP server exposing 24 tools (7 read + 9 mutate + 1 exit-gate + 4 feedback + 3 meta). Mutation tools are append-only intent records under `inbox/` (Iron Law 1 preserved); consumer skill applies.
    - **F5** Plan bird's-eye view with phase tree, tracks, parallel pairs, deps overlay.
    - **F6** Initiative zoom view with exit gates, stack, tasks, refs, markdown body.
    - **F7** Help page with skill grid + search/filter + copy command.
-   - **F8** Demo mode with seeded fixtures + auto-open browser.
+   - **F8** Demo mode with seeded fixtures + fake-consumer (applies intents in-tmp) + auto-open browser.
    - **F9** Dark theme (WCAG AA, no FOUC, themed mermaid).
-   - **F10** CLI: serve, demo, mcp, --help, --version, --port, --no-mcp.
-   - **F11** Annotation panel with filter + resolve + SSE live updates.
-   - **F12** Highlight indicators with severity color + hover-reason + acknowledge.
-   - **F13** Exit-gate verifier execution (shell + manual; query/test schemas accepted, execution stubbed for v0.2).
+   - **F10** CLI: serve (HTTP-only), demo, mcp (stdio-only), --help, --version, --port.
+   - **F11** Annotation panel with filter + resolve (append-only Resolution JSONL) + SSE live updates.
+   - **F12** Highlight indicators with severity color + hover-reason + acknowledge (append-only Acknowledgement JSONL).
+   - **F13** Exit-gate verifier execution (shell + manual). VerifierResult appended to inbox; consumer applies. query/test verifiers accepted as schema but return `precondition_failed` (deferred to v0.2).
 
    ### Limitations
    - Custom consumer registration deferred to v0.2.
    - Verifier kinds `query` and `test` execution deferred to v0.2.
    - Light theme deferred to v0.2.
    - Mobile responsive layout out of scope.
+   - In v0.1, mutation tools require either atomic-skills:project-status consumer or the demo fake-consumer to actually apply changes to entity files. aiDeck itself never writes entity files.
    ```
 
 8. **package.json**:

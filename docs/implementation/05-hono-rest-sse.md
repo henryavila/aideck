@@ -16,11 +16,12 @@ Subir servidor Hono em `127.0.0.1:7777`, expor todos os 10 endpoints da F3 com p
 ## Arquivos a criar/editar
 
 - `src/server/index.ts` — substituir placeholder. Lifecycle: parse args do programa, instancia watcher + event bus + Hono, bind 127.0.0.1:7777, signal handlers para shutdown limpo. Exporta `createServer(opts)` e `start(opts)`.
-- `src/server/routes/api.ts` — rotas REST
+- `src/server/routes/api.ts` — rotas REST (inclui resolve/acknowledge endpoints)
 - `src/server/routes/sse.ts` — rota SSE
+- `src/server/routes/spa.ts` — fallback GET `*` → `dist/client/index.html` para suportar `createWebHistory` do client
 - `src/server/cors.ts` — middleware CORS estrito
 - `src/server/projections/state.ts` — agrega `Plan[] + Initiative[] + AdHocSession[]` em `ProjectStatusState` para o endpoint `/api/state/:consumer`
-- `src/server/projections/inbox.ts` — agrega annotations+highlights+decisions em `InboxItem[]` com cursor por `since`
+- `src/server/projections/inbox.ts` — agrega annotations+highlights+decisions em `InboxItem[]`, aplica `Resolution`/`Acknowledgement` por refId in-memory, cursor por `since`
 - `src/server/projections/consumers.ts` — descobre consumers escaneando `.atomic-skills/*/` e classifica `state: active | empty | error`
 - `src/server/projections/next-action.ts` — calcula `NextActionProjection` (usada por endpoint REST e por MCP tool na etapa 06)
 - `src/server/projections/help.ts` — lê skills do atomic-skills se linkado, fallback static
@@ -58,15 +59,18 @@ Subir servidor Hono em `127.0.0.1:7777`, expor todos os 10 endpoints da F3 com p
    - Para cada skill: `{ name, title, purpose, whenToUse[], whenNotToUse[], examples[], related[], activeInRepo: boolean }`.
    - `activeInRepo` = true se há diretório `.atomic-skills/<skill-name>/` existindo.
 7. `routes/api.ts`:
-   - `GET /api/health` → `{ schemaVersion, status: 'ok', uptimeMs, consumerCount, version }`.
+   - `GET /api/health` → `{ schemaVersion, status: 'ok', uptimeMs, consumerCount, version, demo: boolean }` (demo lê flag file).
    - `GET /api/consumers` → from `projections/consumers`.
    - `GET /api/state/:consumer` → from `buildState(consumer)`.
    - `GET /api/state/:consumer/:slug` → from `buildState(consumer, slug)`.
    - `GET /api/help` → from `projections/help`.
-   - `GET /api/inbox?since=&limit=` → from `projections/inbox` (sem consumer = aggregate).
+   - `GET /api/inbox?since=&limit=` → from `projections/inbox` (sem consumer = aggregate; já agrega Annotation/Highlight/Decision com suas Resolutions/Acknowledgements aplicadas in-memory).
    - `POST /api/annotate` → body validado por `parseAnnotationInput` (Zod). Gera `id` (`ann-YYYY-MM-DD-NNN`, NNN sequencial por dia), `createdAt` agora, appendJsonl, emit `annotation-added`. Retorna 201 com `{ schemaVersion, id, createdAt }`.
    - `POST /api/highlight` → análogo, prefix `hl-`.
    - `POST /api/decision` → análogo, prefix `dec-`.
+   - `POST /api/annotation/:id/resolve` → body `{ by?: 'human' | 'ai' }` (default `'human'`). Append `Resolution` JSONL ao `annotations/YYYY-MM-DD.jsonl` ou `inbox/`. Emit `annotation-resolved`. Retorna 201.
+   - `POST /api/highlight/:id/acknowledge` → análogo, append `Acknowledgement`. Emit `highlight-acknowledged`. Retorna 201.
+   - **SPA fallback**: para qualquer GET cuja path NÃO inicie com `/api/` nem `/sse`, servir `dist/client/index.html` (em produção; em dev, Vite já faz isso). Habilita rotas Vue (`/plans/:slug`, `/initiatives/:slug`, `/help`) sob `createWebHistory()` da etapa 10.
    - Todos os erros → JSON `ErrorResponse` com status apropriado (400 input inválido, 404 not found, 500 io_error).
 8. `routes/sse.ts`:
    - `GET /sse` retorna stream `text/event-stream`.

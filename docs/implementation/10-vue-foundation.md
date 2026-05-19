@@ -62,7 +62,7 @@ Skeleton Vue 3 real: `main.ts`/`App.vue`/`router.ts` substituem placeholders, pi
      - `/plans/:slug` → PlanView (props: `slug`)
      - `/initiatives/:slug` → InitiativeView
      - `/help` → HelpView
-   - `createWebHashHistory()` em vez de `createWebHistory()` — evita configurar fallback no Hono.
+   - **`createWebHistory()`** — URLs limpas (`/plans/v3-redesign` em vez de `/#/plans/v3-redesign`), alinhadas com o smoke da etapa 15. O fallback SPA (qualquer GET fora de `/api/*` e `/sse` → `dist/client/index.html`) é configurado no Hono na etapa 05.
 5. `stores/state.ts`:
    - State: `consumers: Consumer[]`, `currentConsumer: string | null`, `cache: Map<string, Plan | Initiative | ProjectStatusState>` (chave `consumer:slug?`).
    - Actions: `loadConsumers()`, `loadState(consumer, slug?)`, `applyStateChange(consumer, slug, entity)` (chamada por SSE).
@@ -120,7 +120,7 @@ Skeleton Vue 3 real: `main.ts`/`App.vue`/`router.ts` substituem placeholders, pi
 
 ## Notas/decisões
 
-- **`createWebHashHistory`**: simplifica deploy estático. Hono não precisa lidar com SPA fallback. Trade-off: URLs feias com `#`. Aceitável para dashboard local.
+- **`createWebHistory`**: URLs limpas. Requer SPA fallback no Hono (configurado na etapa 05). Em dev (`vite`), Vite já trata o fallback nativamente para rotas SPA; em produção, Hono serve `dist/client/index.html` para qualquer GET fora de `/api/*` e `/sse`.
 - **`theme.css` inline na head** — eliminar FOUC. Vite injeta CSS depois do JS por padrão, causando flash branco. Inlinear apenas a regra `body { background: #0d1117 }` em `index.html` `<style>` resolve.
 - **SSE reconnect**: `EventSource` reconecta sozinho. `lastEventId` browser-managed. Não precisa código extra.
 - **`useApi` retorna `Result`**: mesmo padrão do server. Caller sempre destructura `if (result.ok)`. Sem try/catch.

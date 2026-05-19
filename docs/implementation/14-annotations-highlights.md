@@ -38,10 +38,9 @@ Slide drawer AnnotationPanel à direita (toggleable em qualquer view), com filte
 
 2. `stores/annotations.ts`:
    - State: `byTarget: Map<targetKey, Annotation[]>` (key = `${consumer}:${slug}:${path}`).
-   - Action `loadInbox(consumer?, since?)` chama `apiGet('/api/inbox')`, agrupa.
+   - Action `loadInbox(consumer?, since?)` chama `apiGet('/api/inbox')`, agrupa. O endpoint inbox já agrega `Resolution` JSONL com a annotation original (etapa 05).
    - Action `add(annotation)` chamada por SSE.
-   - Action `resolve(id)` chama `POST /api/annotate` com payload de update? — backend não tem endpoint resolve nativo. **Decisão**: criar endpoint `POST /api/annotate/:id/resolve` no backend (etapa 05 incremento) que faz `mutateJsonl` linhe-a-linha (read all, modify matching, write all). Ou usar MCP tool `aideck_annotate_resolve` (novo). **Em v0.1**: adicionar endpoint REST simples `POST /api/annotate/:id/resolve` que reescreve a linha JSONL com `resolved: true`. Mantém append-only quebrado mas é v0.1 trade-off — documentar.
-   - **Alternativa mais limpa**: append nova linha JSONL com `kind: 'resolution'` e id ref ao original, sem mutar a linha original. O reader (`projections/inbox`) processa resolutions in-memory aggregating com original. **Decisão final**: alternativa mais limpa. Adicionar `Resolution` type ao schema. Etapa 14 adiciona ambos: o reader já existe agregando.
+   - Action `resolve(id)` chama `POST /api/annotation/:id/resolve` (endpoint definido na etapa 05). O backend append `Resolution { kind: 'resolution', refId, by, resolvedAt }` ao JSONL via writer da etapa 04. Schema `Resolution` está em `src/schemas/validators/common.ts` (etapa 02).
    - Getter `forTarget(targetKey)`.
 
 3. `stores/highlights.ts`:
@@ -114,9 +113,9 @@ Slide drawer AnnotationPanel à direita (toggleable em qualquer view), com filte
 
 ## Notas/decisões
 
-- **Resolutions como append-only (não muta linha original)**: preserva Iron Law 1 (append-only) e evita race conditions. Custo: leitura deve agregar (fazer Map por id, aplicar resolution flag). Aceitar overhead — JSONL típico tem <100 linhas/dia. Documentar em `decisions.md`.
-- **Schema `Resolution`**: novo type em `src/schemas/common.ts` (mini): `{ schemaVersion, kind: 'resolution', refId: string, by: 'human' | 'ai', resolvedAt: IsoTimestamp }`. Adicionar Zod schema. Adicionar ao reader de inbox.
-- **Endpoint resolve**: `POST /api/annotation/:id/resolve` (não `annotate/:id/resolve`). Body opcional `{ by }`, default `'human'`.
+- **Resolutions como append-only (não muta linha original)**: preserva Iron Law 1 (append-only) e evita race conditions. Schema, parser, agregação e endpoint REST estão em etapas 02/03/05; etapa 14 apenas consome. Custo: leitura agrega resolutions em-memory (Map por id). JSONL típico tem <100 linhas/dia — barato.
+- **Schemas `Resolution` e `Acknowledgement`**: residem em `src/schemas/validators/common.ts` desde a etapa 02. Etapa 14 não introduz schema novo, só wiring de UI.
+- **Endpoints**: `POST /api/annotation/:id/resolve` e `POST /api/highlight/:id/acknowledge` já existem desde a etapa 05.
 - **`<dialog>` ou drawer custom**: drawer custom (CSS transform/transition) — mais natural para slide. `<dialog>` é mais usado para modal centered.
 - **Hotkey para abrir panel**: `?` ou `]` (estilo Notion). Implementar minimal listener global em App.vue. Não bloquear se omitir.
 - **Empty state visual**: ilustração simples ou apenas texto centralizado.

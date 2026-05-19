@@ -49,6 +49,7 @@ Ler arquivos `.md` (frontmatter YAML + body markdown) e `.jsonl` em `.atomic-ski
      - Retornar `{ items, errors }`.
    - Cada `error` tem `{ line: number; error: ErrorResponse }`.
    - Linhas malformadas vão para `stderr` via `console.error` com path + line number (conforme parser rule 5 em data-format.md).
+   - **Inbox heterogêneo**: arquivos em `inbox/*.jsonl` contêm objetos de tipos mistos (`Annotation`, `Highlight`, `Decision`, `Resolution`, `Acknowledgement`, `IntentRecord`, `IntentApplication`, `VerifierResult`). Cada linha tem `kind` que discrimina. Implementar `parseInboxLine(raw)` que detecta `kind` e delega ao parser correto (Zod discriminatedUnion sobre os 8 schemas). Para `annotations/` e `highlights/`, mantém os parsers específicos.
 5. Testes de `frontmatter.test.ts`:
    - Split correto com `---\nfoo: 1\n---\n# body\n`.
    - Sem frontmatter retorna `null`.

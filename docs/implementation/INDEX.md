@@ -34,13 +34,13 @@ Before executing any step, the agent MUST:
 
 06. [MCP bootstrap + read tools](./06-mcp-read.md) — `@modelcontextprotocol/sdk` server over stdio, tool registration framework, the 7 read tools (`get_state`, `get_plan`, `get_phase`, `get_initiative`, `get_task`, `get_next_action`, `get_dependencies`), Zod-validated inputs, integration tests via MCP test harness. Covers F4 (read half).
 
-07. [MCP mutation tools](./07-mcp-mutate.md) — the 9 mutation tools that write frontmatter back to `plans/*.md` and `initiatives/*.md` (`mark_task_done` with `phaseCompletePrompt`, `update_initiative_status`, `update_next_action`, `push_frame`, `pop_frame`, `park_item`, `emerge_item`, `promote_parked`, `add_task`). Frontmatter writer must preserve narrative body verbatim. Covers F4 (mutate half).
+07. [MCP mutation tools (append-only intents)](./07-mcp-mutate.md) — the 9 mutation tools as **append-only `IntentRecord` JSONL writes to `inbox/`** — aiDeck never mutates `plans/*.md` or `initiatives/*.md` (Iron Law 1). Consumer skill (or demo `fake-consumer`) tails inbox and applies. Tools: `mark_task_done`, `update_initiative_status`, `update_next_action`, `push_frame`, `pop_frame`, `park_item`, `emerge_item`, `promote_parked`, `add_task`. Covers F4 (mutate half).
 
-08. [MCP exit-gate + feedback + meta + verifier execution](./08-mcp-rest-tools.md) — `verify_exit_gate` (shell + manual paths fully working; `query` and `test` schemas accepted but execution returns `not_implemented` with v0.2 hint), `annotate`/`highlight`/`record_decision`/`inbox` (JSONL writes via step 04 writers), `list_consumers`/`health`/`schema_version`. Covers F4 (remainder) + F13 (shell+manual) + data side of F11/F12.
+08. [MCP exit-gate + feedback + meta + verifier execution](./08-mcp-rest-tools.md) — `verify_exit_gate` (shell + manual paths fully working; appends `VerifierResult` JSONL — never mutates frontmatter; `query` and `test` schemas accepted but execution returns `precondition_failed` with v0.2 hint), `annotate`/`highlight`/`record_decision`/`inbox` (JSONL writes via step 04 writers), `list_consumers`/`health`/`schema_version` (toolCount: **24**). Covers F4 (remainder) + F13 (shell+manual) + data side of F11/F12.
 
 ### CLI + demo
 
-09. [CLI + demo seed](./09-cli-demo.md) — `aideck serve [--port=N] [--no-mcp] [--config=path]`, `aideck demo`, `aideck mcp`, `aideck --help`, `aideck --version`. Port collision = exit 1 + suggestion. `demo` copies fixtures to a temp dir, seeds an MCP-discoverable consumer, auto-opens browser via `open`, cleans on SIGINT. Covers F8 + F10.
+09. [CLI + demo seed](./09-cli-demo.md) — `aideck serve [--port=N] [--config=path]` (HTTP-only), `aideck demo` (HTTP + fake-consumer), `aideck mcp` (stdio-only, separate process), `aideck --help`, `aideck --version`. Port collision = exit 1 + suggestion. `demo` copies fixtures to a temp dir, starts HTTP + fake-consumer, auto-opens browser via `open`, cleans on SIGINT. Covers F8 + F10.
 
 ### Frontend
 
@@ -52,7 +52,7 @@ Before executing any step, the agent MUST:
 
 13. [Help page (F7)](./13-help-page.md) — `/help` route reading `/api/help`, SkillCard grid with name/purpose/whenToUse/example, real-time search/filter, expanded card view with related-skills cross-links, copy-command button, frontmatter-missing fallback. Covers F7.
 
-14. [Annotation panel + highlight indicators (F11 + F12)](./14-annotations-highlights.md) — Slide drawer AnnotationPanel (filter by target/author/resolved, resolve button writes via MCP), HighlightBadge component rendered inline on phases/tasks/etc., severity color mapping, hover-reason tooltip, SSE-driven < 200ms updates through pinia. Covers F11 + F12 (UI side).
+14. [Annotation panel + highlight indicators (F11 + F12)](./14-annotations-highlights.md) — Slide drawer AnnotationPanel (filter by target/author/resolved, resolve button calls `POST /api/annotation/:id/resolve` defined in step 05; persists as append-only `Resolution`), HighlightBadge component rendered inline on phases/tasks/etc., severity color mapping, hover-reason tooltip, acknowledge as append-only `Acknowledgement`, SSE-driven < 200ms updates through pinia. Covers F11 + F12 (UI side). Schemas + endpoints + parsers already defined in steps 02/03/05.
 
 ### Closeout
 

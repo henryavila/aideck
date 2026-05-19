@@ -15,11 +15,76 @@ Espelhar os types TypeScript existentes em `src/schemas/*.ts` como schemas Zod r
 
 ## Arquivos a criar/editar
 
-- `src/schemas/validators/common.ts` — Zod schemas para `ArtifactRef`, `Annotation`, `AnnotationTarget`, `Highlight`, `Decision`, `InboxItem`, `ErrorResponse`, `SchemaVersioned`
+- `src/schemas/validators/common.ts` — Zod schemas para `ArtifactRef`, `Annotation`, `AnnotationTarget`, `Highlight`, `Decision`, `InboxItem`, `ErrorResponse`, `SchemaVersioned`, **`Resolution`** (refId → annotation/highlight resolved), **`Acknowledgement`** (refId → highlight acked), **`IntentRecord`** (MCP mutation intent), **`IntentApplication`** (consumer ack de aplicação), **`VerifierResult`** (exit-gate verifier output)
 - `src/schemas/validators/project-status.ts` — Zod schemas para `Plan`, `PhaseDescriptor`, `PhaseExitGate`, `ExitCriterion`, `ExitCriterionVerifier` (discriminated union), `InterPhaseGate`, `PlanSupersedeRef`, `Principle`, `GlossaryTerm`, `Track`, `Initiative`, `InitiativeScope`, `StackFrame`, `Task`, `TaskOutput`, `ParkedItem`, `EmergedItem`, `CrossTaskRef`, `ProjectStatusState`, `AdHocSession`, `NextActionProjection`, `DriftReport`, `HealthReport`
 - `src/schemas/validators/index.ts` — re-exports + `parseOrError<T>(schema, raw): Result<T, ErrorResponse>` helper + `Result<T, E>` type
 - `src/schemas/validators/result.ts` — `Result<T, E> = { ok: true; value: T } | { ok: false; error: E }` + `ok()`/`err()` constructors
+- `src/schemas/common.ts` — adicionar interfaces TS para os 5 novos types (espelhadas pelos validators)
 - `tests/unit/schemas/validators.test.ts` — happy + error paths
+
+**Novos tipos a adicionar em `src/schemas/common.ts`** (TS + Zod):
+
+```ts
+// Resolution — closes an annotation (append-only, never mutates original line)
+export interface Resolution extends SchemaVersioned {
+  kind: 'resolution'
+  refId: string              // ann-XXX id
+  by: 'human' | 'ai'
+  resolvedAt: IsoTimestamp
+  note?: string
+}
+
+// Acknowledgement — closes a highlight
+export interface Acknowledgement extends SchemaVersioned {
+  kind: 'acknowledgement'
+  refId: string              // hl-XXX id
+  by: 'human' | 'ai'
+  acknowledgedAt: IsoTimestamp
+}
+
+// IntentRecord — MCP mutation tool intent (aiDeck appends, consumer skill applies)
+export interface IntentRecord extends SchemaVersioned {
+  kind: 'intent'
+  intentId: string
+  operation:
+    | 'mark_task_done' | 'update_initiative_status' | 'update_next_action'
+    | 'push_frame' | 'pop_frame' | 'park_item' | 'emerge_item'
+    | 'promote_parked' | 'add_task'
+  target: { initiativeSlug?: string; taskId?: string; planSlug?: string; phaseId?: string }
+  args: Record<string, unknown>     // operation-specific
+  by: 'human' | 'ai'
+  requestedAt: IsoTimestamp
+}
+
+// IntentApplication — append from consumer skill confirming the intent was applied
+export interface IntentApplication extends SchemaVersioned {
+  kind: 'intent_application'
+  refId: string              // IntentRecord.intentId
+  appliedAt: IsoTimestamp
+  by: string                 // consumer id (e.g., 'atomic-skills:project-status')
+  result: 'applied' | 'rejected' | 'partial'
+  note?: string
+}
+
+// VerifierResult — exit-gate verifier output, append-only
+export interface VerifierResult extends SchemaVersioned {
+  kind: 'verifier_result'
+  verifierResultId: string
+  criterionRef: {
+    target: 'plan' | 'phase' | 'initiative' | 'task'
+    planSlug?: string
+    initiativeSlug?: string
+    phaseId?: string
+    taskId?: string
+    criterionId: string
+  }
+  result: 'met' | 'pending' | 'deferred'
+  evidence?: string          // truncated stdout for shell verifier
+  verifierOutput?: string    // raw stderr+stdout summary
+  ranAt: IsoTimestamp
+  by: 'human' | 'ai'
+}
+```
 
 ## Passos
 
@@ -44,7 +109,7 @@ Espelhar os types TypeScript existentes em `src/schemas/*.ts` como schemas Zod r
    - Falha → mapear primeiro `ZodError.issues[0]` em `ErrorResponse`:
      - Se path inclui `schemaVersion` e issue é `invalid_literal`: code `schema_version_mismatch`, suggestion `"Run migration: aideck migrate --from=<found> --to=0.1"`.
      - Caso contrário: code `invalid_input`, mensagem com path JSON pointer, suggestion com hint do campo esperado.
-5. Adicionar helpers tipados por entidade no `index.ts`: `parsePlan(raw)`, `parseInitiative(raw)`, `parseAnnotation(raw)`, `parseHighlight(raw)`, `parseDecision(raw)`, `parseInboxItem(raw)`, `parseProjectStatusState(raw)`. Cada um delega ao `parseOrError` com o schema correto.
+5. Adicionar helpers tipados por entidade no `index.ts`: `parsePlan(raw)`, `parseInitiative(raw)`, `parseAnnotation(raw)`, `parseHighlight(raw)`, `parseDecision(raw)`, `parseInboxItem(raw)`, `parseProjectStatusState(raw)`, **`parseResolution(raw)`**, **`parseAcknowledgement(raw)`**, **`parseIntentRecord(raw)`**, **`parseIntentApplication(raw)`**, **`parseVerifierResult(raw)`**. Cada um delega ao `parseOrError` com o schema correto.
 6. Escrever testes em `tests/unit/schemas/validators.test.ts`. Casos mínimos:
    - **Happy (12)**: Plan completo, Plan mínimo (só required), Initiative com parent, Initiative standalone, Task pendente, Task com verifier, Annotation human, Annotation ai, Highlight critical, Decision approve, ExitCriterion shell, ExitCriterion manual.
    - **Erro (8)**: Plan sem `schemaVersion` → `invalid_input`; Plan com `schemaVersion: '0.0.9'` → `schema_version_mismatch` com suggestion contendo "migrate"; PhaseDescriptor sem `goal` → `invalid_input` apontando path `phases.0.goal`; ExitCriterion com `verifier.kind: 'unknown'` → `invalid_input`; Initiative com status inválido; Annotation com author `'bot'` → `invalid_input`; Highlight com severity `'extreme'` → `invalid_input`; payload `null` → `invalid_input`.
