@@ -22,7 +22,7 @@ Before executing any step, the agent MUST:
 
 ### Backend foundation
 
-01. [Foundation + dependencies](./01-foundation-deps.md) — pin missing deps (Zod, pinia, vue-router, marked, mermaid, coverage tooling), create `vitest.config.ts`, scaffold empty directories for every layer, ensure `typecheck` + `test` + `dev:client` all run on a clean checkout.
+01. [Foundation + dependencies](./01-foundation-deps.md) — pin missing deps (Zod, pinia, vue-router, marked, mermaid, coverage tooling), create `vitest.config.ts`, scaffold empty directories for every layer, ensure `typecheck` + `test` + `dev:client` all run on a clean checkout. · done 2026-05-19
 
 02. [Runtime schema validators (Zod)](./02-zod-validators.md) — write Zod schemas mirroring the existing TypeScript types in `src/schemas/*.ts`, expose `parsePlan`/`parseInitiative`/`parseAnnotation`/etc. helpers that return `Result<T, ErrorResponse>` and enforce `schemaVersion === '0.1'`. Covers F1 (validation half).
 

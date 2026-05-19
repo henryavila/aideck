@@ -151,3 +151,28 @@ After cross-model research into production daemons (Ollama, LM Studio, Vite, Wra
 - trbs/pid library (fcntl-based stale handling)
 - Anthropic Claude Code MCP docs (static config, per-session child spawn, no runtime announcement)
 - MCP architecture overview at modelcontextprotocol.io
+
+---
+
+## 2026-05-19 (implementation kickoff) — Etapa 01: foundation deps locked in
+
+First implementation session executed `docs/implementation/01-foundation-deps.md`.
+
+### Picks
+- **Zod 3.x** (not 4) — ecosystem types still reference 3.x; migrate post-v0.1.
+- **Pinia 2.x + vue-router 4.x** — current stable for Vue 3.5; matches existing repo Vue dep.
+- **marked 14.x** — ships its own types in v14; no `@types/marked` needed.
+- **mermaid 11.x** — registered only; will be `import('mermaid')` dynamic in step 11 to avoid ~600KB hit on first paint.
+- **happy-dom 15.x** over jsdom — ~2× faster on Vue component mounts; sufficient for v0.1 test surface.
+- **@vitest/coverage-v8 2.1** — matches vitest 2.1.x already pinned.
+- **`passWithNoTests: true`** in vitest config — required so `npm test` returns 0 before step 02 lands the first test file. Removed implicitly once tests exist (no-op when files present).
+
+### Vite root + tsconfig
+- `vite.config.ts` already had `root: 'src/client'`, so `index.html` lives at `src/client/index.html` and references `/main.ts` (resolved against the Vite root, not project root).
+- Added `src/client/vue-shim.d.ts` declaring `*.vue` modules; needed because `tsc --noEmit` (not vue-tsc) can't resolve SFC imports otherwise.
+
+### Known dev-only CVE noise
+`npm audit` reports 6 moderate + 1 critical against pinned `vite@5.4` (esbuild GHSA-67mh-4wv8-2f99) and `happy-dom@15` (GHSA-37j7-fg3j-429f). All advisories require **major-version bumps** (`vite@8`, `happy-dom@20`). Scope is dev-time only (test runner + local dev server bound to localhost). Holding the pins for v0.1; revisit in v0.2 cleanup. Not a blocker for step 01 per its DoD.
+
+### Server placeholder pattern
+`src/server/index.ts` exits 0 when invoked as entrypoint (so `tsx watch` doesn't crash-loop before step 05 lands the Hono app) but does nothing when imported by tests. Used `import.meta.url === \`file://${process.argv[1]}\`` for the gate — standard Node ESM idiom.

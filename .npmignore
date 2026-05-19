@@ -1,0 +1,16 @@
+# aiDeck publishes only the compiled dist + README + CHANGELOG + LICENSE.
+# package.json "files" is the primary allowlist; this .npmignore is a
+# defensive, redundant denylist so accidental additions to "files" don't
+# leak sources.
+
+src/
+tests/
+fixtures/
+docs/
+.atomic-skills/
+tsconfig.json
+tsconfig.server.json
+vite.config.ts
+vitest.config.ts
+.gitignore
+.github/
