@@ -1,6 +1,6 @@
 import { zodToJsonSchema } from 'zod-to-json-schema'
-import type { ErrorResponse } from '@schemas/common.js'
-import { err } from '@schemas/validators/index.js'
+import type { ErrorResponse } from '../schemas/common.js'
+import { err } from '../schemas/validators/index.js'
 import type { McpToolContext, RegisteredTool } from './types.js'
 
 export interface ToolListEntry {

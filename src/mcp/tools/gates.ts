@@ -1,12 +1,12 @@
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { z } from 'zod'
-import type { ErrorResponse, VerifierResult as VerifierResultRecord } from '@schemas/common.js'
-import { type Result, err, ok } from '@schemas/validators/index.js'
+import type { ErrorResponse, VerifierResult as VerifierResultRecord } from '../../schemas/common.js'
+import { type Result, err, ok } from '../../schemas/validators/index.js'
 import type {
   ExitCriterion,
   ExitCriterionVerifier
-} from '@schemas/project-status.js'
+} from '../../schemas/project-status.js'
 import { parseInitiativeFile, parsePlanFile } from '../../server/parsers/project-status.js'
 import { runVerifier } from '../../server/verifiers/index.js'
 import { appendJsonlLine } from '../../server/writers/jsonl-append.js'

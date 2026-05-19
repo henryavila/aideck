@@ -3,8 +3,8 @@ import type {
   ErrorResponse,
   Highlight,
   IsoTimestamp
-} from '@schemas/common.js'
-import type { Initiative, Plan } from '@schemas/project-status.js'
+} from '../../schemas/common.js'
+import type { Initiative, Plan } from '../../schemas/project-status.js'
 
 export type EntityKind = 'plan' | 'initiative'
 export type ChangeType = 'add' | 'change' | 'unlink'

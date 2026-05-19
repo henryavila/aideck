@@ -1,6 +1,6 @@
 import { readdir } from 'node:fs/promises'
 import { join } from 'node:path'
-import type { IntentApplication, IntentRecord } from '@schemas/common.js'
+import type { IntentApplication, IntentRecord } from '../../schemas/common.js'
 import { parseInboxLine, parseJsonlFile } from '../parsers/jsonl.js'
 
 export interface IntentStatus {

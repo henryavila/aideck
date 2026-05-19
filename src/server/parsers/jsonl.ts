@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises'
-import type { ErrorResponse } from '@schemas/common.js'
+import type { ErrorResponse } from '../../schemas/common.js'
 import {
   type Result,
   err,
@@ -11,7 +11,7 @@ import {
   parseIntentRecord,
   parseResolution,
   parseVerifierResult
-} from '@schemas/validators/index.js'
+} from '../../schemas/validators/index.js'
 
 export interface JsonlParseResult<T> {
   items: T[]

@@ -1,6 +1,6 @@
 import { join } from 'node:path'
-import type { ErrorResponse } from '@schemas/common.js'
-import { type Result, err, ok } from '@schemas/validators/index.js'
+import type { ErrorResponse } from '../../schemas/common.js'
+import { type Result, err, ok } from '../../schemas/validators/index.js'
 import { parseInitiativeFile, parsePlanFile } from '../../server/parsers/project-status.js'
 import { consumerRoot } from '../../server/writers/paths.js'
 

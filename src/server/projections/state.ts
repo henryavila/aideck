@@ -1,8 +1,8 @@
 import { readdir } from 'node:fs/promises'
 import { join } from 'node:path'
-import type { ErrorResponse } from '@schemas/common.js'
-import type { Initiative, Plan, ProjectStatusState } from '@schemas/project-status.js'
-import { type Result, err, ok } from '@schemas/validators/index.js'
+import type { ErrorResponse } from '../../schemas/common.js'
+import type { Initiative, Plan, ProjectStatusState } from '../../schemas/project-status.js'
+import { type Result, err, ok } from '../../schemas/validators/index.js'
 import { parseInitiativeFile, parsePlanFile } from '../parsers/project-status.js'
 import { consumerRoot } from '../writers/paths.js'
 

@@ -8,7 +8,7 @@ import { parseJsonlString } from './parsers/jsonl.js'
 import {
   parseAnnotation,
   parseHighlight
-} from '@schemas/validators/index.js'
+} from '../schemas/validators/index.js'
 
 export interface WatcherOptions {
   rootDir: string

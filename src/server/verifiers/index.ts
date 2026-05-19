@@ -1,6 +1,6 @@
-import type { ErrorResponse } from '@schemas/common.js'
-import type { ExitCriterionVerifier } from '@schemas/project-status.js'
-import { type Result, err, ok } from '@schemas/validators/index.js'
+import type { ErrorResponse } from '../../schemas/common.js'
+import type { ExitCriterionVerifier } from '../../schemas/project-status.js'
+import { type Result, err, ok } from '../../schemas/validators/index.js'
 import { runShellVerifier } from './shell.js'
 
 export interface VerifierOutcome {

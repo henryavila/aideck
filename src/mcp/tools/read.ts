@@ -1,17 +1,17 @@
 import { z } from 'zod'
-import type { ErrorResponse } from '@schemas/common.js'
+import type { ErrorResponse } from '../../schemas/common.js'
 import {
   type Result,
   err,
   ok
-} from '@schemas/validators/index.js'
+} from '../../schemas/validators/index.js'
 import type {
   Initiative,
   Plan,
   PhaseDescriptor,
   ProjectStatusState,
   Task
-} from '@schemas/project-status.js'
+} from '../../schemas/project-status.js'
 import { join } from 'node:path'
 import { parseInitiativeFile, parsePlanFile } from '../../server/parsers/project-status.js'
 import { consumerRoot } from '../../server/writers/paths.js'

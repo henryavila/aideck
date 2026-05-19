@@ -1,8 +1,8 @@
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { z } from 'zod'
-import { annotationTargetSchema } from '@schemas/validators/common.js'
-import { ok } from '@schemas/validators/index.js'
+import { annotationTargetSchema } from '../../schemas/validators/common.js'
+import { ok } from '../../schemas/validators/index.js'
 import { appendJsonlLine } from '../../server/writers/jsonl-append.js'
 import {
   annotationsPathFor,

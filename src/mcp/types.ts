@@ -1,5 +1,5 @@
-import type { ErrorResponse } from '@schemas/common.js'
-import type { Result } from '@schemas/validators/index.js'
+import type { ErrorResponse } from '../schemas/common.js'
+import type { Result } from '../schemas/validators/index.js'
 import type { z } from 'zod'
 
 export interface McpToolContext {

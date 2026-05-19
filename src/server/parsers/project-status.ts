@@ -1,13 +1,13 @@
 import { readFile } from 'node:fs/promises'
 import { parse as parseYaml } from 'yaml'
-import type { ErrorResponse } from '@schemas/common.js'
-import type { Initiative, Plan } from '@schemas/project-status.js'
+import type { ErrorResponse } from '../../schemas/common.js'
+import type { Initiative, Plan } from '../../schemas/project-status.js'
 import {
   type Result,
   err,
   parseInitiative,
   parsePlan
-} from '@schemas/validators/index.js'
+} from '../../schemas/validators/index.js'
 import { splitFrontmatter } from './frontmatter.js'
 
 interface ParsedFrontmatter {

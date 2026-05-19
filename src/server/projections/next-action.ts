@@ -1,4 +1,4 @@
-import type { NextActionProjection, Initiative, Task } from '@schemas/project-status.js'
+import type { NextActionProjection, Initiative, Task } from '../../schemas/project-status.js'
 import { buildAllForConsumer, buildForSlug } from './state.js'
 
 function firstUnblockedPendingTask(initiative: Initiative): Task | undefined {

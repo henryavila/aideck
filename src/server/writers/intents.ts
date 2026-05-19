@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises'
-import type { IntentRecord, IsoTimestamp } from '@schemas/common.js'
+import type { IntentRecord, IsoTimestamp } from '../../schemas/common.js'
 import { appendJsonlLine } from './jsonl-append.js'
 import { inboxPathFor } from './paths.js'
 import type { EventBus } from '../event-bus.js'

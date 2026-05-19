@@ -2,8 +2,8 @@ import { readFile } from 'node:fs/promises'
 import { Hono } from 'hono'
 import type { Context } from 'hono'
 import { z } from 'zod'
-import type { ErrorResponse } from '@schemas/common.js'
-import { annotationTargetSchema } from '@schemas/validators/common.js'
+import type { ErrorResponse } from '../../schemas/common.js'
+import { annotationTargetSchema } from '../../schemas/validators/common.js'
 import { appendJsonlLine } from '../writers/jsonl-append.js'
 import {
   annotationsPathFor,

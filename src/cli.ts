@@ -1,2 +1,175 @@
-// TODO(step09): CLI (serve/demo/mcp/env) implementado na etapa 09.
-export function placeholder(): void {}
+#!/usr/bin/env node
+import { ArgError, parseCliArgs } from './cli/args.js'
+import { HELP_TEXT } from './cli/help.js'
+import { readVersion } from './cli/version.js'
+
+export interface CliRunOptions {
+  argv?: string[]
+  stdout?: NodeJS.WritableStream
+  stderr?: NodeJS.WritableStream
+  /** Test hook: skip `process.exit` so the runner can assert exit codes. */
+  shouldExit?: (code: number) => void
+}
+
+function printHelp(stdout: NodeJS.WritableStream): void {
+  stdout.write(HELP_TEXT)
+}
+
+function printVersion(stdout: NodeJS.WritableStream): void {
+  stdout.write(`${readVersion()}\n`)
+}
+
+async function dispatchServe(parsed: ReturnType<typeof parseCliArgs>, stdout: NodeJS.WritableStream): Promise<number> {
+  const { startServer } = await import('./server/index.js')
+  const { resolvePort, PortInUseError } = await import('./server/port-resolver.js')
+  const { writeEnvFile, removeEnvFile } = await import('./server/env-file.js')
+  try {
+    const port = await resolvePort({
+      requested: parsed.flags.port,
+      isExplicit: parsed.portExplicit
+    })
+    const running = await startServer({ rootDir: process.cwd(), port })
+    const url = `http://127.0.0.1:${running.port}`
+    await writeEnvFile({ url, port: running.port })
+    stdout.write(`aideck serve: listening on ${url}\n`)
+    let stopping = false
+    const shutdown = async (signal: string) => {
+      if (stopping) return
+      stopping = true
+      stdout.write(`aideck serve: received ${signal}, shutting down\n`)
+      await removeEnvFile()
+      await running.stop()
+      process.exit(0)
+    }
+    process.on('SIGINT', () => void shutdown('SIGINT'))
+    process.on('SIGTERM', () => void shutdown('SIGTERM'))
+    return -1 // long-running
+  } catch (cause) {
+    if (cause instanceof PortInUseError) {
+      process.stderr.write(`aideck serve: ${cause.message}. Try --port=<higher>\n`)
+      return 1
+    }
+    process.stderr.write(`aideck serve: ${cause instanceof Error ? cause.message : String(cause)}\n`)
+    return 1
+  }
+}
+
+async function dispatchDemo(parsed: ReturnType<typeof parseCliArgs>, stdout: NodeJS.WritableStream): Promise<number> {
+  const { startServer } = await import('./server/index.js')
+  const { resolvePort, PortInUseError } = await import('./server/port-resolver.js')
+  const { writeEnvFile, removeEnvFile } = await import('./server/env-file.js')
+  const { seedDemo } = await import('./demo/seed.js')
+  const { createFakeConsumer } = await import('./demo/fake-consumer.js')
+  try {
+    const env = await seedDemo()
+    const port = await resolvePort({
+      requested: parsed.flags.port,
+      isExplicit: parsed.portExplicit
+    })
+    const running = await startServer({ rootDir: env.rootDir, port, demo: true })
+    const url = `http://127.0.0.1:${running.port}`
+    await writeEnvFile({ url, port: running.port })
+    const consumer = createFakeConsumer({ rootDir: env.rootDir })
+    await consumer.start()
+    stdout.write(`aideck DEMO mode — ${url} (root=${env.rootDir})\n`)
+
+    if (!process.env.AIDECK_DEMO_NO_OPEN) {
+      try {
+        const { default: open } = await import('open')
+        await open(url)
+      } catch {
+        // Ignore browser-open failures (headless CI).
+      }
+    }
+
+    let stopping = false
+    const shutdown = async (signal: string) => {
+      if (stopping) return
+      stopping = true
+      stdout.write(`aideck demo: received ${signal}, cleaning up\n`)
+      await removeEnvFile()
+      await consumer.stop()
+      await running.stop()
+      await env.cleanup()
+      process.exit(0)
+    }
+    process.on('SIGINT', () => void shutdown('SIGINT'))
+    process.on('SIGTERM', () => void shutdown('SIGTERM'))
+    return -1
+  } catch (cause) {
+    if (cause instanceof PortInUseError) {
+      process.stderr.write(`aideck demo: ${cause.message}. Try --port=<higher>\n`)
+      return 1
+    }
+    process.stderr.write(`aideck demo: ${cause instanceof Error ? cause.message : String(cause)}\n`)
+    return 1
+  }
+}
+
+async function dispatchMcp(): Promise<number> {
+  const { startStdio } = await import('./mcp/index.js')
+  try {
+    await startStdio({ rootDir: process.cwd() })
+    return -1
+  } catch (cause) {
+    process.stderr.write(`aideck mcp: ${cause instanceof Error ? cause.message : String(cause)}\n`)
+    return 1
+  }
+}
+
+async function dispatchEnv(stdout: NodeJS.WritableStream): Promise<number> {
+  const { runEnvCmd } = await import('./cli/env-cmd.js')
+  return runEnvCmd(stdout)
+}
+
+export async function runCli(opts: CliRunOptions = {}): Promise<number> {
+  const stdout = opts.stdout ?? process.stdout
+  const stderr = opts.stderr ?? process.stderr
+  const argv = opts.argv ?? process.argv.slice(2)
+  let parsed: ReturnType<typeof parseCliArgs>
+  try {
+    parsed = parseCliArgs(argv)
+  } catch (cause) {
+    const msg = cause instanceof ArgError
+      ? `${cause.message}${cause.hint ? `\n${cause.hint}` : ''}`
+      : (cause instanceof Error ? cause.message : String(cause))
+    stderr.write(`${msg}\n`)
+    return 1
+  }
+
+  if (parsed.flags.version) {
+    printVersion(stdout)
+    return 0
+  }
+  if (parsed.flags.help || !parsed.subcommand) {
+    printHelp(stdout)
+    return 0
+  }
+
+  switch (parsed.subcommand) {
+    case 'serve':
+      return dispatchServe(parsed, stdout)
+    case 'demo':
+      return dispatchDemo(parsed, stdout)
+    case 'mcp':
+      return dispatchMcp()
+    case 'env':
+      return dispatchEnv(stdout)
+  }
+}
+
+export function placeholder(): void {
+  // Kept so prior re-exports remain compatible during transition.
+}
+
+if (import.meta.url === `file://${process.argv[1]}`) {
+  runCli().then(
+    (code) => {
+      if (code >= 0) process.exit(code)
+    },
+    (cause) => {
+      process.stderr.write(`aideck: ${cause instanceof Error ? cause.message : String(cause)}\n`)
+      process.exit(1)
+    }
+  )
+}

@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { ok } from '@schemas/validators/index.js'
+import { ok } from '../../schemas/validators/index.js'
 import { listConsumers } from '../../server/projections/consumers.js'
 import { buildHealthReport } from '../../server/projections/health.js'
 import type { RegisteredTool } from '../types.js'

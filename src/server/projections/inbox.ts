@@ -8,12 +8,12 @@ import type {
   InboxItem,
   IsoTimestamp,
   Resolution
-} from '@schemas/common.js'
+} from '../../schemas/common.js'
 import {
   parseAnnotation,
   parseDecision,
   parseHighlight
-} from '@schemas/validators/index.js'
+} from '../../schemas/validators/index.js'
 import { parseJsonlFile, parseInboxLine } from '../parsers/jsonl.js'
 import { consumerRoot } from '../writers/paths.js'
 import { listConsumers } from './consumers.js'
