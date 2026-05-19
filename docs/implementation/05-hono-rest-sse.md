@@ -59,7 +59,7 @@ Subir servidor Hono em `127.0.0.1:7777`, expor todos os 10 endpoints da F3 com p
    - Para cada skill: `{ name, title, purpose, whenToUse[], whenNotToUse[], examples[], related[], activeInRepo: boolean }`.
    - `activeInRepo` = true se há diretório `.atomic-skills/<skill-name>/` existindo.
 7. `routes/api.ts`:
-   - `GET /api/health` → `{ schemaVersion, status: 'ok', uptimeMs, consumerCount, version, demo: boolean }` (demo lê flag file).
+   - `GET /api/health` → `{ schemaVersion: '0.1', apiVersion: '0.1', service: 'aideck', version, status: 'ok', uptimeMs, consumerCount, demo: boolean, modes: ['http', 'sse'] }`. **`service: 'aideck'`** é fingerprint para identity check (consumers DEVEM verificar antes de confiar nos outros campos). Padrão Ollama/LM Studio. `modes` documenta capacidades do processo atual.
    - `GET /api/consumers` → from `projections/consumers`.
    - `GET /api/state/:consumer` → from `buildState(consumer)`.
    - `GET /api/state/:consumer/:slug` → from `buildState(consumer, slug)`.
@@ -113,6 +113,7 @@ Subir servidor Hono em `127.0.0.1:7777`, expor todos os 10 endpoints da F3 com p
 
 ## Notas/decisões
 
+- **`/api/health` é o fingerprint endpoint**: padrão usado por Ollama (root retorna "Ollama is running"), LM Studio (`/lmstudio-greeting`). Consumer detecta aiDeck via `service: 'aideck'` no body. Detecção completa documentada em [integration-spec.md § Detection / lifecycle](../integration-spec.md).
 - **`@hono/node-server` `serve`**: aceita `hostname: '127.0.0.1'` para satisfazer Iron Law 4.
 - **`Last-Event-ID` via header HTTP**, não query string — SSE standard. EventSource reenvia automaticamente em reconexão.
 - **Geração de IDs (`ann-YYYY-MM-DD-NNN`)**: sequência por dia — contar linhas existentes no `<consumer>/annotations/YYYY-MM-DD.jsonl` e adicionar 1. Concorrência: race condition baixíssima em single-process; aceitar. Se duas requests simultâneas gerarem mesmo ID, append não corrompe (linhas distintas); na pior hipótese dois items diferentes têm mesmo ID — log warning. v0.2 pode usar UUID.

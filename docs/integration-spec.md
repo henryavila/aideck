@@ -77,109 +77,136 @@ The consumer's skill logic is responsible for:
 
 This guarantees aiDeck cannot race the skill on entity state.
 
-## MCP server lifecycle
+## Process lifecycle
 
-When aiDeck runs (`aideck serve`), it exposes:
-- HTTP server on `127.0.0.1:7777` (dashboard + REST API)
-- MCP server on stdio (for Claude Code, Cursor, etc.) — connect via your IDE's MCP config
+`aideck` has two independent process types — they do not share memory or transport, and either may run without the other:
 
-MCP-only mode (no browser):
-```bash
-aideck mcp
-```
+- `aideck serve` — HTTP daemon (dashboard + REST + SSE) on `127.0.0.1:7777` (or `--port`).
+- `aideck mcp` — MCP server over **stdio**, spawned by an MCP-capable IDE (Claude Code, Cursor, etc.) via the IDE's MCP config. It is NOT a long-running daemon — the IDE owns its lifecycle.
 
-HTTP-only mode (no MCP):
-```bash
-aideck serve --no-mcp
-```
+Both read from the same canonical files and produce the same projections — so a consumer may have one, both, or neither running and the behavior is consistent.
 
 ## Detection / lifecycle (how consumers know aiDeck is running)
 
-aiDeck publishes its presence so consumers can detect it without probing.
+aiDeck v0.1 follows the dominant pattern of local HTTP daemons (Ollama, LM Studio, Vite, Wrangler, n8n): **HTTP probe with a fingerprint endpoint**, plus a minimal env file to bridge non-default port discovery for shell consumers. No PID file, no fcntl lock, no permission gymnastics.
 
-### Runtime file
+### Detection by consumer type
 
-On `aideck serve` (or `aideck mcp` in HTTP+MCP mode) startup, aiDeck writes:
+#### For AI agents in MCP-capable IDEs (Claude Code, Cursor)
+
+Use **MCP tool availability** as the signal — no probing, no file:
 
 ```
-~/.aideck/runtime.json
+If aideck_* MCP tools appear in the AI's tool list:
+  → aiDeck MCP server is registered AND running.
+  → Use MCP tools.
+Otherwise:
+  → Fall back to direct file mutation under .atomic-skills/<consumer>/.
 ```
+
+The IDE handles MCP discovery and lifecycle. aiDeck does nothing extra for this case.
+
+#### For CLI consumers / shell scripts / Tier 2 tools
+
+Use the `/api/health` HTTP probe with a `service` fingerprint. URL/port discovery has 3 progressive fallbacks:
+
+```bash
+# 1. Resolve URL: env var > env file > default
+if [ -n "$AIDECK_URL" ]; then
+  URL="$AIDECK_URL"
+elif [ -f ~/.aideck/env ]; then
+  # shellcheck disable=SC1090
+  . ~/.aideck/env
+  URL="$AIDECK_URL"
+else
+  URL="http://127.0.0.1:7777"
+fi
+
+# 2. Probe with identity check (200ms timeout)
+RESP=$(curl -fsS --max-time 0.2 "$URL/api/health" 2>/dev/null) || {
+  echo "aiDeck unreachable at $URL — falling back to direct file write"
+  exit 0
+}
+
+# 3. Verify it's actually aiDeck (not some other server on the port)
+echo "$RESP" | grep -q '"service":"aideck"' || {
+  echo "$URL responded but is not aiDeck"
+  exit 0
+}
+
+# OK — proceed
+curl -fsS "$URL/api/state/project-status"
+```
+
+Or, equivalently, source via the CLI:
+
+```bash
+eval "$(aideck env 2>/dev/null)"
+curl -fsS --max-time 0.2 "$AIDECK_URL/api/health"
+```
+
+#### For skill markdown files (directive to AI)
+
+```
+Before mutating state files:
+1. If aideck_* MCP tools are available → use them.
+2. Else: probe http://127.0.0.1:${AIDECK_PORT:-7777}/api/health with 200ms timeout.
+   If response body contains "service":"aideck" → use REST API.
+3. Else: write directly to canonical files under .atomic-skills/<consumer>/.
+```
+
+All three paths are valid. MCP is the fast path; HTTP is the medium path; direct file write is the slow-but-always-works path.
+
+### Env file (port discovery aid)
+
+When `aideck serve` binds successfully on port `N`, it writes a 3-line file:
+
+```
+~/.aideck/env
+```
+
+```
+# aiDeck environment — generated, do not edit
+export AIDECK_URL="http://127.0.0.1:7777"
+export AIDECK_PORT=7777
+```
+
+- File mode `0600`, parent dir `0700` (both created with `O_EXCL | O_CREAT, mode` at `open()` — no chmod-after-write, which has produced real credential leaks in similar tools).
+- Removed on graceful shutdown (SIGINT/SIGTERM).
+- Stale after crash: probe `/api/health` fails → consumer falls back to direct file write. **No PID, no liveness check needed** — probe failure IS the liveness check.
+- Multi-instance v0.1: file reflects the last `aideck serve` to start successfully. Multiple instances not supported (deferred to v0.2+).
+
+### Port collision behavior
+
+- Default port (no `--port`): if 7777 is busy, `aideck serve` auto-tries 7778…7787 (10 attempts). Picks the first free port. Updates env file with chosen port. Prints `aiDeck running at http://127.0.0.1:NNNN`.
+- Explicit `--port=N`: if N is busy, `aideck serve` exits 1 (user made an explicit choice; surprise port change would break their setup).
+
+### `/api/health` fingerprint
+
+The endpoint returns:
 
 ```json
 {
   "schemaVersion": "0.1",
   "apiVersion": "0.1",
-  "pid": 12345,
-  "url": "http://127.0.0.1:7777",
-  "port": 7777,
-  "modes": ["http", "sse", "mcp"],
-  "startedAt": "2026-05-19T18:00:00Z",
-  "version": "0.1.0"
+  "service": "aideck",
+  "version": "0.1.0",
+  "status": "ok",
+  "uptimeMs": 12345,
+  "consumerCount": 1,
+  "demo": false,
+  "modes": ["http", "sse"]
 }
 ```
 
-On graceful shutdown (SIGINT, SIGTERM, clean exit): aiDeck removes the file.
+The `service` field is the identity check (Ollama uses "Ollama is running"; LM Studio uses `/lmstudio-greeting`). Consumers MUST verify `service === "aideck"` before trusting other fields.
 
-On crash or `kill -9`: file remains. Consumers MUST verify PID liveness before trusting the URL.
+### What this design does NOT include (and why)
 
-If the user runs multiple aiDeck instances simultaneously (different ports), the runtime file holds the LAST started — `kill -0 $pid` on a stale entry returns failure, so consumers know to ignore stale files.
-
-### Detection patterns
-
-#### For AI agents running inside an MCP-capable IDE (Claude Code, Cursor)
-
-Use **MCP tool availability** as the signal — no probing needed:
-
-```
-If aideck_get_state, aideck_annotate, etc. appear in the AI's tool list:
-  → aiDeck MCP server is registered AND running.
-  → Use MCP tools.
-Otherwise:
-  → Fall back to direct file mutation (canonical files in .atomic-skills/).
-```
-
-The IDE's MCP discovery handles the connection. The AI doesn't need to read `runtime.json`.
-
-#### For CLI consumers / shell scripts
-
-```bash
-# 1. Stat the runtime file
-test -f ~/.aideck/runtime.json || { echo "aiDeck not running"; exit 0; }
-
-# 2. Read URL + PID
-URL=$(jq -r .url ~/.aideck/runtime.json)
-PID=$(jq -r .pid ~/.aideck/runtime.json)
-
-# 3. Verify PID alive (POSIX)
-kill -0 "$PID" 2>/dev/null || { echo "aiDeck pid $PID dead — stale runtime file"; exit 0; }
-
-# 4. Final liveness check via HTTP (200ms timeout)
-curl -fsS --max-time 0.2 "$URL/api/health" >/dev/null || { echo "aiDeck unreachable at $URL"; exit 0; }
-
-# All good — proceed with API calls
-curl -fsS "$URL/api/state/project-status"
-```
-
-#### For skill markdown files (instructions to AI)
-
-Recommended directive in skill source:
-
-> "Before mutating state files, check if `aideck_*` MCP tools are available.
-> If yes: use the appropriate MCP tool (e.g., `aideck_mark_task_done`).
-> If no: write directly to canonical files in `.atomic-skills/<consumer>/`.
-> Both paths are valid — MCP is an optimization, not a requirement."
-
-This graceful-degradation pattern keeps skills compatible with environments where aiDeck is not installed or not running.
-
-### Concurrency / multiple instances
-
-aiDeck v0.1 supports ONE running instance per machine. Starting a second instance writes a new `runtime.json`, overwriting the first. The first instance keeps running but becomes "undiscoverable" via the runtime file.
-
-This is intentional for v0.1 simplicity. Multi-instance discovery (multiple ports, multiple projects) is deferred to v0.2+.
-
-### Permissions
-
-`~/.aideck/` is created with mode `0700` (user-only access). The runtime file is mode `0600`. No other users on the machine can read aiDeck's runtime state.
+- **No PID file**: PID-based liveness has TOCTOU races (kernel recycles PIDs); fcntl locks fix it but add code; for v0.1, probe failure is a sufficient liveness signal.
+- **No JSON manifest with version/modes/pid**: those fields live in `/api/health`. Single source of truth.
+- **No mDNS, no Unix socket, no systemd integration**: each adds platform-specific complexity. v0.1 prefers convention over service discovery.
+- **No multi-instance**: deferred to v0.2+ (would require multi-port env file format).
 
 ## Reference implementation
 

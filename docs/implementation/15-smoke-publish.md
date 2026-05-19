@@ -56,7 +56,13 @@ Validar fim-a-fim que aiDeck v0.1 atende a definition of done composta de [featu
    - `/help` → 12 skill cards (ou conforme atomic-skills disponíveis).
    - Postar annotation via curl: `curl -X POST http://localhost:7777/api/annotate -d '{"consumer":"project-status",...}'` → drawer aparece com nova entrada em < 200ms.
    - Postar highlight: badge aparece inline em < 200ms.
-   - Ctrl+C → tmp dir limpo (verificar `ls /tmp | grep aideck-demo` vazio).
+   - **Detection smoke**:
+     - `ls -la ~/.aideck/env` → existe, mode 0o600.
+     - `cat ~/.aideck/env` → 3 linhas com AIDECK_URL + AIDECK_PORT.
+     - `eval "$(node dist/cli.js env)" && echo "$AIDECK_URL"` → imprime URL correto.
+     - `curl -fsS --max-time 0.2 "$AIDECK_URL/api/health" | jq -r .service` → "aideck".
+   - **Auto-port fallback**: subir um placeholder em 7777 (`python3 -m http.server 7777 &`); rodar `node dist/cli.js demo` sem `--port`; verificar que demo escolheu 7778; env file reflete; matar placeholder e demo.
+   - Ctrl+C → tmp dir limpo + env file removido (verificar `ls /tmp | grep aideck-demo` vazio e `~/.aideck/env` ausente).
 
 4. **Smoke real `.atomic-skills/`** (se disponível):
    - Apontar `aideck serve` para diretório com dados sda-v2 reais (precisar do usuário fornecer ou usar fixture).
@@ -68,9 +74,10 @@ Validar fim-a-fim que aiDeck v0.1 atende a definition of done composta de [featu
      - F5: render plan completo sem overflow.
      - F6: navega initiative; cross-refs funcionam.
      - F7: help page renderiza.
-     - F8: demo cleanup OK; mutation flow no demo funciona (chamada MCP → intent JSONL → fake-consumer aplica → SSE atualiza UI).
+     - F8: demo cleanup OK; mutation flow no demo funciona (chamada MCP → intent JSONL → fake-consumer aplica → SSE atualiza UI); env file criado/removido corretamente.
      - F9: axe DevTools rodando (Chrome extension) — zero violations críticas.
-     - F10: CLI flags todas funcionais (`--no-mcp` foi removida; conferir que não está em help).
+     - F10: CLI flags todas funcionais (`--no-mcp` foi removida; conferir que não está em help; `env` subcommand listado e funcional).
+     - **Detection (integration-spec § Detection)**: `~/.aideck/env` aparece após `aideck serve`, conteúdo correto, removido em SIGINT; auto-port fallback funciona quando 7777 busy + sem --port; explicit --port falha quando porta busy; `/api/health` retorna `service: "aideck"`.
      - F11: panel + resolve OK (Resolution JSONL append-only).
      - F12: badges + acknowledge OK (Acknowledgement JSONL append-only).
      - F13: shell verifier roda comando real (ex.: `git tag | grep core-v2`), output capturado, **`VerifierResult` aparece no inbox JSONL** (entity file não muda — consumer skill aplica).
@@ -107,10 +114,13 @@ Validar fim-a-fim que aiDeck v0.1 atende a definition of done composta de [featu
    - **F7** Help page with skill grid + search/filter + copy command.
    - **F8** Demo mode with seeded fixtures + fake-consumer (applies intents in-tmp) + auto-open browser.
    - **F9** Dark theme (WCAG AA, no FOUC, themed mermaid).
-   - **F10** CLI: serve (HTTP-only), demo, mcp (stdio-only), --help, --version, --port.
+   - **F10** CLI: serve (HTTP-only + env file + auto-port fallback), demo, mcp (stdio-only), env (shell discovery), --help, --version, --port.
    - **F11** Annotation panel with filter + resolve (append-only Resolution JSONL) + SSE live updates.
    - **F12** Highlight indicators with severity color + hover-reason + acknowledge (append-only Acknowledgement JSONL).
    - **F13** Exit-gate verifier execution (shell + manual). VerifierResult appended to inbox; consumer applies. query/test verifiers accepted as schema but return `precondition_failed` (deferred to v0.2).
+
+   ### Detection
+   - Consumer discovery: `/api/health` HTTP probe with `service: "aideck"` fingerprint (200ms timeout); env file `~/.aideck/env` (mode 0600 via O_EXCL) bridges non-default port discovery for shell consumers. No PID file. Full spec in docs/integration-spec.md.
 
    ### Limitations
    - Custom consumer registration deferred to v0.2.
@@ -118,6 +128,7 @@ Validar fim-a-fim que aiDeck v0.1 atende a definition of done composta de [featu
    - Light theme deferred to v0.2.
    - Mobile responsive layout out of scope.
    - In v0.1, mutation tools require either atomic-skills:project-status consumer or the demo fake-consumer to actually apply changes to entity files. aiDeck itself never writes entity files.
+   - Multi-instance (multiple aiDeck daemons on the same machine) not supported in v0.1.
    ```
 
 8. **package.json**:

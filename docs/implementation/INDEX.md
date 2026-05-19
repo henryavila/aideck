@@ -40,7 +40,7 @@ Before executing any step, the agent MUST:
 
 ### CLI + demo
 
-09. [CLI + demo seed](./09-cli-demo.md) — `aideck serve [--port=N] [--config=path]` (HTTP-only), `aideck demo` (HTTP + fake-consumer), `aideck mcp` (stdio-only, separate process), `aideck --help`, `aideck --version`. Port collision = exit 1 + suggestion. `demo` copies fixtures to a temp dir, starts HTTP + fake-consumer, auto-opens browser via `open`, cleans on SIGINT. Covers F8 + F10.
+09. [CLI + demo seed + detection](./09-cli-demo.md) — `aideck serve` (HTTP-only + writes `~/.aideck/env` + auto-port fallback 7777→7787 when default), `aideck demo` (HTTP + fake-consumer + env file), `aideck mcp` (stdio-only, no env file), `aideck env` (prints shell exports), `aideck --help`, `aideck --version`. Explicit `--port` collision = exit 1; default port collision auto-falls-back. Env file uses `O_EXCL|0o600` (no chmod-leak). Detection per [integration-spec § Detection](../integration-spec.md): MCP tool availability for AI; `/api/health` probe + env file for shell. Covers F8 + F10.
 
 ### Frontend
 
