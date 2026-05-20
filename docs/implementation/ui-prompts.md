@@ -444,7 +444,9 @@ OUT OF SCOPE
 Após validar visualmente os 5 briefings, use o botão **"Handoff to Claude Code"** do Claude Design. No prompt do handoff, cole:
 
 ```
-Convert the design system and 5 screens into Vue 3 SFC components for the aiDeck project at https://github.com/henryavila/aideck.
+Convert the design system (https://api.anthropic.com/v1/design/h/pp-aj2rhnPEgQKIA-SVbEA
+) and 5 screens (https://api.anthropic.com/v1/design/h/zoAZGMptu4nxpHWvRBGTKw
+) into Vue 3 SFC components for the aiDeck project at https://github.com/henryavila/aideck.
 
 Production stack constraints (non-negotiable — these are project iron laws):
 
