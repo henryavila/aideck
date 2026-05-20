@@ -1,6 +1,7 @@
 import { zodToJsonSchema } from 'zod-to-json-schema'
 import type { ErrorResponse } from '../schemas/common.js'
 import { err } from '../schemas/validators/index.js'
+import { UnsafeConsumerIdError } from '../server/writers/paths.js'
 import type { McpToolContext, RegisteredTool } from './types.js'
 
 export interface ToolListEntry {
@@ -73,6 +74,9 @@ export class ToolRegistry {
       }
       return errorResult(result.error)
     } catch (cause) {
+      if (cause instanceof UnsafeConsumerIdError) {
+        return errorResult({ code: 'invalid_input', message: cause.message })
+      }
       return errorResult({
         code: 'internal_error',
         message: `tool ${name} threw: ${cause instanceof Error ? cause.message : String(cause)}`
