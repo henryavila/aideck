@@ -127,17 +127,33 @@ aiDeck exposes ~18 MCP tools organized into five categories. The full surface en
 
 ### `aideck_get_dependencies`
 
-**Input**:
+**Input** (scope-discriminated):
 ```typescript
-{ consumer: string; planSlug: string; phaseId?: string; taskId?: string }
+{
+  scope: 'phase' | 'task'
+  consumer: string
+  // scope === 'phase': require planSlug + phaseId
+  planSlug?: string
+  phaseId?: string
+  // scope === 'task': require initiativeSlug + taskId (plan is NOT read)
+  initiativeSlug?: string
+  taskId?: string
+}
 ```
+
+Phase-mode resolves phase dependencies against `Plan.phases[].status === 'done'`.
+Task-mode parses only the initiative and resolves `Task.blockedBy` against
+done sibling tasks. Missing required fields for the chosen scope return
+`invalid_input`.
 
 **Output**:
 ```typescript
 {
+  scope: 'phase' | 'task'
+  id: string              // phase.id or task.id
   resolved: string[]      // satisfied dependencies
   blocking: string[]      // unsatisfied dependencies blocking start
-  blockedBy: string[]     // upstream items
+  blockedBy: string[]     // full upstream list (shape consistent across scopes)
 }
 ```
 
@@ -151,23 +167,28 @@ aiDeck exposes ~18 MCP tools organized into five categories. The full surface en
   consumer: string
   initiativeSlug: string
   taskId: string
-  verifierResult?: { passed: boolean; evidence?: string }
+  verifierResultId?: string   // refId of a prior verifier_result inbox record
+  by?: 'human' | 'ai'         // default: 'ai'
 }
 ```
 
 **Output**:
 ```typescript
 {
-  closed: boolean
-  phaseCompletePrompt?: {
-    phaseId: string
-    pendingGates: ExitCriterion[]
-    nextPhaseSuggestion?: string
-  }
+  intentId: string
+  recordedAt: IsoTimestamp
+  accepted: true
+  note: string
+  phaseCompleteHint?: { initiativeSlug: string; remaining: number; lastTaskId: string }
 }
 ```
 
-**Side effect**: writes to `<consumer-root>/initiatives/<slug>.md` (frontmatter mutation). If the closed task was the last pending task in the phase, the response includes a `phaseCompletePrompt` for the AI to confirm phase transition.
+**Side effect**: appends an `IntentRecord` JSONL line to
+`<consumer-root>/inbox/<YYYY-MM-DD>.jsonl`. aiDeck does **NOT** mutate
+`initiatives/<slug>.md` (Iron Law 1). The consumer skill tails inbox and
+applies. Tool returns `precondition_failed` if the initiative file is missing
+or unparsable. `phaseCompleteHint` is populated when the marked task was the
+last non-done task in the initiative.
 
 ---
 
@@ -293,35 +314,47 @@ Warning emitted when `depth > maxStackDepthWarning`.
 
 ### `aideck_verify_exit_gate`
 
-Runs a criterion verifier (or accepts a manual ack) and updates status.
+Runs a criterion verifier (or accepts a manual ack) and **appends a
+`VerifierResult` JSONL record to `inbox/`**. aiDeck does not mutate the
+entity file — the consumer skill projects the record into canonical state.
 
 **Input**:
 ```typescript
 {
   consumer: string
-  target: 'plan' | 'phase' | 'initiative' | 'task'
-  planSlug?: string
-  initiativeSlug?: string
-  phaseId?: string
-  taskId?: string
+  target: 'phase' | 'initiative' | 'task'   // 'plan' removed in post-review fixes
+  planSlug?: string         // required when target === 'phase'
+  initiativeSlug?: string   // required when target === 'initiative' | 'task'
+  phaseId?: string          // required when target === 'phase'
+  taskId?: string           // required when target === 'task'
   criterionId: string
-  result?: 'met' | 'deferred' | 'pending'
-  deferredReason?: string
+  result?: 'met' | 'pending' | 'deferred'
+  deferredReason?: string   // required when result === 'deferred'
   evidence?: string
+  timeoutMs?: number        // shell verifier ceiling; runs in own process group
+  by?: 'human' | 'ai'       // default: 'ai'
 }
 ```
 
 **Output**:
 ```typescript
 {
-  status: GateStatus
+  result: 'met' | 'pending' | 'deferred'
   verifierRan: boolean
   verifierOutput?: string
-  allGatesMet: boolean
+  evidence?: string
+  allGatesMet: boolean      // canonical status + prior inbox verifier_result records
+  verifierResultId: string  // refId for downstream aideck_mark_task_done
 }
 ```
 
-If verifier exists and `result` not provided, aiDeck runs it (shell/query/test) and reports `verifierOutput`. If verifier is `manual`, `result` is required.
+If verifier exists and `result` not provided, aiDeck runs it. Shell verifiers
+run in their own process group so timeout kills the whole tree. If verifier
+is `manual`, `result` is required. `query` and `test` verifier kinds parse
+but return `precondition_failed` (v0.2). `allGatesMet` is computed from
+canonical siblings AND the latest prior `verifier_result` for each sibling
+in inbox/, so a sequence of verifications converges to `true` without needing
+the consumer to re-write the entity file between calls.
 
 ---
 
@@ -330,11 +363,9 @@ If verifier exists and `result` not provided, aiDeck runs it (shell/query/test) 
 **Input**:
 ```typescript
 {
-  consumer: string
-  slug?: string
-  targetPath: string
+  target: { consumer: string; slug?: string; path: string }
   body: string
-  author: 'human' | 'ai'
+  author?: 'human' | 'ai'   // default: 'ai'
 }
 ```
 
@@ -349,16 +380,16 @@ If verifier exists and `result` not provided, aiDeck runs it (shell/query/test) 
 **Input**:
 ```typescript
 {
-  consumer: string
-  slug?: string
-  targetPath: string
+  target: { consumer: string; slug?: string; path: string }
   reason: string
   severity: 'info' | 'warn' | 'critical'
-  source: 'human' | 'ai'
+  source?: 'human' | 'ai'   // default: 'ai'
 }
 ```
 
 **Output**: `{ id: string; createdAt: IsoTimestamp }`.
+
+**Side effect**: appends to `<consumer-root>/highlights/<YYYY-MM-DD>.jsonl`.
 
 ---
 
@@ -367,16 +398,18 @@ If verifier exists and `result` not provided, aiDeck runs it (shell/query/test) 
 **Input**:
 ```typescript
 {
-  consumer: string
-  slug?: string
-  targetPath: string
+  target: { consumer: string; slug?: string; path: string }
   decision: 'approve' | 'reject' | 'block' | 'defer'
   reason?: string
-  by: 'human' | 'ai'
+  by?: 'human' | 'ai'       // default: 'ai'
 }
 ```
 
 **Output**: `{ id: string; createdAt: IsoTimestamp }`.
+
+**Side effect**: appends a `kind: 'decision'` line to
+`<consumer-root>/inbox/<YYYY-MM-DD>.jsonl`. (Iron Law 1: only `annotations/`,
+`highlights/`, and `inbox/` are writable. Decisions ride the inbox stream.)
 
 ---
 

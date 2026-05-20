@@ -193,6 +193,8 @@ Zod's `z.literal('0.1')` emits `code: 'invalid_literal'` for **both** cases — 
 
 This matters because users hitting an old payload need to know to run `aideck migrate`, while users hitting a malformed payload need to know to fix the field — different next actions.
 
+> **Revised 2026-05-20** (see post-review fix entry below): missing `schemaVersion` is now also classified as `schema_version_mismatch` (with `found: "missing"`). The original "missing → invalid_input" distinction was unhelpful — both cases need the same migration path. Tests updated accordingly.
+
 ### Coverage scope clarification
 
 The global 70% threshold in `vitest.config.ts` is computed across `src/schemas/**`, `src/server/**`, `src/mcp/**`. With only step 02 landed, placeholder files (`src/server/index.ts`, `src/mcp/index.ts`, `src/schemas/index.ts` barrel) show 0% — but the validators cover enough to push the global numbers above 70 (97/86/96/97). When steps 04-08 land real code those placeholders go away.
@@ -200,3 +202,130 @@ The global 70% threshold in `vitest.config.ts` is computed across `src/schemas/*
 ### `passWithNoTests: true` removed
 
 Closes F-001 from `.atomic-skills/reviews/2026-05-19-1539-aideck-step01-scaffold.md` as documented in that review's "Fixes applied" log. Coverage gate now actually enforces thresholds because tests exist.
+
+---
+
+## 2026-05-20 — Post-review fixes (commit 7c59168, all 40 findings)
+
+After the 8-scope parallel cross-model code review of `69144b6..HEAD`
+(`.atomic-skills/reviews/2026-05-19-2210-aideck-backend-phase.md`,
+2 critical + 36 major + 6 minor), all findings were addressed in a single
+commit. Below: the load-bearing design decisions that emerged.
+
+### Path traversal: validate at the root
+
+Every MCP and HTTP call site eventually passes a `consumer` string to
+`consumerRoot(rootDir, consumerId)`. Validation lives **in that function**
+(`SAFE_CONSUMER_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/`) and throws
+`UnsafeConsumerIdError`. Each surface translates that to its native error
+shape (HTTP `400 invalid_input`, MCP `invalid_input`). Defense in depth +
+fail-closed: any future caller is protected without remembering to validate.
+
+### Decisions live in `inbox/` (not `decisions/`)
+
+Iron Law #1 limits aiDeck writes to `annotations/`, `highlights/`, `inbox/`.
+The original `/api/decision` and `aideck_record_decision` wrote to a fourth
+directory (`decisions/`), violating the contract. Fix: decisions become
+`kind: 'decision'` inbox records — semantically they are signals about
+state, which is exactly what inbox is for. The aggregated inbox projection
+still surfaces them under `kind === 'decision'` to callers.
+
+### Hostname option removed entirely
+
+`startServer({ hostname })` allowed binding to arbitrary interfaces,
+violating Iron Law #4 (localhost-only). The option was removed from the
+public API rather than validated — there is no legitimate reason to allow
+non-localhost bind in v0.1, so providing the knob invites misuse. The
+constant `LOCALHOST = '127.0.0.1'` is now hard-coded in `startServer`.
+
+### IDs become UUID-based, not file-line-counted
+
+Previous ID schemes (`ann-<day>-001`, `int-<day>-001`, etc.) counted
+existing JSONL lines and incremented. Under concurrent appenders this
+generates duplicates — two `aideck_annotate` calls racing on the same
+daily file both read count=N and emit `ann-<day>-(N+1)`. Fix: every ID
+becomes `<prefix>-<YYYY-MM-DD>-<8 hex chars of UUIDv4>`. Collision-resistant
+without locks; the day prefix preserves human-readable ordering for the
+common case.
+
+### Intent record becomes discriminated by `operation`
+
+Before: `intentRecord.args: z.record(z.unknown())` — operations could be
+recorded with empty or wrong `target` and `args`, polluting the append-only
+log. After: `z.discriminatedUnion('operation', [...9 members])` where each
+operation pins the required target and args shape. The writer-side ergonomics
+shift: `appendIntent({ intent: IntentPayload })` takes a single discriminated
+payload rather than separate `operation/target/args` parameters.
+
+Same pattern applied to `inboxItemSchema` (discriminated on `kind`) and
+`verifierResult.criterionRef` (discriminated on `target`, with `'plan'`
+removed since plan-level verification was advertised in the schema but
+never implemented — a half-finished implementation forbidden by Iron Law #5).
+
+### MCP tool input must be a plain object
+
+`@modelcontextprotocol/sdk` validates that `tool.inputSchema.type === 'object'`.
+A `z.discriminatedUnion(...)` produces `{ anyOf: [...] }` at the JSON Schema
+level — no `type: 'object'` at the top. Result: tool registration crashes
+with a `$ZodError` at the SDK boundary. Compromise: the tool *input schema*
+stays a single strict object with discriminator + optional fields, and the
+handler enforces the per-discriminator required fields, returning
+`invalid_input` on mismatch. Applies to `aideck_get_dependencies`.
+
+### Watcher buffers unterminated trailing lines
+
+The previous cursor advanced through every byte seen, including the
+trailing unterminated fragment of an interrupted append. The completed line
+on the next change event was parsed as a suffix-only string and never
+emitted as a record. Fix: `JsonlState` carries a `pending: string` for the
+fragment after the last `\n`. The cursor only advances through complete
+lines.
+
+### `appendJsonlLine` serializes per-path
+
+POSIX guarantees atomic `write(2)` under `PIPE_BUF` (4 KB) with `O_APPEND`.
+For larger payloads (annotation bodies with long quotes, verifier outputs)
+or concurrent same-process appenders, this is not enough. Fix: in-process
+`Map<path, Promise<void>>` chain. Each `appendJsonlLine(path, ...)` queues
+behind the previous one for the same `path`. Hard cap at 64 KB per line
+(`JsonlLineTooLargeError`) — beyond that, the per-FS atomicity ceiling on
+non-Linux/macOS becomes the limiting factor and silent corruption beats
+typing the records into a different shape, so we refuse.
+
+### Shell verifier runs in its own process group
+
+`spawn('bash', ['-c', cmd])` runs the shell as a single process, but
+typical commands (test runners, package scripts) fork children. A
+SIGTERM/SIGKILL to the shell PID leaves the children running. Fix:
+`spawn(..., { detached: true })` creates a new process group; on timeout
+we send the signal to `-pid` (negative PID == process group). Falls back
+to `child.kill()` if the group is already gone.
+
+### `allGatesMet` reads canonical + inbox
+
+`aideck_verify_exit_gate` writes its outcome to inbox/ and never edits the
+entity file. Previously `allGatesMet` looked only at canonical sibling
+status from the parsed file at call time — so two sequential verifications
+both returned `allGatesMet: false` because the consumer skill hadn't yet
+projected the first one back into the entity file. Fix: scan inbox/ for
+`verifier_result` records and use the latest per criterion ID, falling
+back to canonical for siblings without any inbox record.
+
+### Fake-consumer stays in `src/demo/` (renamed semantics, not relocated)
+
+The fake-consumer simulates what an external consumer skill does in
+production. In `aideck demo` it runs in-process — that's the only place in
+the aiDeck package that writes to entity files. Technically a violation of
+Iron Law #1 if read narrowly. The fix is documentary: the file's docblock
+makes the boundary explicit ("SIMULATED EXTERNAL CONSUMER (demo only)") and
+the per-file processing chain prevents the race condition where rapid
+intent appends race on entity reads. The intent stream is now validated
+through `parseIntentRecord` (Zod) before application; malformed lines get
+a `rejected` IntentApplication record so the audit trail captures them.
+
+### `pathToFileURL(process.argv[1]).href` for ESM main check
+
+`import.meta.url === \`file://${process.argv[1]}\`` fails when the install
+path contains characters needing URL encoding (`%20` for spaces, etc.) —
+`import.meta.url` is percent-encoded, the template-literal version is not.
+`pathToFileURL` does the encoding correctly.

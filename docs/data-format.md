@@ -24,6 +24,8 @@ aiDeck reads canonical data from `.atomic-skills/<consumer>/` directories. This 
 
 aiDeck writes ONLY to `annotations/`, `highlights/`, `inbox/`. Entity files (`plans/*`, `initiatives/*`) are owned by the consumer's skill — aiDeck never mutates them.
 
+> **Consumer IDs are validated.** Any `consumer` value used in HTTP/MCP inputs must match `/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/` — single safe path segment, no `..`, no separators. Unsafe IDs throw `UnsafeConsumerIdError` (HTTP: `400 invalid_input`; MCP: `invalid_input`). This prevents path traversal at the root of `consumerRoot()`.
+
 ## Frontmatter convention
 
 Entity files use **YAML frontmatter** delimited by `---`. Body below the second `---` is markdown narrative.
@@ -350,13 +352,19 @@ and `:102-110`. ...
 
 ## JSONL formats
 
+Every JSONL record carries `schemaVersion: '0.1'`. Records without it are
+rejected with `schema_version_mismatch` (found: `"missing"`). Timestamps are
+ISO-8601 with offset (`Z` or `+HH:MM`), validated with Zod
+`.datetime({ offset: true })`. IDs are `<prefix>-<YYYY-MM-DD>-<8 hex chars>`
+(UUID-based, collision-resistant across concurrent writers).
+
 ### Annotations
 
 `.atomic-skills/project-status/annotations/2026-05-19.jsonl`:
 
 ```jsonl
-{"schemaVersion":"0.1","id":"ann-2026-05-19-001","target":{"consumer":"project-status","slug":"v3-redesign","path":"phases.F2.tasks.T-005"},"author":"ai","body":"Need to verify unicode normalization for emoji edge cases.","createdAt":"2026-05-19T14:32:11Z"}
-{"schemaVersion":"0.1","id":"ann-2026-05-19-002","target":{"consumer":"project-status","slug":"v3-f0-foundation-repair","path":"exitGates.F0-G2"},"author":"human","body":"This query might be expensive on 50M rows. Consider indexed view.","createdAt":"2026-05-19T15:01:00Z","resolved":false}
+{"schemaVersion":"0.1","id":"ann-2026-05-19-a1b2c3d4","target":{"consumer":"project-status","slug":"v3-redesign","path":"phases.F2.tasks.T-005"},"author":"ai","body":"Need to verify unicode normalization for emoji edge cases.","createdAt":"2026-05-19T14:32:11Z"}
+{"schemaVersion":"0.1","id":"ann-2026-05-19-e5f6a7b8","target":{"consumer":"project-status","slug":"v3-f0-foundation-repair","path":"exitGates.F0-G2"},"author":"human","body":"This query might be expensive on 50M rows. Consider indexed view.","createdAt":"2026-05-19T15:01:00Z","resolved":false}
 ```
 
 ### Highlights
@@ -364,18 +372,35 @@ and `:102-110`. ...
 `.atomic-skills/project-status/highlights/2026-05-19.jsonl`:
 
 ```jsonl
-{"schemaVersion":"0.1","id":"hl-2026-05-19-001","target":{"consumer":"project-status","slug":"v3-redesign","path":"phases.F3"},"reason":"Detected drift: writes touched F3 paths while currentPhase is F0.","severity":"warn","source":"ai","createdAt":"2026-05-19T16:42:00Z"}
+{"schemaVersion":"0.1","id":"hl-2026-05-19-9c8d7e6f","target":{"consumer":"project-status","slug":"v3-redesign","path":"phases.F3"},"reason":"Detected drift: writes touched F3 paths while currentPhase is F0.","severity":"warn","source":"ai","createdAt":"2026-05-19T16:42:00Z"}
 ```
 
 ### Inbox
 
 `.atomic-skills/project-status/inbox/2026-05-19.jsonl`:
 
-aiDeck aggregates entries from annotations + highlights + decisions into the inbox stream. Consumers tail this stream via `aideck_inbox` MCP tool (or by reading the file).
+The inbox is the **heterogeneous** stream. Each line is one of:
+`intent`, `intent_application`, `resolution`, `acknowledgement`,
+`verifier_result`, `annotation`, `highlight`, `decision`. Lines are
+discriminated by `kind`. Decisions land here (not in a separate `decisions/`
+directory) to honor Iron Law #1.
 
 ```jsonl
-{"schemaVersion":"0.1","id":"inb-2026-05-19-001","consumer":"project-status","kind":"annotation","payload":{"id":"ann-2026-05-19-002","author":"human","body":"This query might be expensive...","createdAt":"2026-05-19T15:01:00Z"},"createdAt":"2026-05-19T15:01:00Z"}
+{"schemaVersion":"0.1","kind":"intent","intentId":"int-2026-05-19-7a8b9c0d","operation":"mark_task_done","target":{"initiativeSlug":"v3-f0","taskId":"T-005"},"args":{"verifierResultId":"vr-2026-05-19-a1b2c3d4"},"by":"ai","requestedAt":"2026-05-19T16:00:00Z"}
+{"schemaVersion":"0.1","kind":"verifier_result","verifierResultId":"vr-2026-05-19-a1b2c3d4","criterionRef":{"target":"phase","planSlug":"v3-redesign","phaseId":"F0","criterionId":"F0.G1"},"result":"met","evidence":"npm test exit 0","ranAt":"2026-05-19T15:58:00Z","by":"ai"}
+{"schemaVersion":"0.1","kind":"decision","id":"dec-2026-05-19-f1e2d3c4","target":{"consumer":"project-status","slug":"v3-f0","path":"exitGates.F0-G2"},"decision":"defer","reason":"awaiting data team","by":"human","createdAt":"2026-05-19T16:30:00Z"}
 ```
+
+`intent` records use a **discriminated union on `operation`** — each operation
+fixes the required shape of `target` and `args` (e.g. `mark_task_done`
+requires `taskId`, `update_initiative_status` requires `args.status`). See
+`src/schemas/validators/common.ts:intentRecordSchema`.
+
+`verifier_result.criterionRef` is **discriminated on `target`**:
+- `target: 'phase'` → requires `planSlug + phaseId + criterionId`.
+- `target: 'initiative'` → requires `initiativeSlug + criterionId`.
+- `target: 'task'` → requires `initiativeSlug + taskId + criterionId`.
+(`target: 'plan'` was removed in post-review fixes; plan-level verification is not v0.1 scope.)
 
 ## Verifier serialization
 
@@ -428,8 +453,22 @@ Verifier execution rules (per F13 contract):
 ## Parser rules
 
 1. Parse frontmatter with a YAML 1.2 parser (`yaml` npm package).
-2. Validate against TypeScript types from `@henryavila/aideck/schemas`.
-3. If `schemaVersion` ≠ `0.1`: emit `schema_version_mismatch` error with suggestion.
-4. Body is preserved verbatim; aiDeck renders it as markdown in the dashboard.
-5. JSONL: parse line-by-line; skip malformed lines but log the line number to stderr.
+2. Validate against Zod schemas from `@henryavila/aideck/schemas`.
+3. If `schemaVersion` is **missing** OR **not `'0.1'`**: emit
+   `schema_version_mismatch` error. Missing case reports `found: "missing"`
+   with suggestion to add the field; non-`'0.1'` case reports the offending
+   value with `aideck migrate --from=<X> --to=0.1` suggestion.
+4. Canonical schemas (`planSchema`, `initiativeSchema`, `projectStatusStateSchema`,
+   `annotationSchema`, `highlightSchema`, `decisionSchema`, `intentRecordSchema`,
+   `verifierResultSchema`, etc.) are `.strict()` — unknown keys reject as
+   `invalid_input` rather than being silently stripped.
+5. Body is preserved verbatim; aiDeck renders it as markdown in the dashboard.
+6. JSONL: parse line-by-line; the watcher buffers unterminated trailing
+   fragments and advances its cursor only through newline-terminated lines,
+   so partial appends are picked up on the next change event. Schema
+   violations and JSON parse errors are reported via `logSink` (stderr by
+   default) and accumulated in the `errors[]` array of the result.
+7. JSONL writes are serialized per-path via in-process promise chain and
+   capped at 64 KB per line (`JsonlLineTooLargeError`) so concurrent
+   appenders cannot interleave records.
 6. Append-only logs MUST be appended atomically (open in `a` mode, write+newline+flush).
