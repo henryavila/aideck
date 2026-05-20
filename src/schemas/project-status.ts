@@ -116,6 +116,19 @@ export interface ExitCriterion {
   status: GateStatus
   metAt?: IsoTimestamp
   deferredReason?: string
+  /** Optional verification trace populated when the criterion has been run.
+   *  Mirrors the verifier-workflow output and is rendered by the dashboard's
+   *  ExitGatesCard. Always optional for backward compat with pre-evidence data. */
+  evidence?: EvidenceBlock
+}
+
+export interface EvidenceBlock {
+  verifierKind: 'shell' | 'query' | 'test' | 'manual'
+  verifiedAt: IsoTimestamp
+  passed?: boolean
+  exitCode?: number
+  rowCount?: number
+  outputSummary?: string
 }
 
 export type ExitCriterionVerifier =

@@ -272,6 +272,114 @@ describe('parsePlan — error', () => {
   })
 })
 
+describe('exitCriterionSchema — evidence', () => {
+  it('accepts a shell evidence block with full fields', () => {
+    const res = parseOrError(exitCriterionSchema, {
+      id: 'G1',
+      description: 'tests green',
+      status: 'met',
+      metAt: TS,
+      verifier: { kind: 'shell', command: 'npm test', expectExitCode: 0 },
+      evidence: {
+        verifierKind: 'shell',
+        verifiedAt: TS,
+        passed: true,
+        exitCode: 0,
+        outputSummary: '152 passed, 1 flaky'
+      }
+    })
+    expect(res.ok).toBe(true)
+  })
+
+  it('accepts a manual evidence block with only required fields', () => {
+    const res = parseOrError(exitCriterionSchema, {
+      id: 'G2',
+      description: 'a11y AA',
+      status: 'met',
+      metAt: TS,
+      evidence: { verifierKind: 'manual', verifiedAt: TS }
+    })
+    expect(res.ok).toBe(true)
+  })
+
+  it('accepts a query evidence block with rowCount', () => {
+    const res = parseOrError(exitCriterionSchema, {
+      id: 'G3',
+      description: 'no orphan rows',
+      status: 'met',
+      metAt: TS,
+      evidence: {
+        verifierKind: 'query',
+        verifiedAt: TS,
+        passed: true,
+        rowCount: 0,
+        outputSummary: 'select count(*) where orphan returned 0'
+      }
+    })
+    expect(res.ok).toBe(true)
+  })
+
+  it('rejects an evidence block missing verifiedAt', () => {
+    const res = parseOrError(exitCriterionSchema, {
+      id: 'G4',
+      description: 'broken',
+      status: 'pending',
+      evidence: { verifierKind: 'manual' } as unknown as Record<string, unknown>
+    })
+    expect(res.ok).toBe(false)
+  })
+
+  it('rejects an evidence block with verifierKind "invalid"', () => {
+    const res = parseOrError(exitCriterionSchema, {
+      id: 'G5',
+      description: 'broken kind',
+      status: 'pending',
+      evidence: {
+        verifierKind: 'invalid',
+        verifiedAt: TS
+      } as unknown as Record<string, unknown>
+    })
+    expect(res.ok).toBe(false)
+  })
+
+  it('rejects an evidence block with negative rowCount', () => {
+    const res = parseOrError(exitCriterionSchema, {
+      id: 'G6',
+      description: 'bad row count',
+      status: 'pending',
+      evidence: {
+        verifierKind: 'query',
+        verifiedAt: TS,
+        rowCount: -1
+      }
+    })
+    expect(res.ok).toBe(false)
+  })
+
+  it('still accepts an ExitCriterion without evidence (backward-compat)', () => {
+    const res = parseOrError(exitCriterionSchema, {
+      id: 'G7',
+      description: 'legacy',
+      status: 'pending'
+    })
+    expect(res.ok).toBe(true)
+  })
+
+  it('rejects an evidence block with unknown extra fields (strict)', () => {
+    const res = parseOrError(exitCriterionSchema, {
+      id: 'G8',
+      description: 'extras',
+      status: 'pending',
+      evidence: {
+        verifierKind: 'shell',
+        verifiedAt: TS,
+        whoRan: 'henry'
+      } as unknown as Record<string, unknown>
+    })
+    expect(res.ok).toBe(false)
+  })
+})
+
 describe('exit-gate verifier — error', () => {
   it('rejects an ExitCriterion with verifier.kind "unknown" as invalid_input', () => {
     const res = parseOrError(exitCriterionSchema, {

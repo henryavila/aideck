@@ -33,6 +33,17 @@ export const exitCriterionVerifierSchema = z.discriminatedUnion('kind', [
   })
 ])
 
+export const evidenceBlockSchema = z
+  .object({
+    verifierKind: z.enum(['shell', 'query', 'test', 'manual']),
+    verifiedAt: isoTimestampSchema,
+    passed: z.boolean().optional(),
+    exitCode: z.number().int().optional(),
+    rowCount: z.number().int().nonnegative().optional(),
+    outputSummary: z.string().optional()
+  })
+  .strict()
+
 export const exitCriterionSchema = z
   .object({
     id: z.string(),
@@ -40,7 +51,8 @@ export const exitCriterionSchema = z
     verifier: exitCriterionVerifierSchema.optional(),
     status: gateStatusSchema,
     metAt: isoTimestampSchema.optional(),
-    deferredReason: z.string().optional()
+    deferredReason: z.string().optional(),
+    evidence: evidenceBlockSchema.optional()
   })
   .strict()
 

@@ -436,6 +436,34 @@ Verifier execution rules (per F13 contract):
 - `query` and `test` schemas land in v0.1 but execution is stubbed (returns error: `not_implemented`).
 - Full execution arrives in v0.2.
 
+## Evidence block (optional)
+
+When a consumer (e.g. the `project-status` skill) executes a verifier workflow against an `ExitCriterion`, it MAY persist an inline `evidence` block on the criterion. The dashboard's ExitGatesCard renders this trace; aiDeck treats it as read-only data.
+
+Shape:
+
+```yaml
+exitGates:
+  - id: F0-G1
+    description: 'Tag git `core-v2` criada'
+    verifier: { kind: shell, command: 'git tag | grep core-v2' }
+    status: met
+    metAt: '2026-05-19T15:58:00Z'
+    evidence:
+      verifierKind: shell        # REQUIRED: shell | query | test | manual
+      verifiedAt: '2026-05-19T15:58:00Z'  # REQUIRED, ISO8601
+      passed: true               # optional
+      exitCode: 0                # optional (shell)
+      rowCount: 0                # optional (query, >= 0)
+      outputSummary: 'tag core-v2 found at refs/tags/core-v2'  # optional
+```
+
+Notes:
+- `evidence` is **fully optional** — pre-existing criteria without it parse unchanged.
+- `verifierKind` and `verifiedAt` are the only required sub-fields.
+- The MCP `aideck_verify_exit_gate` tool writes a separate `VerifierResult` record into the JSONL append-only log; that is the canonical execution audit trail. The inline `evidence` block is a derived snapshot the consumer skill may also write to the criterion, intended purely for rendering.
+- Validator is strict: unknown sub-fields are rejected.
+
 ## Field-level mapping (schema TS → YAML)
 
 | TS field | YAML location in entity file |
