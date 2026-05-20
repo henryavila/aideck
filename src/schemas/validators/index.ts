@@ -60,11 +60,12 @@ function suggestFromIssue(issue: ZodIssue): string | undefined {
 }
 
 function isSchemaVersionMismatch(issue: ZodIssue): boolean {
-  if (issue.code !== 'invalid_literal') return false
   if (issue.path.length === 0) return false
   const last = issue.path[issue.path.length - 1]
-  if (last !== SCHEMA_VERSION_PATH_TAIL || issue.expected !== '0.1') return false
-  return 'received' in issue && issue.received !== undefined
+  if (last !== SCHEMA_VERSION_PATH_TAIL) return false
+  if (issue.code === 'invalid_literal' && issue.expected === '0.1') return true
+  if (issue.code === 'invalid_type' && issue.received === 'undefined') return true
+  return false
 }
 
 export interface ParseContext {
@@ -84,14 +85,20 @@ export function parseOrError<T>(
   const path = pointer(issue.path)
 
   if (isSchemaVersionMismatch(issue)) {
-    const found =
-      'received' in issue && typeof issue.received === 'string'
-        ? issue.received
-        : 'unknown'
+    let found: string
+    if (issue.code === 'invalid_type') {
+      found = 'missing'
+    } else if ('received' in issue && typeof issue.received === 'string') {
+      found = issue.received
+    } else {
+      found = 'unknown'
+    }
     return err({
       code: 'schema_version_mismatch',
       message: `schemaVersion mismatch at "${path}": expected "0.1", received ${JSON.stringify(found)}`,
-      suggestion: `Run migration: aideck migrate --from=${found} --to=0.1`,
+      suggestion: found === 'missing'
+        ? 'Add `schemaVersion: \'0.1\'` to this record.'
+        : `Run migration: aideck migrate --from=${found} --to=0.1`,
       details: contextDetails(context, { path, found })
     })
   }

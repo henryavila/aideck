@@ -46,9 +46,9 @@ describe('parseJsonlString — error handling', () => {
   it('skips a malformed JSON line and keeps surrounding valid lines', () => {
     const sink: string[] = []
     const raw = [
-      '{"id":"a","target":{"consumer":"x","path":"p"},"author":"ai","body":"ok","createdAt":"2026-01-01"}',
+      '{"schemaVersion":"0.1","id":"a","target":{"consumer":"x","path":"p"},"author":"ai","body":"ok","createdAt":"2026-01-01T00:00:00Z"}',
       '{ not valid json',
-      '{"id":"b","target":{"consumer":"x","path":"p"},"author":"human","body":"ok","createdAt":"2026-01-02"}'
+      '{"schemaVersion":"0.1","id":"b","target":{"consumer":"x","path":"p"},"author":"human","body":"ok","createdAt":"2026-01-02T00:00:00Z"}'
     ].join('\n')
     const res = parseJsonlString(raw, parseAnnotation, '<test>', captured(sink))
     expect(res.items).toHaveLength(2)
@@ -61,7 +61,7 @@ describe('parseJsonlString — error handling', () => {
   it('records schema-violating lines under errors with the correct line number', () => {
     const sink: string[] = []
     const raw = [
-      '{"id":"a","target":{"consumer":"x","path":"p"},"author":"bot","body":"oops","createdAt":"2026-01-01"}'
+      '{"schemaVersion":"0.1","id":"a","target":{"consumer":"x","path":"p"},"author":"bot","body":"oops","createdAt":"2026-01-01T00:00:00Z"}'
     ].join('\n')
     const res = parseJsonlString(raw, parseAnnotation, '<schema>', captured(sink))
     expect(res.items).toHaveLength(0)
@@ -97,7 +97,7 @@ describe('parseInboxLine — discriminated by `kind`', () => {
       schemaVersion: '0.1',
       kind: 'verifier_result',
       verifierResultId: 'vr-1',
-      criterionRef: { target: 'phase', phaseId: 'F0', criterionId: 'F0.G1' },
+      criterionRef: { target: 'phase', planSlug: 'v3', phaseId: 'F0', criterionId: 'F0.G1' },
       result: 'met',
       ranAt: '2026-05-19T12:00:00Z',
       by: 'ai'
@@ -122,6 +122,7 @@ describe('parseInboxLine — discriminated by `kind`', () => {
     await writeFile(
       tmp,
       JSON.stringify({
+        schemaVersion: '0.1',
         kind: 'annotation',
         id: 'ann-1',
         target: { consumer: 'project-status', path: 'tasks.T-1' },

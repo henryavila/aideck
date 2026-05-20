@@ -29,19 +29,13 @@ export async function parseJsonlFile<T>(
   try {
     raw = await readFile(path, 'utf8')
   } catch (cause) {
-    return {
-      items: [],
-      errors: [
-        {
-          line: 0,
-          error: {
-            code: 'io_error',
-            message: `failed to read file: ${path}`,
-            details: { cause: String(cause) }
-          }
-        }
-      ]
+    const error = {
+      code: 'io_error' as const,
+      message: `failed to read file: ${path}`,
+      details: { cause: String(cause) }
     }
+    logSink(`[aideck] line:0 path:${path} ${error.message}`)
+    return { items: [], errors: [{ line: 0, error }] }
   }
   return parseJsonlString(raw, validate, path, logSink)
 }
@@ -127,25 +121,39 @@ export function parseInboxLine(raw: unknown): Result<InboxLine, ErrorResponse> {
   }
   const kindRaw = (raw as { kind?: unknown }).kind
   if (!isInboxKind(kindRaw)) {
+    let repr: string
+    try {
+      repr = JSON.stringify(kindRaw) ?? String(kindRaw)
+    } catch {
+      repr = `<${typeof kindRaw}>`
+    }
     return err({
       code: 'invalid_input',
-      message: `inbox line missing or invalid \`kind\` (got ${JSON.stringify(kindRaw)})`,
+      message: `inbox line missing or invalid \`kind\` (got ${repr})`,
       suggestion: `kind must be one of: ${INBOX_KINDS.join(', ')}`
     })
   }
   const kind: InboxKind = kindRaw
 
+  // annotation/highlight/decision records don't have a `kind` discriminator
+  // field in their canonical shape — strip it before delegating to the strict validator.
+  const withoutKind = (() => {
+    const obj = raw as Record<string, unknown>
+    const { kind: _k, ...rest } = obj
+    return rest
+  })()
+
   switch (kind) {
     case 'annotation': {
-      const r = parseAnnotation(raw)
+      const r = parseAnnotation(withoutKind)
       return r.ok ? { ok: true, value: { kind, value: r.value } } : r
     }
     case 'highlight': {
-      const r = parseHighlight(raw)
+      const r = parseHighlight(withoutKind)
       return r.ok ? { ok: true, value: { kind, value: r.value } } : r
     }
     case 'decision': {
-      const r = parseDecision(raw)
+      const r = parseDecision(withoutKind)
       return r.ok ? { ok: true, value: { kind, value: r.value } } : r
     }
     case 'resolution': {

@@ -1,9 +1,10 @@
 import { join } from 'node:path'
 import { z } from 'zod'
 import type { ErrorResponse, IntentRecord } from '../../schemas/common.js'
+import type { Initiative } from '../../schemas/project-status.js'
 import { type Result, err, ok } from '../../schemas/validators/index.js'
 import { parseInitiativeFile } from '../../server/parsers/project-status.js'
-import { appendIntent, type IntentReceipt } from '../../server/writers/intents.js'
+import { appendIntent, type IntentPayload, type IntentReceipt } from '../../server/writers/intents.js'
 import { consumerRoot } from '../../server/writers/paths.js'
 import type { McpToolContext, RegisteredTool } from '../types.js'
 
@@ -22,19 +23,13 @@ function defineTool<TIn, TOut>(t: RegisteredTool<TIn, TOut>): RegisteredTool {
 async function record(
   ctx: McpToolContext,
   consumer: string,
-  operation: IntentRecord['operation'],
-  target: IntentRecord['target'],
-  args: IntentRecord['args'],
-  by: 'human' | 'ai',
+  intent: IntentPayload,
   extra: Partial<MutateReceipt> = {}
 ): Promise<Result<MutateReceipt, ErrorResponse>> {
   const receipt = await appendIntent({
     consumerRoot: consumerRoot(ctx.rootDir, consumer),
     consumerId: consumer,
-    operation,
-    target,
-    args,
-    by
+    intent
   })
   return ok({
     ...receipt,
@@ -44,17 +39,25 @@ async function record(
   })
 }
 
-const baseTarget = z.object({
-  consumer: z.string(),
-  initiativeSlug: z.string()
-})
+async function requireInitiative(
+  ctx: McpToolContext,
+  consumer: string,
+  initiativeSlug: string
+): Promise<Result<Initiative, ErrorResponse>> {
+  const initPath = join(consumerRoot(ctx.rootDir, consumer), 'initiatives', `${initiativeSlug}.md`)
+  return parseInitiativeFile(initPath)
+}
 
-const planTarget = z.object({
-  consumer: z.string(),
-  planSlug: z.string()
-})
+const baseTarget = z
+  .object({
+    consumer: z.string(),
+    initiativeSlug: z.string()
+  })
+  .strict()
 
 const byField = z.enum(['human', 'ai']).default('ai')
+
+type Operation = IntentRecord['operation']
 
 export const mutateTools: ReadonlyArray<RegisteredTool> = [
   defineTool({
@@ -64,29 +67,29 @@ export const mutateTools: ReadonlyArray<RegisteredTool> = [
       taskId: z.string(),
       verifierResultId: z.string().optional(),
       by: byField
-    }),
+    }).strict(),
     async handler(input, ctx) {
-      // Optionally compute a phaseCompleteHint by reading current state.
       let phaseCompleteHint: MutateReceipt['phaseCompleteHint'] | undefined
-      const initPath = join(consumerRoot(ctx.rootDir, input.consumer), 'initiatives', `${input.initiativeSlug}.md`)
-      const r = await parseInitiativeFile(initPath)
-      if (r.ok) {
-        const remaining = r.value.tasks.filter((t) => t.status !== 'done' && t.id !== input.taskId).length
-        if (remaining === 0) {
-          phaseCompleteHint = {
-            initiativeSlug: input.initiativeSlug,
-            remaining,
-            lastTaskId: input.taskId
-          }
+      const initiativeRes = await requireInitiative(ctx, input.consumer, input.initiativeSlug)
+      if (!initiativeRes.ok) return initiativeRes
+      const initiative = initiativeRes.value
+      const remaining = initiative.tasks.filter((t) => t.status !== 'done' && t.id !== input.taskId).length
+      if (remaining === 0) {
+        phaseCompleteHint = {
+          initiativeSlug: input.initiativeSlug,
+          remaining,
+          lastTaskId: input.taskId
         }
       }
       return record(
         ctx,
         input.consumer,
-        'mark_task_done',
-        { initiativeSlug: input.initiativeSlug, taskId: input.taskId },
-        input.verifierResultId ? { verifierResultId: input.verifierResultId } : {},
-        input.by ?? "ai",
+        {
+          operation: 'mark_task_done' satisfies Operation,
+          target: { initiativeSlug: input.initiativeSlug, taskId: input.taskId },
+          args: input.verifierResultId ? { verifierResultId: input.verifierResultId } : {},
+          by: input.by ?? 'ai'
+        },
         phaseCompleteHint ? { phaseCompleteHint } : {}
       )
     }
@@ -99,15 +102,19 @@ export const mutateTools: ReadonlyArray<RegisteredTool> = [
       status: z.enum(['pending', 'active', 'paused', 'done', 'archived']),
       reason: z.string().optional(),
       by: byField
-    }),
+    }).strict(),
     async handler(input, ctx) {
+      const initiativeRes = await requireInitiative(ctx, input.consumer, input.initiativeSlug)
+      if (!initiativeRes.ok) return initiativeRes
       return record(
         ctx,
         input.consumer,
-        'update_initiative_status',
-        { initiativeSlug: input.initiativeSlug },
-        { status: input.status, ...(input.reason ? { reason: input.reason } : {}) },
-        input.by ?? "ai"
+        {
+          operation: 'update_initiative_status',
+          target: { initiativeSlug: input.initiativeSlug },
+          args: { status: input.status, ...(input.reason ? { reason: input.reason } : {}) },
+          by: input.by ?? 'ai'
+        }
       )
     }
   }),
@@ -118,15 +125,19 @@ export const mutateTools: ReadonlyArray<RegisteredTool> = [
     inputSchema: baseTarget.extend({
       nextAction: z.string().nullable(),
       by: byField
-    }),
+    }).strict(),
     async handler(input, ctx) {
+      const initiativeRes = await requireInitiative(ctx, input.consumer, input.initiativeSlug)
+      if (!initiativeRes.ok) return initiativeRes
       return record(
         ctx,
         input.consumer,
-        'update_next_action',
-        { initiativeSlug: input.initiativeSlug },
-        { nextAction: input.nextAction },
-        input.by ?? "ai"
+        {
+          operation: 'update_next_action',
+          target: { initiativeSlug: input.initiativeSlug },
+          args: { nextAction: input.nextAction },
+          by: input.by ?? 'ai'
+        }
       )
     }
   }),
@@ -138,21 +149,23 @@ export const mutateTools: ReadonlyArray<RegisteredTool> = [
       title: z.string(),
       type: z.enum(['task', 'research', 'validation', 'discussion']),
       by: byField
-    }),
+    }).strict(),
     async handler(input, ctx) {
-      let warning: string | undefined
-      const initPath = join(consumerRoot(ctx.rootDir, input.consumer), 'initiatives', `${input.initiativeSlug}.md`)
-      const r = await parseInitiativeFile(initPath)
-      if (r.ok && r.value.stack.length >= 5) {
-        warning = `stack depth is ${r.value.stack.length}; consider popping a frame before pushing another`
-      }
+      const initiativeRes = await requireInitiative(ctx, input.consumer, input.initiativeSlug)
+      if (!initiativeRes.ok) return initiativeRes
+      const initiative = initiativeRes.value
+      const warning = initiative.stack.length >= 5
+        ? `stack depth is ${initiative.stack.length}; consider popping a frame before pushing another`
+        : undefined
       return record(
         ctx,
         input.consumer,
-        'push_frame',
-        { initiativeSlug: input.initiativeSlug },
-        { title: input.title, type: input.type },
-        input.by ?? "ai",
+        {
+          operation: 'push_frame',
+          target: { initiativeSlug: input.initiativeSlug },
+          args: { title: input.title, type: input.type },
+          by: input.by ?? 'ai'
+        },
         warning ? { warning } : {}
       )
     }
@@ -164,11 +177,12 @@ export const mutateTools: ReadonlyArray<RegisteredTool> = [
     inputSchema: baseTarget.extend({
       destination: z.string().optional(),
       by: byField
-    }),
+    }).strict(),
     async handler(input, ctx): Promise<Result<MutateReceipt, ErrorResponse>> {
-      const initPath = join(consumerRoot(ctx.rootDir, input.consumer), 'initiatives', `${input.initiativeSlug}.md`)
-      const r = await parseInitiativeFile(initPath)
-      if (r.ok && r.value.stack.length === 0) {
+      const initiativeRes = await requireInitiative(ctx, input.consumer, input.initiativeSlug)
+      if (!initiativeRes.ok) return initiativeRes
+      const initiative = initiativeRes.value
+      if (initiative.stack.length === 0) {
         return err({
           code: 'precondition_failed',
           message: 'cannot pop from an empty stack',
@@ -178,10 +192,12 @@ export const mutateTools: ReadonlyArray<RegisteredTool> = [
       return record(
         ctx,
         input.consumer,
-        'pop_frame',
-        { initiativeSlug: input.initiativeSlug },
-        input.destination ? { destination: input.destination } : {},
-        input.by ?? "ai"
+        {
+          operation: 'pop_frame',
+          target: { initiativeSlug: input.initiativeSlug },
+          args: input.destination ? { destination: input.destination } : {},
+          by: input.by ?? 'ai'
+        }
       )
     }
   }),
@@ -192,15 +208,19 @@ export const mutateTools: ReadonlyArray<RegisteredTool> = [
     inputSchema: baseTarget.extend({
       title: z.string(),
       by: byField
-    }),
+    }).strict(),
     async handler(input, ctx) {
+      const initiativeRes = await requireInitiative(ctx, input.consumer, input.initiativeSlug)
+      if (!initiativeRes.ok) return initiativeRes
       return record(
         ctx,
         input.consumer,
-        'park_item',
-        { initiativeSlug: input.initiativeSlug },
-        { title: input.title },
-        input.by ?? "ai"
+        {
+          operation: 'park_item',
+          target: { initiativeSlug: input.initiativeSlug },
+          args: { title: input.title },
+          by: input.by ?? 'ai'
+        }
       )
     }
   }),
@@ -211,8 +231,10 @@ export const mutateTools: ReadonlyArray<RegisteredTool> = [
     inputSchema: baseTarget.extend({
       title: z.string(),
       by: byField
-    }),
+    }).strict(),
     async handler(input, ctx) {
+      const initiativeRes = await requireInitiative(ctx, input.consumer, input.initiativeSlug)
+      if (!initiativeRes.ok) return initiativeRes
       const slug = input.title
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')
@@ -220,10 +242,12 @@ export const mutateTools: ReadonlyArray<RegisteredTool> = [
       return record(
         ctx,
         input.consumer,
-        'emerge_item',
-        { initiativeSlug: input.initiativeSlug },
-        { title: input.title },
-        input.by ?? "ai",
+        {
+          operation: 'emerge_item',
+          target: { initiativeSlug: input.initiativeSlug },
+          args: { title: input.title },
+          by: input.by ?? 'ai'
+        },
         { suggestion: { newInitiativeSlug: slug } }
       )
     }
@@ -235,29 +259,30 @@ export const mutateTools: ReadonlyArray<RegisteredTool> = [
     inputSchema: baseTarget.extend({
       parkedTitleOrIndex: z.union([z.string(), z.number().int().nonnegative()]),
       by: byField
-    }),
+    }).strict(),
     async handler(input, ctx): Promise<Result<MutateReceipt, ErrorResponse>> {
-      const initPath = join(consumerRoot(ctx.rootDir, input.consumer), 'initiatives', `${input.initiativeSlug}.md`)
-      const r = await parseInitiativeFile(initPath)
-      if (r.ok) {
-        const found = typeof input.parkedTitleOrIndex === 'number'
-          ? input.parkedTitleOrIndex < r.value.parked.length
-          : r.value.parked.some((p) => p.title === input.parkedTitleOrIndex)
-        if (!found) {
-          return err({
-            code: 'precondition_failed',
-            message: `parked item not found: ${JSON.stringify(input.parkedTitleOrIndex)}`,
-            suggestion: `current parked count: ${r.value.parked.length}`
-          })
-        }
+      const initiativeRes = await requireInitiative(ctx, input.consumer, input.initiativeSlug)
+      if (!initiativeRes.ok) return initiativeRes
+      const initiative = initiativeRes.value
+      const found = typeof input.parkedTitleOrIndex === 'number'
+        ? input.parkedTitleOrIndex < initiative.parked.length
+        : initiative.parked.some((p) => p.title === input.parkedTitleOrIndex)
+      if (!found) {
+        return err({
+          code: 'precondition_failed',
+          message: `parked item not found: ${JSON.stringify(input.parkedTitleOrIndex)}`,
+          suggestion: `current parked count: ${initiative.parked.length}`
+        })
       }
       return record(
         ctx,
         input.consumer,
-        'promote_parked',
-        { initiativeSlug: input.initiativeSlug },
-        { parked: input.parkedTitleOrIndex },
-        input.by ?? "ai"
+        {
+          operation: 'promote_parked',
+          target: { initiativeSlug: input.initiativeSlug },
+          args: { parked: input.parkedTitleOrIndex },
+          by: input.by ?? 'ai'
+        }
       )
     }
   }),
@@ -270,22 +295,23 @@ export const mutateTools: ReadonlyArray<RegisteredTool> = [
       description: z.string().optional(),
       verifier: z.unknown().optional(),
       by: byField
-    }),
+    }).strict(),
     async handler(input, ctx) {
-      const args: Record<string, unknown> = { title: input.title }
+      const initiativeRes = await requireInitiative(ctx, input.consumer, input.initiativeSlug)
+      if (!initiativeRes.ok) return initiativeRes
+      const args: { title: string; description?: string; verifier?: unknown } = { title: input.title }
       if (input.description) args.description = input.description
       if (input.verifier) args.verifier = input.verifier
       return record(
         ctx,
         input.consumer,
-        'add_task',
-        { initiativeSlug: input.initiativeSlug },
-        args,
-        input.by ?? "ai"
+        {
+          operation: 'add_task',
+          target: { initiativeSlug: input.initiativeSlug },
+          args,
+          by: input.by ?? 'ai'
+        }
       )
     }
   })
 ]
-
-// planTarget is declared above for future cross-plan mutation tools (none in v0.1).
-void planTarget

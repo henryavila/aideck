@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises'
+import { randomUUID } from 'node:crypto'
 import { Hono } from 'hono'
 import type { Context } from 'hono'
 import { z } from 'zod'
@@ -9,7 +9,8 @@ import {
   annotationsPathFor,
   consumerRoot,
   highlightsPathFor,
-  inboxPathFor
+  inboxPathFor,
+  UnsafeConsumerIdError
 } from '../writers/paths.js'
 import { listConsumers } from '../projections/consumers.js'
 import { buildAllForConsumer, buildForSlug } from '../projections/state.js'
@@ -17,7 +18,6 @@ import { projectInbox } from '../projections/inbox.js'
 import { projectNextAction } from '../projections/next-action.js'
 import { projectHelp } from '../projections/help.js'
 import type { EventBus } from '../event-bus.js'
-import { join } from 'node:path'
 
 export interface ApiDeps {
   rootDir: string
@@ -56,46 +56,49 @@ async function readBody(c: Context): Promise<unknown> {
   }
 }
 
-async function nextDailyId(prefix: string, path: string): Promise<string> {
+function nextDailyId(prefix: string): string {
   const day = new Date().toISOString().slice(0, 10)
-  let count = 0
-  try {
-    const raw = await readFile(path, 'utf8')
-    count = raw.split('\n').filter((l) => l.trim() !== '').length
-  } catch {
-    // missing file → start at 0
-  }
-  return `${prefix}-${day}-${String(count + 1).padStart(3, '0')}`
+  return `${prefix}-${day}-${randomUUID().slice(0, 8)}`
 }
 
-const annotationInputSchema = z.object({
-  target: annotationTargetSchema,
-  author: z.enum(['human', 'ai']),
-  body: z.string()
-})
+const annotationInputSchema = z
+  .object({
+    target: annotationTargetSchema,
+    author: z.enum(['human', 'ai']),
+    body: z.string()
+  })
+  .strict()
 
-const highlightInputSchema = z.object({
-  target: annotationTargetSchema,
-  reason: z.string(),
-  severity: z.enum(['info', 'warn', 'critical']),
-  source: z.enum(['human', 'ai'])
-})
+const highlightInputSchema = z
+  .object({
+    target: annotationTargetSchema,
+    reason: z.string(),
+    severity: z.enum(['info', 'warn', 'critical']),
+    source: z.enum(['human', 'ai'])
+  })
+  .strict()
 
-const decisionInputSchema = z.object({
-  target: annotationTargetSchema,
-  decision: z.enum(['approve', 'reject', 'block', 'defer']),
-  reason: z.string().optional(),
-  by: z.enum(['human', 'ai'])
-})
+const decisionInputSchema = z
+  .object({
+    target: annotationTargetSchema,
+    decision: z.enum(['approve', 'reject', 'block', 'defer']),
+    reason: z.string().optional(),
+    by: z.enum(['human', 'ai'])
+  })
+  .strict()
 
-const resolutionInputSchema = z.object({
-  by: z.enum(['human', 'ai']).default('human'),
-  note: z.string().optional()
-})
+const resolutionInputSchema = z
+  .object({
+    by: z.enum(['human', 'ai']).default('human'),
+    note: z.string().optional()
+  })
+  .strict()
 
-const ackInputSchema = z.object({
-  by: z.enum(['human', 'ai']).default('human')
-})
+const ackInputSchema = z
+  .object({
+    by: z.enum(['human', 'ai']).default('human')
+  })
+  .strict()
 
 export function createApiRouter(deps: ApiDeps): Hono {
   const app = new Hono()
@@ -169,11 +172,19 @@ export function createApiRouter(deps: ApiDeps): Hono {
       }, 400)
     }
     const consumer = parsed.data.target.consumer
-    const dir = consumerRoot(deps.rootDir, consumer)
+    let dir: string
+    try {
+      dir = consumerRoot(deps.rootDir, consumer)
+    } catch (e) {
+      if (e instanceof UnsafeConsumerIdError) {
+        return errResp(c, { code: 'invalid_input', message: e.message }, 400)
+      }
+      throw e
+    }
     const path = annotationsPathFor(dir)
-    const id = await nextDailyId('ann', path)
+    const id = nextDailyId('ann')
     const createdAt = new Date().toISOString()
-    const annotation = { ...parsed.data, id, createdAt }
+    const annotation = { schemaVersion: '0.1' as const, ...parsed.data, id, createdAt }
     await appendJsonlLine(path, annotation)
     deps.eventBus.emit({ kind: 'annotation-added', consumer, annotation })
     return c.json({ schemaVersion: '0.1', id, createdAt }, 201)
@@ -189,11 +200,19 @@ export function createApiRouter(deps: ApiDeps): Hono {
       }, 400)
     }
     const consumer = parsed.data.target.consumer
-    const dir = consumerRoot(deps.rootDir, consumer)
+    let dir: string
+    try {
+      dir = consumerRoot(deps.rootDir, consumer)
+    } catch (e) {
+      if (e instanceof UnsafeConsumerIdError) {
+        return errResp(c, { code: 'invalid_input', message: e.message }, 400)
+      }
+      throw e
+    }
     const path = highlightsPathFor(dir)
-    const id = await nextDailyId('hl', path)
+    const id = nextDailyId('hl')
     const createdAt = new Date().toISOString()
-    const highlight = { ...parsed.data, id, createdAt }
+    const highlight = { schemaVersion: '0.1' as const, ...parsed.data, id, createdAt }
     await appendJsonlLine(path, highlight)
     deps.eventBus.emit({ kind: 'highlight-added', consumer, highlight })
     return c.json({ schemaVersion: '0.1', id, createdAt }, 201)
@@ -209,11 +228,20 @@ export function createApiRouter(deps: ApiDeps): Hono {
       }, 400)
     }
     const consumer = parsed.data.target.consumer
-    const dir = consumerRoot(deps.rootDir, consumer)
-    const path = join(dir, 'decisions', `${new Date().toISOString().slice(0, 10)}.jsonl`)
-    const id = await nextDailyId('dec', path)
+    let dir: string
+    try {
+      dir = consumerRoot(deps.rootDir, consumer)
+    } catch (e) {
+      if (e instanceof UnsafeConsumerIdError) {
+        return errResp(c, { code: 'invalid_input', message: e.message }, 400)
+      }
+      throw e
+    }
+    const path = inboxPathFor(dir)
+    const id = nextDailyId('dec')
     const createdAt = new Date().toISOString()
-    await appendJsonlLine(path, { ...parsed.data, id, createdAt })
+    const decision = { schemaVersion: '0.1' as const, kind: 'decision' as const, ...parsed.data, id, createdAt }
+    await appendJsonlLine(path, decision)
     return c.json({ schemaVersion: '0.1', id, createdAt }, 201)
   })
 
@@ -225,7 +253,15 @@ export function createApiRouter(deps: ApiDeps): Hono {
       return errResp(c, { code: 'invalid_input', message: 'invalid resolution payload' }, 400)
     }
     const consumer = c.req.query('consumer') ?? 'project-status'
-    const path = inboxPathFor(consumerRoot(deps.rootDir, consumer))
+    let path: string
+    try {
+      path = inboxPathFor(consumerRoot(deps.rootDir, consumer))
+    } catch (e) {
+      if (e instanceof UnsafeConsumerIdError) {
+        return errResp(c, { code: 'invalid_input', message: e.message }, 400)
+      }
+      throw e
+    }
     const resolution = {
       schemaVersion: '0.1' as const,
       kind: 'resolution' as const,
@@ -246,7 +282,15 @@ export function createApiRouter(deps: ApiDeps): Hono {
       return errResp(c, { code: 'invalid_input', message: 'invalid acknowledgement payload' }, 400)
     }
     const consumer = c.req.query('consumer') ?? 'project-status'
-    const path = inboxPathFor(consumerRoot(deps.rootDir, consumer))
+    let path: string
+    try {
+      path = inboxPathFor(consumerRoot(deps.rootDir, consumer))
+    } catch (e) {
+      if (e instanceof UnsafeConsumerIdError) {
+        return errResp(c, { code: 'invalid_input', message: e.message }, 400)
+      }
+      throw e
+    }
     const ack = {
       schemaVersion: '0.1' as const,
       kind: 'acknowledgement' as const,

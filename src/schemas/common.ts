@@ -18,8 +18,6 @@ export interface SchemaVersioned {
 
 /**
  * Reference to an external artifact (file path, URL, repo path).
- * Cross-document references are first-class in the data model because real
- * plans heavily reference PRDs, runbooks, ADRs, external repos.
  */
 export interface ArtifactRef {
   kind: 'file' | 'url' | 'repo-path' | 'section'
@@ -30,7 +28,7 @@ export interface ArtifactRef {
   gitignored?: boolean
 }
 
-export interface Annotation {
+export interface Annotation extends SchemaVersioned {
   id: string
   target: AnnotationTarget
   author: 'human' | 'ai'
@@ -40,20 +38,13 @@ export interface Annotation {
   resolvedAt?: IsoTimestamp
 }
 
-/**
- * AnnotationTarget uses dotted-path syntax to address entities.
- * Examples:
- *   { consumer: 'project-status', slug: 'v3-redesign', path: 'phases.F2' }
- *   { consumer: 'project-status', slug: 'v3-f0-foundation-repair', path: 'tasks.T-005' }
- *   { consumer: 'project-status', slug: 'v3-redesign', path: 'principles.2' }
- */
 export interface AnnotationTarget {
   consumer: ConsumerId
   slug?: string
   path: string
 }
 
-export interface Highlight {
+export interface Highlight extends SchemaVersioned {
   id: string
   target: AnnotationTarget
   reason: string
@@ -64,7 +55,7 @@ export interface Highlight {
   acknowledgedAt?: IsoTimestamp
 }
 
-export interface Decision {
+export interface Decision extends SchemaVersioned {
   id: string
   target: AnnotationTarget
   decision: 'approve' | 'reject' | 'block' | 'defer'
@@ -73,14 +64,17 @@ export interface Decision {
   createdAt: IsoTimestamp
 }
 
-export interface InboxItem {
+interface InboxItemBase extends SchemaVersioned {
   id: string
   consumer: ConsumerId
-  kind: 'annotation' | 'highlight' | 'decision'
-  payload: Annotation | Highlight | Decision
   createdAt: IsoTimestamp
   consumed?: IsoTimestamp
 }
+
+export type InboxItem =
+  | (InboxItemBase & { kind: 'annotation'; payload: Annotation })
+  | (InboxItemBase & { kind: 'highlight'; payload: Highlight })
+  | (InboxItemBase & { kind: 'decision'; payload: Decision })
 
 export interface ErrorResponse {
   code:
@@ -99,12 +93,8 @@ export interface ErrorResponse {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // APPEND-ONLY JSONL RECORDS
-// Every mutation of state is a new JSONL line. aiDeck never edits a line that
-// was previously written; consumers (or the demo fake-consumer) read the
-// append-only stream and apply the projection into the canonical files.
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Closes an annotation by reference. Original annotation line is NEVER edited. */
 export interface Resolution extends SchemaVersioned {
   kind: 'resolution'
   refId: string
@@ -113,7 +103,6 @@ export interface Resolution extends SchemaVersioned {
   note?: string
 }
 
-/** Closes a highlight by reference. Original highlight line is NEVER edited. */
 export interface Acknowledgement extends SchemaVersioned {
   kind: 'acknowledgement'
   refId: string
@@ -121,35 +110,60 @@ export interface Acknowledgement extends SchemaVersioned {
   acknowledgedAt: IsoTimestamp
 }
 
-/**
- * MCP mutation tool intent. aiDeck writes this to `inbox/`; the consumer skill
- * tails the inbox and applies the operation to the canonical entity file.
- */
-export interface IntentRecord extends SchemaVersioned {
+interface IntentBase extends SchemaVersioned {
   kind: 'intent'
   intentId: string
-  operation:
-    | 'mark_task_done'
-    | 'update_initiative_status'
-    | 'update_next_action'
-    | 'push_frame'
-    | 'pop_frame'
-    | 'park_item'
-    | 'emerge_item'
-    | 'promote_parked'
-    | 'add_task'
-  target: {
-    initiativeSlug?: string
-    taskId?: string
-    planSlug?: string
-    phaseId?: string
-  }
-  args: Record<string, unknown>
   by: 'human' | 'ai'
   requestedAt: IsoTimestamp
 }
 
-/** Consumer skill ack of an applied (or rejected) intent. */
+export type IntentRecord =
+  | (IntentBase & {
+      operation: 'mark_task_done'
+      target: { initiativeSlug: string; taskId: string }
+      args: { verifierResultId?: string }
+    })
+  | (IntentBase & {
+      operation: 'update_initiative_status'
+      target: { initiativeSlug: string }
+      args: { status: 'pending' | 'active' | 'paused' | 'done' | 'archived'; reason?: string }
+    })
+  | (IntentBase & {
+      operation: 'update_next_action'
+      target: { initiativeSlug: string }
+      args: { nextAction: string | null }
+    })
+  | (IntentBase & {
+      operation: 'push_frame'
+      target: { initiativeSlug: string }
+      args: { title: string; type: 'task' | 'research' | 'validation' | 'discussion' }
+    })
+  | (IntentBase & {
+      operation: 'pop_frame'
+      target: { initiativeSlug: string }
+      args: { destination?: string }
+    })
+  | (IntentBase & {
+      operation: 'park_item'
+      target: { initiativeSlug: string }
+      args: { title: string; fromFrame?: number | null }
+    })
+  | (IntentBase & {
+      operation: 'emerge_item'
+      target: { initiativeSlug: string }
+      args: { title: string }
+    })
+  | (IntentBase & {
+      operation: 'promote_parked'
+      target: { initiativeSlug: string }
+      args: { parked: string | number }
+    })
+  | (IntentBase & {
+      operation: 'add_task'
+      target: { initiativeSlug: string }
+      args: { title: string; description?: string; verifier?: unknown }
+    })
+
 export interface IntentApplication extends SchemaVersioned {
   kind: 'intent_application'
   refId: string
@@ -159,20 +173,18 @@ export interface IntentApplication extends SchemaVersioned {
   note?: string
 }
 
-/** Exit-gate verifier execution result. */
+export type CriterionRef =
+  | { target: 'phase'; planSlug: string; phaseId: string; criterionId: string }
+  | { target: 'initiative'; initiativeSlug: string; criterionId: string }
+  | { target: 'task'; initiativeSlug: string; taskId: string; criterionId: string }
+
 export interface VerifierResult extends SchemaVersioned {
   kind: 'verifier_result'
   verifierResultId: string
-  criterionRef: {
-    target: 'plan' | 'phase' | 'initiative' | 'task'
-    planSlug?: string
-    initiativeSlug?: string
-    phaseId?: string
-    taskId?: string
-    criterionId: string
-  }
+  criterionRef: CriterionRef
   result: 'met' | 'pending' | 'deferred'
   evidence?: string
+  deferredReason?: string
   verifierOutput?: string
   ranAt: IsoTimestamp
   by: 'human' | 'ai'

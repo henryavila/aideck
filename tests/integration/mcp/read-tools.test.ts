@@ -180,6 +180,7 @@ describe('MCP read tools — discovery + happy paths', () => {
 
   it('aideck_get_dependencies resolves phase deps against done phases', async () => {
     const res = await call('aideck_get_dependencies', {
+      scope: 'phase',
       consumer: 'project-status',
       planSlug: 'p-one',
       phaseId: 'F1'
@@ -211,7 +212,7 @@ describe('MCP read tools — error paths', () => {
     expect(body.error.code).toBe('path_not_found')
   })
 
-  it('aideck_get_dependencies without phaseId/taskId returns invalid_input', async () => {
+  it('aideck_get_dependencies without scope returns invalid_input', async () => {
     const res = await call('aideck_get_dependencies', {
       consumer: 'project-status',
       planSlug: 'p-one'

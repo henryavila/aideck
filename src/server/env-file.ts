@@ -24,9 +24,22 @@ export interface EnvFileContent {
   port: number
 }
 
+/**
+ * Quote a string for safe inclusion in a POSIX shell single-quoted string.
+ * Single-quoted strings in POSIX shells suppress all interpretation EXCEPT
+ * the closing single-quote itself, so the standard escape is to close the
+ * quote, emit a literal escaped single-quote, then re-open: 'foo'\''bar'.
+ */
+function shellSingleQuote(value: string): string {
+  return `'${value.replace(/'/g, `'\\''`)}'`
+}
+
 export async function writeEnvFile(content: EnvFileContent, override: EnvFileOverride = {}): Promise<string> {
   const path = envFilePath(override)
   const dir = dirname(path)
+  if (!Number.isInteger(content.port) || content.port < 1 || content.port > 65535) {
+    throw new Error(`writeEnvFile: invalid port ${content.port}`)
+  }
   try {
     await fs.mkdir(dir, { recursive: true, mode: 0o700 })
   } catch (cause) {
@@ -40,7 +53,7 @@ export async function writeEnvFile(content: EnvFileContent, override: EnvFileOve
   }
 
   const body = `# aiDeck environment — generated, do not edit
-export AIDECK_URL="${content.url}"
+export AIDECK_URL=${shellSingleQuote(content.url)}
 export AIDECK_PORT=${content.port}
 `
   const handle = await fs.open(path, constants.O_CREAT | constants.O_WRONLY | constants.O_EXCL, 0o600)

@@ -37,6 +37,7 @@ phases: []
 `
 
 const VALID_ANN = JSON.stringify({
+  schemaVersion: '0.1',
   id: 'ann-w-1',
   target: { consumer: 'test', slug: 'w-plan', path: 'phases.F0' },
   author: 'ai',
@@ -132,6 +133,7 @@ describe('createWatcher', () => {
     await w.start()
     try {
       const line = JSON.stringify({
+        schemaVersion: '0.1',
         id: 'hl-w-1',
         target: { consumer: 'test', slug: 'w-plan', path: 'phases.F0' },
         reason: 'warn',
@@ -158,7 +160,10 @@ describe('createWatcher', () => {
     const w = createWatcher({ rootDir: tmp, eventBus: bus, awaitWriteFinishMs: 30 })
     await w.start()
     try {
-      await appendFile(annPath, '{"id":"a","target":{"consumer":"x","path":"p"},"author":"bot","body":"x","createdAt":"2026-01-01"}\n')
+      // Author "bot" violates the enum — should produce an invalid_input error,
+      // not schema_version_mismatch. schemaVersion is present so the version
+      // gate doesn't fire first.
+      await appendFile(annPath, '{"schemaVersion":"0.1","id":"a","target":{"consumer":"x","path":"p"},"author":"bot","body":"x","createdAt":"2026-01-01T00:00:00Z"}\n')
       const e = await waitFor(events, (x): x is Extract<RuntimeEvent, { kind: 'error' }> =>
         x.kind === 'error'
       )

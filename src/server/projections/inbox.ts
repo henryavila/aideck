@@ -125,32 +125,42 @@ export async function projectInbox(
     aggregated.acknowledgements.push(...c.acknowledgements)
   }
 
-  const resolvedIds = new Set(aggregated.resolutions.map((r) => r.refId))
-  const ackedIds = new Set(aggregated.acknowledgements.map((a) => a.refId))
+  const resolvedByConsumer = new Map<string, Set<string>>()
+  const ackedByConsumer = new Map<string, Set<string>>()
+  for (const id of consumerIds) {
+    const c = byConsumer[id]
+    resolvedByConsumer.set(id, new Set(c.resolutions.map((r) => r.refId)))
+    ackedByConsumer.set(id, new Set(c.acknowledgements.map((a) => a.refId)))
+  }
 
   const items: InboxItem[] = []
   for (const id of consumerIds) {
     const c = byConsumer[id]
+    const resolved = resolvedByConsumer.get(id) ?? new Set<string>()
+    const acked = ackedByConsumer.get(id) ?? new Set<string>()
     for (const a of c.annotations) {
       items.push({
+        schemaVersion: '0.1',
         id: `inb-ann-${a.id}`,
         consumer: id,
         kind: 'annotation',
-        payload: resolvedIds.has(a.id) ? { ...a, resolved: true } : a,
+        payload: resolved.has(a.id) ? { ...a, resolved: true } : a,
         createdAt: a.createdAt
       })
     }
     for (const h of c.highlights) {
       items.push({
+        schemaVersion: '0.1',
         id: `inb-hl-${h.id}`,
         consumer: id,
         kind: 'highlight',
-        payload: ackedIds.has(h.id) ? { ...h, acknowledged: true } : h,
+        payload: acked.has(h.id) ? { ...h, acknowledged: true } : h,
         createdAt: h.createdAt
       })
     }
     for (const d of c.decisions) {
       items.push({
+        schemaVersion: '0.1',
         id: `inb-dec-${d.id}`,
         consumer: id,
         kind: 'decision',

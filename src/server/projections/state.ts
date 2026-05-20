@@ -25,14 +25,35 @@ export async function buildAllForConsumer(
 
   const plans: Plan[] = []
   const initiatives: Initiative[] = []
+  const parseErrors: Array<{ path: string; error: ErrorResponse }> = []
 
   for (const f of planFiles) {
-    const r = await parsePlanFile(join(dir, 'plans', f))
-    if (r.ok) plans.push(r.value)
+    const path = join(dir, 'plans', f)
+    const r = await parsePlanFile(path)
+    if (r.ok) {
+      plans.push(r.value)
+    } else if (r.error.code === 'schema_version_mismatch' || r.error.code === 'invalid_input') {
+      parseErrors.push({ path, error: r.error })
+    }
   }
   for (const f of initiativeFiles) {
-    const r = await parseInitiativeFile(join(dir, 'initiatives', f))
-    if (r.ok) initiatives.push(r.value)
+    const path = join(dir, 'initiatives', f)
+    const r = await parseInitiativeFile(path)
+    if (r.ok) {
+      initiatives.push(r.value)
+    } else if (r.error.code === 'schema_version_mismatch' || r.error.code === 'invalid_input') {
+      parseErrors.push({ path, error: r.error })
+    }
+  }
+
+  // Surface the first parse error rather than silently returning a partial state.
+  // schema_version_mismatch is a hard contract violation and must not hide.
+  if (parseErrors.length > 0) {
+    const first = parseErrors[0]
+    return err({
+      ...first.error,
+      details: { ...(first.error.details ?? {}), path: first.path, totalErrors: parseErrors.length }
+    })
   }
 
   if (consumerId !== 'project-status' && plans.length === 0 && initiatives.length === 0) {

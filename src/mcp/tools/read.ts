@@ -24,21 +24,37 @@ function defineTool<TIn, TOut>(t: RegisteredTool<TIn, TOut>): RegisteredTool {
   return t as unknown as RegisteredTool
 }
 
-const consumerInput = z.object({ consumer: z.string() })
-const slugInput = consumerInput.extend({ slug: z.string() })
-const planSlugInput = consumerInput.extend({ planSlug: z.string() })
-const phaseInput = planSlugInput.extend({ phaseId: z.string() })
-const initiativeSlugInput = consumerInput.extend({ initiativeSlug: z.string() })
-const taskInput = initiativeSlugInput.extend({ taskId: z.string() })
-const nextActionInput = consumerInput.extend({
-  planSlug: z.string().optional(),
-  initiativeSlug: z.string().optional()
-})
-const dependenciesInput = planSlugInput.extend({
-  phaseId: z.string().optional(),
-  taskId: z.string().optional(),
-  initiativeSlug: z.string().optional()
-})
+// Strict schemas reject unknown keys (C11). The consumerRoot()/writers/paths
+// validates `consumer` against a safe-identifier regex separately.
+const consumerInput = z.object({ consumer: z.string() }).strict()
+const slugInput = z.object({ consumer: z.string(), slug: z.string() }).strict()
+const phaseInput = z
+  .object({ consumer: z.string(), planSlug: z.string(), phaseId: z.string() })
+  .strict()
+const taskInput = z
+  .object({ consumer: z.string(), initiativeSlug: z.string(), taskId: z.string() })
+  .strict()
+const nextActionInput = z
+  .object({
+    consumer: z.string(),
+    planSlug: z.string().optional(),
+    initiativeSlug: z.string().optional()
+  })
+  .strict()
+
+// MCP tool input must be a plain object schema (the SDK validates type==='object').
+// Discrimination by `scope` is enforced in the handler so the surface still
+// requires phase OR task mode with the matching identifier set.
+const dependenciesInput = z
+  .object({
+    scope: z.enum(['phase', 'task']),
+    consumer: z.string(),
+    planSlug: z.string().optional(),
+    phaseId: z.string().optional(),
+    initiativeSlug: z.string().optional(),
+    taskId: z.string().optional()
+  })
+  .strict()
 
 async function loadPlan(rootDir: string, consumer: string, slug: string): Promise<Result<Plan, ErrorResponse>> {
   const path = join(consumerRoot(rootDir, consumer), 'plans', `${slug}.md`)
@@ -132,7 +148,32 @@ export const readTools: ReadonlyArray<RegisteredTool> = [
     description: 'Resolve dependencies for a phase or a task (returns `{ resolved, blocking, blockedBy }`).',
     inputSchema: dependenciesInput,
     async handler(input, ctx) {
-      return resolveDependencies(ctx.rootDir, input)
+      if (input.scope === 'phase') {
+        if (!input.planSlug || !input.phaseId) {
+          return err({
+            code: 'invalid_input',
+            message: 'scope="phase" requires planSlug and phaseId'
+          })
+        }
+        return resolveDependencies(ctx.rootDir, {
+          scope: 'phase',
+          consumer: input.consumer,
+          planSlug: input.planSlug,
+          phaseId: input.phaseId
+        })
+      }
+      if (!input.initiativeSlug || !input.taskId) {
+        return err({
+          code: 'invalid_input',
+          message: 'scope="task" requires initiativeSlug and taskId'
+        })
+      }
+      return resolveDependencies(ctx.rootDir, {
+        scope: 'task',
+        consumer: input.consumer,
+        initiativeSlug: input.initiativeSlug,
+        taskId: input.taskId
+      })
     }
   })
 ]

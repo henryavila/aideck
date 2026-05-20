@@ -100,7 +100,7 @@ describe('POST /api/annotate', () => {
     )
     expect(res.status).toBe(201)
     const body = await res.json() as { id: string }
-    expect(body.id).toMatch(/^ann-\d{4}-\d{2}-\d{2}-\d{3}$/)
+    expect(body.id).toMatch(/^ann-\d{4}-\d{2}-\d{2}-[0-9a-f]{8}$/)
     expect(captured.find((e) => (e as { kind?: string }).kind === 'annotation-added')).toBeDefined()
   })
 

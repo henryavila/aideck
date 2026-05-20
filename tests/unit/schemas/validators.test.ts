@@ -76,6 +76,7 @@ const baseInitiative = () => ({
 })
 
 const baseAnnotation = () => ({
+  schemaVersion: '0.1',
   id: 'ann-001',
   target: { consumer: 'project-status', slug: 'v3-f0', path: 'tasks.T-001' },
   author: 'human',
@@ -84,6 +85,7 @@ const baseAnnotation = () => ({
 })
 
 const baseHighlight = () => ({
+  schemaVersion: '0.1',
   id: 'hl-001',
   target: { consumer: 'project-status', slug: 'v3-f0', path: 'tasks.T-001' },
   reason: 'race condition possible',
@@ -198,6 +200,7 @@ describe('parseHighlight + parseDecision — happy', () => {
 
   it('accepts a decision of kind "approve"', () => {
     const res = parseDecision({
+      schemaVersion: '0.1',
       id: 'dec-001',
       target: { consumer: 'project-status', slug: 'v3-f0', path: 'exitGates.0' },
       decision: 'approve',
@@ -237,12 +240,12 @@ describe('exitCriterionSchema — happy', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('parsePlan — error', () => {
-  it('rejects a Plan missing schemaVersion with invalid_input', () => {
+  it('rejects a Plan missing schemaVersion with schema_version_mismatch', () => {
     const { schemaVersion: _, ...rest } = minimalPlan()
     const res = parsePlan(rest)
     expect(res.ok).toBe(false)
     if (!res.ok) {
-      expect(res.error.code).toBe('invalid_input')
+      expect(res.error.code).toBe('schema_version_mismatch')
       expect(res.error.message).toContain('schemaVersion')
     }
   })
@@ -410,10 +413,12 @@ describe('append-only + projection helpers — smoke', () => {
   it('parseInboxItem wraps a highlight payload', () => {
     expect(
       parseInboxItem({
+        schemaVersion: '0.1',
         id: 'inb-001',
         consumer: 'project-status',
         kind: 'highlight',
         payload: {
+          schemaVersion: '0.1',
           id: 'hl-001',
           target: { consumer: 'project-status', slug: 'v3-f0', path: 'tasks.T-001' },
           reason: 'r',

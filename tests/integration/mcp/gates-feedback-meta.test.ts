@@ -147,7 +147,7 @@ describe('aideck_verify_exit_gate', () => {
     const body = parsePayload(res as never) as { result: string; verifierRan: boolean; verifierResultId: string }
     expect(body.result).toBe('met')
     expect(body.verifierRan).toBe(true)
-    expect(body.verifierResultId).toMatch(/^vr-\d{4}-\d{2}-\d{2}-\d{3}$/)
+    expect(body.verifierResultId).toMatch(/^vr-\d{4}-\d{2}-\d{2}-[0-9a-f]{8}$/)
     const lines = await inboxLines()
     expect(lines).toHaveLength(1)
     const parsed = JSON.parse(lines[0]) as { kind: string; result: string }

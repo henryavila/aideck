@@ -33,14 +33,16 @@ export const exitCriterionVerifierSchema = z.discriminatedUnion('kind', [
   })
 ])
 
-export const exitCriterionSchema = z.object({
-  id: z.string(),
-  description: z.string(),
-  verifier: exitCriterionVerifierSchema.optional(),
-  status: gateStatusSchema,
-  metAt: isoTimestampSchema.optional(),
-  deferredReason: z.string().optional()
-})
+export const exitCriterionSchema = z
+  .object({
+    id: z.string(),
+    description: z.string(),
+    verifier: exitCriterionVerifierSchema.optional(),
+    status: gateStatusSchema,
+    metAt: isoTimestampSchema.optional(),
+    deferredReason: z.string().optional()
+  })
+  .strict()
 
 export const phaseExitGateSchema = z.object({
   summary: z.string(),
@@ -93,27 +95,29 @@ export const phaseDescriptorSchema = z.object({
   exitGateType: z.enum(['standard', 'ui-gate', 'custom']).optional()
 })
 
-export const planSchema = z.object({
-  schemaVersion: schemaVersionSchema,
-  slug: z.string(),
-  title: z.string(),
-  version: z.string(),
-  narrative: z.string(),
-  status: planStatusSchema,
-  started: isoTimestampSchema,
-  lastUpdated: isoTimestampSchema,
-  branch: z.string().optional(),
-  currentPhase: z.string().nullable(),
-  parallelismAllowed: z.boolean(),
-  principles: z.array(principleSchema).optional(),
-  glossary: z.array(glossaryTermSchema).optional(),
-  phases: z.array(phaseDescriptorSchema),
-  interPhaseGates: z.array(interPhaseGateSchema).optional(),
-  tracks: z.array(trackSchema).optional(),
-  supersedes: planSupersedeRefSchema.optional(),
-  references: z.array(artifactRefSchema).optional(),
-  whatStaysValid: z.array(z.string()).optional()
-})
+export const planSchema = z
+  .object({
+    schemaVersion: schemaVersionSchema,
+    slug: z.string(),
+    title: z.string(),
+    version: z.string(),
+    narrative: z.string(),
+    status: planStatusSchema,
+    started: isoTimestampSchema,
+    lastUpdated: isoTimestampSchema,
+    branch: z.string().optional(),
+    currentPhase: z.string().nullable(),
+    parallelismAllowed: z.boolean(),
+    principles: z.array(principleSchema).optional(),
+    glossary: z.array(glossaryTermSchema).optional(),
+    phases: z.array(phaseDescriptorSchema),
+    interPhaseGates: z.array(interPhaseGateSchema).optional(),
+    tracks: z.array(trackSchema).optional(),
+    supersedes: planSupersedeRefSchema.optional(),
+    references: z.array(artifactRefSchema).optional(),
+    whatStaysValid: z.array(z.string()).optional()
+  })
+  .strict()
 
 // ─────────────────────────────────────────────────────────────────────────────
 // INITIATIVE
@@ -171,30 +175,32 @@ export const crossTaskRefSchema = z.object({
   note: z.string().optional()
 })
 
-export const initiativeSchema = z.object({
-  schemaVersion: schemaVersionSchema,
-  slug: z.string(),
-  title: z.string(),
-  goal: z.string(),
-  status: initiativeStatusSchema,
-  branch: z.string().nullable(),
-  started: isoTimestampSchema,
-  lastUpdated: isoTimestampSchema,
-  nextAction: z.string().nullable(),
-  parentPlan: z.string().optional(),
-  phaseId: z.string().optional(),
-  audience: z.string().optional(),
-  exitGates: z.array(exitCriterionSchema),
-  scope: initiativeScopeSchema.optional(),
-  stack: z.array(stackFrameSchema),
-  tasks: z.array(taskSchema),
-  parked: z.array(parkedItemSchema),
-  emerged: z.array(emergedItemSchema),
-  body: z.string().optional(),
-  externalImports: z.array(artifactRefSchema).optional(),
-  references: z.array(artifactRefSchema).optional(),
-  crossTaskRefs: z.array(crossTaskRefSchema).optional()
-})
+export const initiativeSchema = z
+  .object({
+    schemaVersion: schemaVersionSchema,
+    slug: z.string(),
+    title: z.string(),
+    goal: z.string(),
+    status: initiativeStatusSchema,
+    branch: z.string().nullable(),
+    started: isoTimestampSchema,
+    lastUpdated: isoTimestampSchema,
+    nextAction: z.string().nullable(),
+    parentPlan: z.string().optional(),
+    phaseId: z.string().optional(),
+    audience: z.string().optional(),
+    exitGates: z.array(exitCriterionSchema),
+    scope: initiativeScopeSchema.optional(),
+    stack: z.array(stackFrameSchema),
+    tasks: z.array(taskSchema),
+    parked: z.array(parkedItemSchema),
+    emerged: z.array(emergedItemSchema),
+    body: z.string().optional(),
+    externalImports: z.array(artifactRefSchema).optional(),
+    references: z.array(artifactRefSchema).optional(),
+    crossTaskRefs: z.array(crossTaskRefSchema).optional()
+  })
+  .strict()
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AGGREGATE STATE + PROJECTIONS
@@ -205,14 +211,16 @@ export const adHocSessionSchema = z.object({
   description: z.string()
 })
 
-export const projectStatusStateSchema = z.object({
-  schemaVersion: schemaVersionSchema,
-  consumer: z.literal('project-status'),
-  generatedAt: isoTimestampSchema,
-  plans: z.array(planSchema),
-  initiatives: z.array(initiativeSchema),
-  adHocSessions: z.array(adHocSessionSchema)
-})
+export const projectStatusStateSchema = z
+  .object({
+    schemaVersion: schemaVersionSchema,
+    consumer: z.literal('project-status'),
+    generatedAt: isoTimestampSchema,
+    plans: z.array(planSchema),
+    initiatives: z.array(initiativeSchema),
+    adHocSessions: z.array(adHocSessionSchema)
+  })
+  .strict()
 
 export const nextActionProjectionSchema = z.object({
   consumer: z.literal('project-status'),

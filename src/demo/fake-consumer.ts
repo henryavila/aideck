@@ -1,21 +1,26 @@
 /**
- * Demo-only fake consumer.
+ * SIMULATED EXTERNAL CONSUMER (demo only).
  *
- * Tails <demoRoot>/.atomic-skills/project-status/inbox/, reads each new
- * IntentRecord, applies a best-effort mutation to the corresponding
- * plans/<slug>.md or initiatives/<slug>.md inside the demo tmp dir, then
- * appends an IntentApplication record back to the same inbox.
+ * This module simulates what an EXTERNAL consumer skill does in production —
+ * tail the inbox, apply intents to entity files, and append IntentApplication
+ * records. It is NOT aiDeck. It exists under src/demo/ so the `aideck demo`
+ * command can show end-to-end behavior without spawning a separate process.
  *
- * This module is the ONLY place in aiDeck that writes to entity files,
- * and it intentionally lives under src/demo/ — not src/server/ — to make
- * the boundary explicit. In production, atomic-skills:project-status
- * (running outside aiDeck) does this.
+ * In production, atomic-skills:project-status (running outside aiDeck) reads
+ * the same JSONL stream and applies mutations to its own canonical files.
+ * aiDeck itself NEVER writes to entity files (see Iron Law #1).
+ *
+ * For this reason, the writes in this module are by design even though they
+ * would violate the file-write boundary if executed by core aiDeck modules.
  */
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import chokidar, { type FSWatcher } from 'chokidar'
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml'
-import type { IntentRecord, IntentApplication } from '../schemas/common.js'
+import type { IntentApplication } from '../schemas/common.js'
+import { parseIntentRecord, type Result } from '../schemas/validators/index.js'
+import type { IntentRecord } from '../schemas/common.js'
+import type { ErrorResponse } from '../schemas/common.js'
 import { splitFrontmatter } from '../server/parsers/frontmatter.js'
 import { appendJsonlLine } from '../server/writers/jsonl-append.js'
 import { consumerRoot } from '../server/writers/paths.js'
@@ -40,6 +45,15 @@ export function createFakeConsumer(opts: FakeConsumerOptions): FakeConsumer {
   let watcher: FSWatcher | null = null
   let ready = false
 
+  // Per-file processing queue: prevents concurrent processFile() invocations on
+  // the same path from racing on the same canonical file (H/F-002).
+  const processingChain = new Map<string, Promise<void>>()
+  function enqueueProcess(path: string): void {
+    const prev = processingChain.get(path) ?? Promise.resolve()
+    const next = prev.then(() => processFile(path)).catch(() => {})
+    processingChain.set(path, next)
+  }
+
   async function processFile(path: string): Promise<void> {
     let raw: string
     try {
@@ -59,9 +73,20 @@ export function createFakeConsumer(opts: FakeConsumerOptions): FakeConsumer {
       const obj = parsed as { kind?: string; intentId?: string }
       if (obj.kind !== 'intent' || typeof obj.intentId !== 'string') continue
       if (seenIntentIds.has(obj.intentId)) continue
+
+      // Validate through Zod schema (H/F-005). Records that fail validation
+      // (missing schemaVersion, wrong shape, etc.) are skipped with a log.
+      const validated: Result<IntentRecord, ErrorResponse> = parseIntentRecord(parsed)
+      if (!validated.ok) {
+        log(`fake-consumer: rejecting intent ${obj.intentId}: ${validated.error.message}`)
+        seenIntentIds.add(obj.intentId)
+        const reject = baseApplication(obj.intentId, new Date().toISOString(), 'rejected', validated.error.message)
+        try { await appendJsonlLine(path, reject) } catch { /* best effort */ }
+        continue
+      }
+
       seenIntentIds.add(obj.intentId)
-      const intent = parsed as IntentRecord
-      const application = await applyIntent(opts.rootDir, consumer, intent, log)
+      const application = await applyIntent(opts.rootDir, consumer, validated.value, log)
       try {
         await appendJsonlLine(path, application)
       } catch (cause) {
@@ -78,7 +103,7 @@ export function createFakeConsumer(opts: FakeConsumerOptions): FakeConsumer {
       })
       const handle = (p: string) => {
         if (p.endsWith('.jsonl')) {
-          void processFile(p)
+          enqueueProcess(p)
         }
       }
       watcher.on('add', handle)
@@ -95,6 +120,9 @@ export function createFakeConsumer(opts: FakeConsumerOptions): FakeConsumer {
         await watcher.close()
         watcher = null
       }
+      // Drain in-flight processing to avoid stop()/process races in tests.
+      await Promise.all(Array.from(processingChain.values()))
+      processingChain.clear()
       ready = false
     }
   }
@@ -108,10 +136,6 @@ async function applyIntent(
 ): Promise<IntentApplication> {
   const now = new Date().toISOString()
   const slug = intent.target.initiativeSlug
-  if (!slug && (intent.operation !== 'mark_task_done')) {
-    return baseApplication(intent.intentId, now, 'rejected', 'no initiativeSlug supplied')
-  }
-
   const path = join(consumerRoot(rootDir, consumer), 'initiatives', `${slug}.md`)
   let raw: string
   try {
@@ -229,8 +253,6 @@ async function applyIntent(
       }
       break
     }
-    default:
-      log(`fake-consumer: unsupported operation ${intent.operation}`)
   }
 
   if (!applied) {

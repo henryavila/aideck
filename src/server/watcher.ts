@@ -28,6 +28,8 @@ interface JsonlState {
   bytes: number
   /** Last seen line count (after final newline trim). */
   lines: number
+  /** Pending unterminated trailing fragment (no newline yet). */
+  pending: string
 }
 
 const WATCHED_SUFFIXES = ['.md', '.yaml', '.jsonl'] as const
@@ -88,16 +90,31 @@ export function createWatcher(opts: WatcherOptions): Watcher {
       })
       return
     }
-    const prev = jsonlState.get(path) ?? { bytes: 0, lines: 0 }
+    const prev = jsonlState.get(path) ?? { bytes: 0, lines: 0, pending: '' }
     let slice: string
     if (raw.length < prev.bytes) {
       // truncated/rewritten → resync from scratch
       slice = raw
-      jsonlState.set(path, { bytes: raw.length, lines: countNonEmptyLines(raw) })
+      prev.pending = ''
     } else {
-      slice = raw.slice(prev.bytes)
-      jsonlState.set(path, { bytes: raw.length, lines: prev.lines + countNonEmptyLines(slice) })
+      slice = prev.pending + raw.slice(prev.bytes)
     }
+    // Only advance through newline-terminated lines; keep any trailing fragment
+    // for the next change event so partial appends do not lose records.
+    const lastNl = slice.lastIndexOf('\n')
+    let pending = ''
+    if (lastNl === -1) {
+      pending = slice
+      slice = ''
+    } else if (lastNl < slice.length - 1) {
+      pending = slice.slice(lastNl + 1)
+      slice = slice.slice(0, lastNl + 1)
+    }
+    jsonlState.set(path, {
+      bytes: raw.length,
+      lines: prev.lines + countNonEmptyLines(slice),
+      pending
+    })
     if (slice.trim() === '') return
 
     if (kind === 'annotations-jsonl') {
@@ -166,6 +183,16 @@ export function createWatcher(opts: WatcherOptions): Watcher {
     }
   }
 
+  // Serialize watcher dispatches per path: chokidar can emit multiple events for
+  // the same file in quick succession; concurrent dispatch() invocations would
+  // race on jsonlState and emit out-of-order events.
+  const dispatchChain = new Map<string, Promise<void>>()
+  function enqueueDispatch(path: string, changeType: 'add' | 'change' | 'unlink'): void {
+    const prev = dispatchChain.get(path) ?? Promise.resolve()
+    const next = prev.then(() => dispatch(path, changeType)).catch(() => {})
+    dispatchChain.set(path, next)
+  }
+
   return {
     async start() {
       fsw = chokidar.watch(root, {
@@ -173,13 +200,13 @@ export function createWatcher(opts: WatcherOptions): Watcher {
         awaitWriteFinish: { stabilityThreshold: awaitMs, pollInterval: Math.max(5, Math.floor(awaitMs / 4)) }
       })
       fsw.on('add', (p) => {
-        if (isWatched(p)) void dispatch(p, 'add')
+        if (isWatched(p)) enqueueDispatch(p, 'add')
       })
       fsw.on('change', (p) => {
-        if (isWatched(p)) void dispatch(p, 'change')
+        if (isWatched(p)) enqueueDispatch(p, 'change')
       })
       fsw.on('unlink', (p) => {
-        if (isWatched(p)) void dispatch(p, 'unlink')
+        if (isWatched(p)) enqueueDispatch(p, 'unlink')
       })
       fsw.on('ready', () => {
         readyResolver?.()
@@ -191,6 +218,9 @@ export function createWatcher(opts: WatcherOptions): Watcher {
         await fsw.close()
         fsw = null
       }
+      // Drain pending dispatches so stop() never returns mid-emit.
+      await Promise.all(Array.from(dispatchChain.values()))
+      dispatchChain.clear()
       jsonlState.clear()
     },
     ready() {

@@ -93,7 +93,7 @@ describe('MCP mutate tools — records intents in inbox JSONL', () => {
       accepted: boolean
       phaseCompleteHint?: { remaining: number }
     }
-    expect(payload.intentId).toMatch(/^int-\d{4}-\d{2}-\d{2}-\d{3}$/)
+    expect(payload.intentId).toMatch(/^int-\d{4}-\d{2}-\d{2}-[0-9a-f]{8}$/)
     expect(payload.accepted).toBe(true)
     expect(payload.phaseCompleteHint?.remaining).toBe(0)
 

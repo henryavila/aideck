@@ -1,10 +1,26 @@
 import { join, relative, sep } from 'node:path'
 
+const SAFE_CONSUMER_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/
+
+export class UnsafeConsumerIdError extends Error {
+  constructor(consumerId: string) {
+    super(`unsafe consumerId: ${JSON.stringify(consumerId)}`)
+    this.name = 'UnsafeConsumerIdError'
+  }
+}
+
+export function assertSafeConsumerId(consumerId: string): void {
+  if (!SAFE_CONSUMER_ID.test(consumerId)) {
+    throw new UnsafeConsumerIdError(consumerId)
+  }
+}
+
 export function atomicSkillsRoot(rootDir: string): string {
   return join(rootDir, '.atomic-skills')
 }
 
 export function consumerRoot(rootDir: string, consumerId: string): string {
+  assertSafeConsumerId(consumerId)
   return join(atomicSkillsRoot(rootDir), consumerId)
 }
 

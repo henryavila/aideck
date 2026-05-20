@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { pathToFileURL } from 'node:url'
 import { ArgError, parseCliArgs } from './cli/args.js'
 import { HELP_TEXT } from './cli/help.js'
 import { readVersion } from './cli/version.js'
@@ -60,16 +61,24 @@ async function dispatchDemo(parsed: ReturnType<typeof parseCliArgs>, stdout: Nod
   const { writeEnvFile, removeEnvFile } = await import('./server/env-file.js')
   const { seedDemo } = await import('./demo/seed.js')
   const { createFakeConsumer } = await import('./demo/fake-consumer.js')
+
+  // Track resources in startup order so the catch path can tear them down.
+  let env: Awaited<ReturnType<typeof seedDemo>> | null = null
+  let running: Awaited<ReturnType<typeof startServer>> | null = null
+  let consumer: ReturnType<typeof createFakeConsumer> | null = null
+  let envFileWritten = false
+
   try {
-    const env = await seedDemo()
+    env = await seedDemo()
     const port = await resolvePort({
       requested: parsed.flags.port,
       isExplicit: parsed.portExplicit
     })
-    const running = await startServer({ rootDir: env.rootDir, port, demo: true })
+    running = await startServer({ rootDir: env.rootDir, port, demo: true })
     const url = `http://127.0.0.1:${running.port}`
     await writeEnvFile({ url, port: running.port })
-    const consumer = createFakeConsumer({ rootDir: env.rootDir })
+    envFileWritten = true
+    consumer = createFakeConsumer({ rootDir: env.rootDir })
     await consumer.start()
     stdout.write(`aideck DEMO mode — ${url} (root=${env.rootDir})\n`)
 
@@ -83,20 +92,36 @@ async function dispatchDemo(parsed: ReturnType<typeof parseCliArgs>, stdout: Nod
     }
 
     let stopping = false
+    const startedConsumer = consumer
+    const startedRunning = running
+    const startedEnv = env
     const shutdown = async (signal: string) => {
       if (stopping) return
       stopping = true
       stdout.write(`aideck demo: received ${signal}, cleaning up\n`)
-      await removeEnvFile()
-      await consumer.stop()
-      await running.stop()
-      await env.cleanup()
+      if (envFileWritten) await removeEnvFile()
+      await startedConsumer.stop()
+      await startedRunning.stop()
+      await startedEnv.cleanup()
       process.exit(0)
     }
     process.on('SIGINT', () => void shutdown('SIGINT'))
     process.on('SIGTERM', () => void shutdown('SIGTERM'))
     return -1
   } catch (cause) {
+    // Best-effort cleanup in reverse startup order.
+    if (consumer) {
+      try { await consumer.stop() } catch { /* swallow */ }
+    }
+    if (envFileWritten) {
+      try { await removeEnvFile() } catch { /* swallow */ }
+    }
+    if (running) {
+      try { await running.stop() } catch { /* swallow */ }
+    }
+    if (env) {
+      try { await env.cleanup() } catch { /* swallow */ }
+    }
     if (cause instanceof PortInUseError) {
       process.stderr.write(`aideck demo: ${cause.message}. Try --port=<higher>\n`)
       return 1
@@ -162,7 +187,7 @@ export function placeholder(): void {
   // Kept so prior re-exports remain compatible during transition.
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   runCli().then(
     (code) => {
       if (code >= 0) process.exit(code)

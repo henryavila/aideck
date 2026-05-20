@@ -26,19 +26,33 @@ export function runShellVerifier(opts: ShellVerifierOptions): Promise<ShellVerif
     const timeoutMs = opts.timeoutMs ?? 30_000
     const maxBytes = opts.maxBytes ?? DEFAULT_MAX_BYTES
     const start = Date.now()
+    // Run in its own process group so timeout kills the whole tree (test
+    // runners, package scripts, background subprocesses), not just the shell.
     const child = spawn('bash', ['-c', opts.command], {
       cwd: opts.cwd,
-      env: { ...process.env, CI: '1' }
+      env: { ...process.env, CI: '1' },
+      detached: true
     })
     let stdout = ''
     let stderr = ''
     let timedOut = false
 
+    function killGroup(signal: NodeJS.Signals): void {
+      if (child.pid === undefined) return
+      try {
+        // Negative PID targets the whole process group.
+        process.kill(-child.pid, signal)
+      } catch {
+        // Group may already be gone; fall back to killing the child directly.
+        try { child.kill(signal) } catch { /* ignore */ }
+      }
+    }
+
     const timer = setTimeout(() => {
       timedOut = true
-      child.kill('SIGTERM')
-      // Escalate if it refuses to exit.
-      setTimeout(() => child.kill('SIGKILL'), 250).unref()
+      killGroup('SIGTERM')
+      // Escalate if the group refuses to exit.
+      setTimeout(() => killGroup('SIGKILL'), 250).unref()
     }, timeoutMs)
 
     child.stdout.on('data', (chunk: Buffer) => {

@@ -32,7 +32,7 @@ describe('writeEnvFile', () => {
   it('writes shell-source-able content with URL and PORT', async () => {
     await writeEnvFile({ url: 'http://127.0.0.1:8080', port: 8080 }, { dir: tmp })
     const content = await readFile(join(tmp, 'env'), 'utf8')
-    expect(content).toContain('export AIDECK_URL="http://127.0.0.1:8080"')
+    expect(content).toContain(`export AIDECK_URL='http://127.0.0.1:8080'`)
     expect(content).toContain('export AIDECK_PORT=8080')
     expect(content.split('\n').filter((l) => l !== '').length).toBeGreaterThanOrEqual(3)
   })

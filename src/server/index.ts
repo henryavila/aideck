@@ -10,7 +10,6 @@ import { createSpaRouter } from './routes/spa.js'
 export interface ServerOptions {
   rootDir: string
   port?: number
-  hostname?: string
   /** Path to the built Vue client (defaults to `<rootDir>/dist/client`). */
   clientDir?: string
   version?: string
@@ -18,6 +17,12 @@ export interface ServerOptions {
   /** Set to true to skip starting the watcher (used by some tests). */
   skipWatcher?: boolean
 }
+
+/**
+ * aiDeck binds to 127.0.0.1 only. Iron Law #4 (no telemetry, localhost-only).
+ * This is intentionally not configurable.
+ */
+const LOCALHOST = '127.0.0.1'
 
 export interface RunningServer {
   app: Hono
@@ -67,10 +72,9 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
     await built.watcher.start()
   }
   const port = opts.port ?? 7777
-  const hostname = opts.hostname ?? '127.0.0.1'
   const server = serve({
     fetch: built.app.fetch,
-    hostname,
+    hostname: LOCALHOST,
     port
   })
   return {

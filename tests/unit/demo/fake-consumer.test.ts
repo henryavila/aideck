@@ -67,10 +67,12 @@ describe('fake-consumer applies intents to demo files', () => {
       await appendIntent({
         consumerRoot: consumerDir,
         consumerId: 'project-status',
-        operation: 'mark_task_done',
-        target: { initiativeSlug: 'i-one', taskId: 'T-001' },
-        args: {},
-        by: 'ai'
+        intent: {
+          operation: 'mark_task_done',
+          target: { initiativeSlug: 'i-one', taskId: 'T-001' },
+          args: {},
+          by: 'ai'
+        }
       })
       await waitUntil(async () => {
         const raw = await readFile(initPath, 'utf8')
@@ -89,10 +91,12 @@ describe('fake-consumer applies intents to demo files', () => {
       await appendIntent({
         consumerRoot: consumerDir,
         consumerId: 'project-status',
-        operation: 'add_task',
-        target: { initiativeSlug: 'i-one' },
-        args: { title: 'new thing' },
-        by: 'ai'
+        intent: {
+          operation: 'add_task',
+          target: { initiativeSlug: 'i-one' },
+          args: { title: 'new thing' },
+          by: 'ai'
+        }
       })
       await waitUntil(async () => {
         const raw = await readFile(initPath, 'utf8')
