@@ -15,13 +15,14 @@ const MIME: Record<string, string> = {
 }
 
 export interface SpaDeps {
-  /** Absolute path to the built client (e.g. `<repo>/dist/client`). */
-  clientDir: string
+  /** Absolute path to a built SPA bundle (consumer-side, e.g.
+   *  `atomic-skills/dist/dashboard`). */
+  staticDir: string
 }
 
 export function createSpaRouter(deps: SpaDeps): Hono {
   const app = new Hono()
-  const indexHtmlPath = join(deps.clientDir, 'index.html')
+  const indexHtmlPath = join(deps.staticDir, 'index.html')
 
   app.get('*', async (c) => {
     const path = c.req.path
@@ -33,8 +34,8 @@ export function createSpaRouter(deps: SpaDeps): Hono {
     }
 
     // Try a static asset under the client dir; fall back to index.html for SPA routes.
-    const asset = resolve(join(deps.clientDir, path === '/' ? 'index.html' : path))
-    if (!asset.startsWith(resolve(deps.clientDir))) {
+    const asset = resolve(join(deps.staticDir, path === '/' ? 'index.html' : path))
+    if (!asset.startsWith(resolve(deps.staticDir))) {
       // path traversal — refuse
       return c.text('not found', 404)
     }
@@ -48,7 +49,10 @@ export function createSpaRouter(deps: SpaDeps): Hono {
         const body = await readFile(indexHtmlPath)
         return new Response(body, { status: 200, headers: { 'content-type': MIME['.html'] } })
       } catch {
-        return c.text('client bundle not built — run `npm run build:client`', 404)
+        return c.text(
+          `static bundle missing index.html at ${indexHtmlPath} — check --static-dir`,
+          404
+        )
       }
     }
   })

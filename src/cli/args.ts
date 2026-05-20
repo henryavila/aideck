@@ -7,6 +7,7 @@ export interface ParsedArgs {
   flags: {
     port?: number
     config?: string
+    staticDir?: string
     help?: boolean
     version?: boolean
   }
@@ -30,6 +31,7 @@ export function parseCliArgs(argv: string[]): ParsedArgs {
       options: {
         port: { type: 'string' },
         config: { type: 'string' },
+        'static-dir': { type: 'string' },
         help: { type: 'boolean', short: 'h' },
         version: { type: 'boolean', short: 'v' }
       },
@@ -67,6 +69,7 @@ export function parseCliArgs(argv: string[]): ParsedArgs {
     flags: {
       port: portNum,
       config: parsed.values.config,
+      staticDir: parsed.values['static-dir'],
       help: parsed.values.help,
       version: parsed.values.version
     },

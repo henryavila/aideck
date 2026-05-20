@@ -69,6 +69,50 @@ describe('aideck — invalid input', () => {
     const code = await runCli({ argv: ['serve', '--no-mcp'], stdout: out.stream, stderr: err.stream })
     expect(code).toBe(1)
   })
+
+  it('rejects --static-dir pointing at a non-existent path with exit 1', async () => {
+    const out = captureStream()
+    const err = captureStream()
+    const code = await runCli({
+      argv: ['serve', '--static-dir=/nonexistent/path/aideck-test-' + Date.now()],
+      stdout: out.stream,
+      stderr: err.stream
+    })
+    expect(code).toBe(1)
+    expect(err.output()).toContain('does not exist')
+  })
+
+  it('rejects --static-dir pointing at a file (not a directory) with exit 1', async () => {
+    const { mkdtemp, writeFile, rm } = await import('node:fs/promises')
+    const { tmpdir } = await import('node:os')
+    const { join } = await import('node:path')
+    const tmp = await mkdtemp(join(tmpdir(), 'aideck-cli-'))
+    const file = join(tmp, 'not-a-dir.txt')
+    await writeFile(file, 'hello')
+    try {
+      const out = captureStream()
+      const err = captureStream()
+      const code = await runCli({
+        argv: ['serve', `--static-dir=${file}`],
+        stdout: out.stream,
+        stderr: err.stream
+      })
+      expect(code).toBe(1)
+      expect(err.output()).toContain('not a directory')
+    } finally {
+      await rm(tmp, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('aideck --help — --static-dir documented', () => {
+  it('mentions the --static-dir flag in help output', async () => {
+    const out = captureStream()
+    const err = captureStream()
+    const code = await runCli({ argv: ['--help'], stdout: out.stream, stderr: err.stream })
+    expect(code).toBe(0)
+    expect(out.output()).toContain('--static-dir')
+  })
 })
 
 describe('aideck env (no env file present)', () => {

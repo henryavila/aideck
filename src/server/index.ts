@@ -10,8 +10,10 @@ import { createSpaRouter } from './routes/spa.js'
 export interface ServerOptions {
   rootDir: string
   port?: number
-  /** Path to the built Vue client (defaults to `<rootDir>/dist/client`). */
-  clientDir?: string
+  /** Absolute path to a built SPA bundle (consumer-side, e.g. atomic-skills'
+   *  dashboard build). When set, aideck serves it as a SPA with API
+   *  passthrough. When unset, no static handler is mounted. */
+  staticDir?: string
   version?: string
   demo?: boolean
   /** Set to true to skip starting the watcher (used by some tests). */
@@ -58,10 +60,24 @@ export function buildApp(opts: ServerOptions): BuiltApp {
     demo: opts.demo ?? false
   }))
   app.route('/', createSseRouter({ eventBus, startedAt }))
-  app.route(
-    '/',
-    createSpaRouter({ clientDir: opts.clientDir ?? `${opts.rootDir}/dist/client` })
-  )
+  if (opts.staticDir) {
+    app.route('/', createSpaRouter({ staticDir: opts.staticDir }))
+  }
+
+  // 404 contract: /api/* and /sse return a structured JSON error matching
+  // ErrorResponse so consumers can rely on it whether or not a SPA bundle
+  // is mounted. Other paths fall through to plain 404 (browsers see HTML
+  // null body unless --static-dir is set).
+  app.notFound((c) => {
+    const path = c.req.path
+    if (path.startsWith('/api/') || path.startsWith('/sse')) {
+      return c.json(
+        { schemaVersion: '0.1', error: { code: 'path_not_found', message: `no route for ${path}` } },
+        404
+      )
+    }
+    return c.text('not found', 404)
+  })
 
   return { app, eventBus, watcher, startedAt, rootDir: opts.rootDir }
 }

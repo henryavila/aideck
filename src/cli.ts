@@ -20,19 +20,40 @@ function printVersion(stdout: NodeJS.WritableStream): void {
   stdout.write(`${readVersion()}\n`)
 }
 
-async function dispatchServe(parsed: ReturnType<typeof parseCliArgs>, stdout: NodeJS.WritableStream): Promise<number> {
+async function dispatchServe(
+  parsed: ReturnType<typeof parseCliArgs>,
+  stdout: NodeJS.WritableStream,
+  stderr: NodeJS.WritableStream
+): Promise<number> {
   const { startServer } = await import('./server/index.js')
   const { resolvePort, PortInUseError } = await import('./server/port-resolver.js')
   const { writeEnvFile, removeEnvFile } = await import('./server/env-file.js')
+  const { stat } = await import('node:fs/promises')
+  const { resolve } = await import('node:path')
   try {
+    let staticDir: string | undefined
+    if (parsed.flags.staticDir) {
+      const abs = resolve(parsed.flags.staticDir)
+      try {
+        const st = await stat(abs)
+        if (!st.isDirectory()) {
+          stderr.write(`aideck serve: --static-dir=${parsed.flags.staticDir} is not a directory\n`)
+          return 1
+        }
+      } catch {
+        stderr.write(`aideck serve: --static-dir=${parsed.flags.staticDir} does not exist\n`)
+        return 1
+      }
+      staticDir = abs
+    }
     const port = await resolvePort({
       requested: parsed.flags.port,
       isExplicit: parsed.portExplicit
     })
-    const running = await startServer({ rootDir: process.cwd(), port })
+    const running = await startServer({ rootDir: process.cwd(), port, staticDir })
     const url = `http://127.0.0.1:${running.port}`
     await writeEnvFile({ url, port: running.port })
-    stdout.write(`aideck serve: listening on ${url}\n`)
+    stdout.write(`aideck serve: listening on ${url}${staticDir ? ` (static: ${staticDir})` : ''}\n`)
     let stopping = false
     const shutdown = async (signal: string) => {
       if (stopping) return
@@ -47,10 +68,10 @@ async function dispatchServe(parsed: ReturnType<typeof parseCliArgs>, stdout: No
     return -1 // long-running
   } catch (cause) {
     if (cause instanceof PortInUseError) {
-      process.stderr.write(`aideck serve: ${cause.message}. Try --port=<higher>\n`)
+      stderr.write(`aideck serve: ${cause.message}. Try --port=<higher>\n`)
       return 1
     }
-    process.stderr.write(`aideck serve: ${cause instanceof Error ? cause.message : String(cause)}\n`)
+    stderr.write(`aideck serve: ${cause instanceof Error ? cause.message : String(cause)}\n`)
     return 1
   }
 }
@@ -173,7 +194,7 @@ export async function runCli(opts: CliRunOptions = {}): Promise<number> {
 
   switch (parsed.subcommand) {
     case 'serve':
-      return dispatchServe(parsed, stdout)
+      return dispatchServe(parsed, stdout, stderr)
     case 'demo':
       return dispatchDemo(parsed, stdout)
     case 'mcp':
