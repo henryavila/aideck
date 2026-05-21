@@ -19,7 +19,14 @@ import {
   parseResolution,
   parseVerifierResult
 } from '@schemas/validators/index.js'
-import { exitCriterionSchema, taskSchema } from '@schemas/validators/project-status.js'
+import {
+  contextSchema,
+  emergedItemSchema,
+  exitCriterionSchema,
+  parkedItemSchema,
+  phaseDescriptorSchema,
+  taskSchema
+} from '@schemas/validators/project-status.js'
 
 const TS = '2026-05-19T12:00:00-03:00'
 
@@ -581,5 +588,135 @@ describe('append-only + projection helpers — smoke', () => {
         inboxUnconsumed: 0
       }).ok
     ).toBe(true)
+  })
+})
+
+describe('context field — schema parity with atomic-skills pre-write gate', () => {
+  const validContext = {
+    solves: 'Real problem statement here',
+    trigger: 'Concrete trigger that surfaced this',
+    assumesStillValid: [],
+    ratifiedAt: '2026-05-20T18:15:00Z',
+    ratifiedBy: 'human' as const
+  }
+
+  it('rejects parked item without context (mirrors pre-write T20)', () => {
+    expect(() =>
+      parkedItemSchema.parse({
+        title: 'silent parked stub',
+        surfacedAt: '2026-05-20T18:00:00Z',
+        fromFrame: null
+      })
+    ).toThrow()
+  })
+
+  it('accepts parked item with complete context (mirrors pre-write T21)', () => {
+    expect(() =>
+      parkedItemSchema.parse({
+        title: 'legit parked',
+        surfacedAt: '2026-05-20T18:00:00Z',
+        fromFrame: null,
+        context: validContext
+      })
+    ).not.toThrow()
+  })
+
+  it('rejects emerged item without context (mirrors pre-write T22)', () => {
+    expect(() =>
+      emergedItemSchema.parse({
+        title: 'silent emerged',
+        surfacedAt: '2026-05-20T19:00:00Z',
+        promoted: false
+      })
+    ).toThrow()
+  })
+
+  it('rejects task with provenance but no context', () => {
+    expect(() =>
+      taskSchema.parse({
+        id: 'T-001',
+        title: 'has prov',
+        status: 'pending',
+        lastUpdated: '2026-05-20T18:00:00Z',
+        provenance: { surfacedAt: '2026-05-20T18:00:00Z' }
+      })
+    ).toThrow(/context is required when provenance is present/)
+  })
+
+  it('accepts task without provenance/context (original materialization)', () => {
+    expect(() =>
+      taskSchema.parse({
+        id: 'T-001',
+        title: 'plain task',
+        status: 'pending',
+        lastUpdated: '2026-05-20T18:00:00Z'
+      })
+    ).not.toThrow()
+  })
+
+  it('rejects context with solves < 8 chars', () => {
+    expect(() =>
+      contextSchema.parse({
+        ...validContext,
+        solves: 'short'
+      })
+    ).toThrow()
+  })
+
+  it('rejects context with unknown property (mirrors additionalProperties:false)', () => {
+    expect(() =>
+      contextSchema.parse({
+        ...validContext,
+        extraneousField: 'should be rejected by .strict()'
+      })
+    ).toThrow()
+  })
+
+  it('rejects phase descriptor with provenance but no context', () => {
+    expect(() =>
+      phaseDescriptorSchema.parse({
+        id: 'F0',
+        slug: 'foundation',
+        title: 'Foundation',
+        goal: 'Lay the groundwork',
+        dependsOn: [],
+        subPhaseCount: 0,
+        exitGate: { summary: 'all done', criteria: [] },
+        status: 'pending',
+        provenance: { surfacedAt: '2026-05-20T18:00:00Z' }
+      })
+    ).toThrow(/context is required when provenance is present/)
+  })
+
+  it('accepts phase descriptor with provenance + context', () => {
+    expect(() =>
+      phaseDescriptorSchema.parse({
+        id: 'F0',
+        slug: 'foundation',
+        title: 'Foundation',
+        goal: 'Lay the groundwork',
+        dependsOn: [],
+        subPhaseCount: 0,
+        exitGate: { summary: 'all done', criteria: [] },
+        status: 'pending',
+        provenance: { surfacedAt: '2026-05-20T18:00:00Z' },
+        context: validContext
+      })
+    ).not.toThrow()
+  })
+
+  it('accepts phase descriptor without provenance/context (original materialization)', () => {
+    expect(() =>
+      phaseDescriptorSchema.parse({
+        id: 'F0',
+        slug: 'foundation',
+        title: 'Foundation',
+        goal: 'Lay the groundwork',
+        dependsOn: [],
+        subPhaseCount: 0,
+        exitGate: { summary: 'all done', criteria: [] },
+        status: 'pending'
+      })
+    ).not.toThrow()
   })
 })

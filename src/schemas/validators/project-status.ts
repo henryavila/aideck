@@ -91,6 +91,22 @@ export const planSupersedeRefSchema = z.object({
   remainsValid: z.array(z.string()).optional()
 })
 
+export const provenanceSchema = z.object({
+  surfacedAt: isoTimestampSchema,
+  surfacedDuring: z.string().optional(),
+  surfacedBy: z.enum(['human', 'ai']).optional(),
+  originalPhaseId: z.string().optional()
+}).strict()
+
+export const contextSchema = z.object({
+  solves: z.string().min(8),
+  trigger: z.string().min(8),
+  assumesStillValid: z.array(z.string().min(4)).default([]),
+  ratifiedAt: isoTimestampSchema,
+  ratifiedBy: z.enum(['human', 'ai-with-explicit-user-confirm']).default('human'),
+  lastReviewedAt: isoTimestampSchema.optional()
+}).strict()
+
 export const phaseDescriptorSchema = z.object({
   id: z.string(),
   slug: z.string(),
@@ -104,7 +120,17 @@ export const phaseDescriptorSchema = z.object({
   exitGate: phaseExitGateSchema,
   status: initiativeStatusSchema,
   externalImports: z.array(artifactRefSchema).optional(),
-  exitGateType: z.enum(['standard', 'ui-gate', 'custom']).optional()
+  exitGateType: z.enum(['standard', 'ui-gate', 'custom']).optional(),
+  provenance: provenanceSchema.optional(),
+  context: contextSchema.optional()
+}).superRefine((phase, ctx) => {
+  if (phase.provenance && !phase.context) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['context'],
+      message: 'context is required when provenance is present'
+    })
+  }
 })
 
 export const planSchema = z
@@ -164,19 +190,31 @@ export const taskSchema = z.object({
   outputs: z.array(taskOutputSchema).optional(),
   tags: z.array(z.string()).optional(),
   resourceCounts: z.record(z.number()).optional(),
-  verifier: exitCriterionVerifierSchema.optional()
+  verifier: exitCriterionVerifierSchema.optional(),
+  provenance: provenanceSchema.optional(),
+  context: contextSchema.optional()
+}).superRefine((task, ctx) => {
+  if (task.provenance && !task.context) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['context'],
+      message: 'context is required when provenance is present'
+    })
+  }
 })
 
 export const parkedItemSchema = z.object({
   title: z.string(),
   surfacedAt: isoTimestampSchema,
-  fromFrame: z.number().int().nullable()
+  fromFrame: z.number().int().nullable(),
+  context: contextSchema
 })
 
 export const emergedItemSchema = z.object({
   title: z.string(),
   surfacedAt: isoTimestampSchema,
-  promoted: z.boolean()
+  promoted: z.boolean(),
+  context: contextSchema
 })
 
 export const crossTaskRefSchema = z.object({

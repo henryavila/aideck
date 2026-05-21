@@ -149,6 +149,12 @@ emerged:
   - title: 'Investigate Patrimony Clone (mentioned in F1 docs but might affect F0 audit)'
     surfacedAt: '2026-05-19T13:15:00Z'
     promoted: false
+    context:
+      solves: 'Hidden clone in F1 docs could distort F0 audit results if patrimony rows leak in'
+      trigger: 'Saw clone mention while wiring F1 song-resource fixtures; not in original F0 scope'
+      assumesStillValid: ['Patrimony clone path still references F0-managed tables']
+      ratifiedAt: '2026-05-19T13:30:00Z'
+      ratifiedBy: human
 
 references:
   - { kind: section, path: '../plans/v3-redesign.demo.md', section: 'F0 — Foundation Repair (Data)', label: 'Phase definition in master plan', inside_repo: true }
