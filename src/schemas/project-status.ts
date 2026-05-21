@@ -102,6 +102,27 @@ export interface PhaseDescriptor {
 
   /** Subtype for phases with structured exit gates (e.g., UI Gate composite). */
   exitGateType?: 'standard' | 'ui-gate' | 'custom'
+
+  provenance?: Provenance
+  context?: Context
+}
+
+export interface Provenance {
+  surfacedAt: IsoTimestamp
+  surfacedDuring?: string
+  surfacedBy?: 'human' | 'ai'
+  originalPhaseId?: string
+}
+
+export interface Context {
+  solves: string
+  trigger: string
+  /** zod schema applies `.default([])` — present after parse, optional in raw input. */
+  assumesStillValid?: string[]
+  ratifiedAt: IsoTimestamp
+  /** zod schema applies `.default('human')` — present after parse, optional in raw input. */
+  ratifiedBy?: 'human' | 'ai-with-explicit-user-confirm'
+  lastReviewedAt?: IsoTimestamp
 }
 
 export interface PhaseExitGate {
@@ -230,6 +251,9 @@ export interface Task {
 
   /** Task-specific exit verifier (overrides the phase gate for this task). */
   verifier?: ExitCriterionVerifier
+
+  provenance?: Provenance
+  context?: Context
 }
 
 export interface TaskOutput {
@@ -243,12 +267,14 @@ export interface ParkedItem {
   title: string
   surfacedAt: IsoTimestamp
   fromFrame: number | null
+  context: Context
 }
 
 export interface EmergedItem {
   title: string
   surfacedAt: IsoTimestamp
   promoted: boolean
+  context: Context
 }
 
 export interface CrossTaskRef {
