@@ -82,7 +82,7 @@ export function extractConsumerId(filePath: string, rootDir: string): string | n
   return head
 }
 
-export type EntityKind = 'plan' | 'initiative' | 'annotations-jsonl' | 'highlights-jsonl' | 'inbox-jsonl' | 'other'
+export type EntityKind = 'plan' | 'initiative' | 'discover-run' | 'annotations-jsonl' | 'highlights-jsonl' | 'inbox-jsonl' | 'other'
 
 /**
  * Classifies a path inside `.atomic-skills/`, returning the consumer id, the
@@ -117,6 +117,10 @@ export function classifyFile(filePath: string, rootDir: string): { consumer: str
   const mdSlug = (): string => {
     const joined = entityParts.join('/')
     return joined.endsWith('.md') ? joined.slice(0, -3) : joined
+  }
+
+  if (entityDir === 'discover-run.json') {
+    return { consumer, kind: 'discover-run' }
   }
 
   switch (entityDir) {

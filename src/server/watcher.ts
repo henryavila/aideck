@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { EventBus } from './event-bus.js'
 import { classifyFile, atomicSkillsRoot, type EntityKind as FileEntityKind } from './writers/paths.js'
+import { parseDiscoverRunFile } from './parsers/discover-run.js'
 import { parseInitiativeFile, parsePlanFile } from './parsers/project-status.js'
 import { parseJsonlString } from './parsers/jsonl.js'
 import {
@@ -32,7 +33,7 @@ interface JsonlState {
   pending: string
 }
 
-const WATCHED_SUFFIXES = ['.md', '.yaml', '.jsonl'] as const
+const WATCHED_SUFFIXES = ['.md', '.yaml', '.json', '.jsonl'] as const
 
 function isWatched(path: string): boolean {
   return WATCHED_SUFFIXES.some((s) => path.endsWith(s))
@@ -173,6 +174,25 @@ export function createWatcher(opts: WatcherOptions): Watcher {
         })
       } else {
         await handleMdAdd(path, cls.kind, cls.consumer, cls.slug ?? '', changeType)
+      }
+    } else if (cls.kind === 'discover-run') {
+      if (changeType === 'unlink') {
+        opts.eventBus.emit({
+          kind: 'state-change',
+          consumer: cls.consumer,
+          slug: '',
+          entityKind: 'discover-run',
+          changeType
+        })
+      } else {
+        const res = await parseDiscoverRunFile(path)
+        opts.eventBus.emit({
+          kind: 'state-change',
+          consumer: cls.consumer,
+          slug: res.ok ? res.value.runId : '',
+          entityKind: 'discover-run',
+          changeType
+        })
       }
     } else if (cls.kind === 'annotations-jsonl' || cls.kind === 'highlights-jsonl' || cls.kind === 'inbox-jsonl') {
       if (changeType === 'unlink') {

@@ -6,7 +6,7 @@ import type {
 } from '../../schemas/common.js'
 import type { Initiative, Plan } from '../../schemas/project-status.js'
 
-export type EntityKind = 'plan' | 'initiative'
+export type EntityKind = 'plan' | 'initiative' | 'discover-run'
 export type ChangeType = 'add' | 'change' | 'unlink'
 
 export interface BaseEvent {

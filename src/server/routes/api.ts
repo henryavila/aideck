@@ -13,6 +13,7 @@ import {
   UnsafeConsumerIdError
 } from '../writers/paths.js'
 import { listConsumers } from '../projections/consumers.js'
+import { buildDiscoverState, hasDiscoverRun } from '../projections/discover.js'
 import { buildAllForConsumer, buildForSlug } from '../projections/state.js'
 import { projectInbox } from '../projections/inbox.js'
 import { projectNextAction } from '../projections/next-action.js'
@@ -125,6 +126,11 @@ export function createApiRouter(deps: ApiDeps): Hono {
 
   app.get('/api/state/:consumer', async (c) => {
     const id = c.req.param('consumer')
+    if (hasDiscoverRun(deps.rootDir, id)) {
+      const r = await buildDiscoverState(deps.rootDir, id)
+      if (!r.ok) return errResp(c, r.error, statusFor(r.error.code))
+      return c.json({ schemaVersion: '0.1', state: r.value })
+    }
     const r = await buildAllForConsumer(deps.rootDir, id)
     if (!r.ok) return errResp(c, r.error, statusFor(r.error.code))
     return c.json({ schemaVersion: '0.1', state: r.value })

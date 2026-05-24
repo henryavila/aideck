@@ -6,4 +6,5 @@
  */
 
 export * from './common.js'
+export * from './discover-run.js'
 export * from './project-status.js'

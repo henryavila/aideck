@@ -14,6 +14,7 @@ import {
   resolutionSchema,
   verifierResultSchema
 } from './common.js'
+import { discoverRunSchema } from './discover-run.js'
 import {
   driftReportSchema,
   healthReportSchema,
@@ -27,6 +28,7 @@ export { err, ok } from './result.js'
 export type { Result } from './result.js'
 
 export * from './common.js'
+export * from './discover-run.js'
 export * from './project-status.js'
 
 const SCHEMA_VERSION_PATH_TAIL = 'schemaVersion'
@@ -175,3 +177,6 @@ export const parseDriftReport = (raw: unknown, ctx?: ParseContext) =>
 
 export const parseHealthReport = (raw: unknown, ctx?: ParseContext) =>
   parseOrError(healthReportSchema, raw, { entity: 'healthReport', ...ctx })
+
+export const parseDiscoverRun = (raw: unknown, ctx?: ParseContext) =>
+  parseOrError(discoverRunSchema, raw, { entity: 'discoverRun', ...ctx })
