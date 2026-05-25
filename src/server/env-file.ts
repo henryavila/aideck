@@ -22,6 +22,7 @@ export function envFilePath(override: EnvFileOverride = {}): string {
 export interface EnvFileContent {
   url: string
   port: number
+  pid?: number
 }
 
 /**
@@ -52,10 +53,11 @@ export async function writeEnvFile(content: EnvFileContent, override: EnvFileOve
     // not present — fine
   }
 
+  const pidLine = content.pid ? `export AIDECK_PID=${content.pid}\n` : ''
   const body = `# aiDeck environment — generated, do not edit
 export AIDECK_URL=${shellSingleQuote(content.url)}
 export AIDECK_PORT=${content.port}
-`
+${pidLine}`
   const handle = await fs.open(path, constants.O_CREAT | constants.O_WRONLY | constants.O_EXCL, 0o600)
   try {
     await handle.writeFile(body, 'utf8')

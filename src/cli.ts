@@ -52,7 +52,7 @@ async function dispatchServe(
     })
     const running = await startServer({ rootDir: process.cwd(), port, staticDir })
     const url = `http://127.0.0.1:${running.port}`
-    await writeEnvFile({ url, port: running.port })
+    await writeEnvFile({ url, port: running.port, pid: process.pid })
     stdout.write(`aideck serve: listening on ${url}${staticDir ? ` (static: ${staticDir})` : ''}\n`)
     let stopping = false
     const shutdown = async (signal: string) => {
@@ -97,7 +97,7 @@ async function dispatchDemo(parsed: ReturnType<typeof parseCliArgs>, stdout: Nod
     })
     running = await startServer({ rootDir: env.rootDir, port, demo: true })
     const url = `http://127.0.0.1:${running.port}`
-    await writeEnvFile({ url, port: running.port })
+    await writeEnvFile({ url, port: running.port, pid: process.pid })
     envFileWritten = true
     consumer = createFakeConsumer({ rootDir: env.rootDir })
     await consumer.start()
