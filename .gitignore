@@ -9,3 +9,5 @@ coverage/
 .idea/
 .vscode/
 *.tsbuildinfo
+.atomic-skills/_drafts/
+.atomic-skills/status/bootstrap.json
