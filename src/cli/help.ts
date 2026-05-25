@@ -10,6 +10,7 @@ COMMANDS
   mcp             Run MCP server (stdio mode) — connect from Claude Code/Cursor via MCP config
   up              Ensure aideck is running (start if needed) and print the URL
                   Idempotent: reuses existing instance or starts a detached one.
+  down            Stop a running aideck instance gracefully
   env             Print shell exports for AIDECK_URL/AIDECK_PORT (use: eval "$(aideck env)")
 
 OPTIONS

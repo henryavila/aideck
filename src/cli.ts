@@ -177,6 +177,14 @@ async function dispatchUp(
   return runUp(parsed, stdout, stderr)
 }
 
+async function dispatchDown(
+  stdout: NodeJS.WritableStream,
+  stderr: NodeJS.WritableStream
+): Promise<number> {
+  const { runDown } = await import('./cli/down.js')
+  return runDown(stdout, stderr)
+}
+
 async function dispatchBuildDiscoverRun(
   parsed: ReturnType<typeof parseCliArgs>,
   stdout: NodeJS.WritableStream,
@@ -246,6 +254,8 @@ export async function runCli(opts: CliRunOptions = {}): Promise<number> {
       return dispatchEnv(stdout)
     case 'up':
       return dispatchUp(parsed, stdout, stderr)
+    case 'down':
+      return dispatchDown(stdout, stderr)
     case 'validate':
       return dispatchValidate(parsed, stdout, stderr)
     case 'build-discover-run':
