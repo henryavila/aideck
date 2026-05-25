@@ -2,11 +2,26 @@ import { Hono } from 'hono'
 import { streamSSE } from 'hono/streaming'
 import type { EventBus } from '../event-bus.js'
 import type { RuntimeEvent } from '../events/types.js'
+import type { ProjectRegistry } from '../project-registry.js'
 
 export interface SseDeps {
   eventBus: EventBus
   startedAt: number
   healthTickMs?: number
+  registry?: ProjectRegistry
+}
+
+function matchesProjectFilter(event: RuntimeEvent, projectFilter: string | null, registry?: ProjectRegistry): boolean {
+  if (event.kind === 'health-tick') return true
+  if (!projectFilter) {
+    const defaultId = registry?.defaultProject()?.projectId
+    if (!defaultId) return true
+    const eventProjectId = 'projectId' in event ? (event as { projectId?: string }).projectId : undefined
+    if (!eventProjectId) return true
+    return eventProjectId === defaultId
+  }
+  const eventProjectId = 'projectId' in event ? (event as { projectId?: string }).projectId : undefined
+  return eventProjectId === projectFilter
 }
 
 export function createSseRouter(deps: SseDeps): Hono {
@@ -14,6 +29,8 @@ export function createSseRouter(deps: SseDeps): Hono {
   const tickMs = deps.healthTickMs ?? 30_000
 
   app.get('/sse', (c) => {
+    const projectFilter = c.req.query('project') ?? null
+
     return streamSSE(c, async (stream) => {
       const lastIdHeader = c.req.header('last-event-id')
       const lastId = lastIdHeader !== undefined ? Number(lastIdHeader) : null
@@ -29,15 +46,19 @@ export function createSseRouter(deps: SseDeps): Hono {
 
       if (lastId !== null && !Number.isNaN(lastId)) {
         for (const e of deps.eventBus.replaySince(lastId)) {
-          await send(e)
+          if (matchesProjectFilter(e, projectFilter, deps.registry)) {
+            await send(e)
+          }
         }
       }
 
       const queue: RuntimeEvent[] = []
       let notify: (() => void) | null = null
       const unsubscribe = deps.eventBus.subscribe((e) => {
-        queue.push(e)
-        notify?.()
+        if (matchesProjectFilter(e, projectFilter, deps.registry)) {
+          queue.push(e)
+          notify?.()
+        }
       })
 
       const tick = setInterval(() => {

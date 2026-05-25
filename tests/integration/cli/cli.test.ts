@@ -128,3 +128,14 @@ describe('aideck env (no env file present)', () => {
     expect(err.output()).toBe('')
   })
 })
+
+describe('aideck --help — up documented', () => {
+  it('mentions the up subcommand in help output', async () => {
+    const out = captureStream()
+    const err = captureStream()
+    const code = await runCli({ argv: ['--help'], stdout: out.stream, stderr: err.stream })
+    expect(code).toBe(0)
+    expect(out.output()).toContain('up')
+    expect(out.output()).toContain('Ensure aideck is running')
+  })
+})

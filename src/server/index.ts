@@ -6,6 +6,7 @@ import { corsMiddleware } from './cors.js'
 import { createApiRouter } from './routes/api.js'
 import { createSseRouter } from './routes/sse.js'
 import { createSpaRouter } from './routes/spa.js'
+import { createProjectRegistry, type ProjectRegistry } from './project-registry.js'
 
 export interface ServerOptions {
   rootDir: string
@@ -41,11 +42,20 @@ export interface BuiltApp {
   watcher: Watcher | null
   startedAt: number
   rootDir: string
+  registry: ProjectRegistry
 }
 
 export function buildApp(opts: ServerOptions): BuiltApp {
   const eventBus = createEventBus()
   const startedAt = Date.now()
+  const registry = createProjectRegistry()
+
+  if (!opts.skipWatcher) {
+    registry.setWatcherFactory((projectId, rootDir) =>
+      createWatcher({ rootDir, eventBus, projectId })
+    )
+  }
+
   const watcher = opts.skipWatcher
     ? null
     : createWatcher({ rootDir: opts.rootDir, eventBus })
@@ -57,9 +67,10 @@ export function buildApp(opts: ServerOptions): BuiltApp {
     eventBus,
     startedAt,
     version: opts.version ?? '0.0.1',
-    demo: opts.demo ?? false
+    demo: opts.demo ?? false,
+    registry
   }))
-  app.route('/', createSseRouter({ eventBus, startedAt }))
+  app.route('/', createSseRouter({ eventBus, startedAt, registry }))
   if (opts.staticDir) {
     app.route('/', createSpaRouter({ staticDir: opts.staticDir }))
   }
@@ -79,7 +90,7 @@ export function buildApp(opts: ServerOptions): BuiltApp {
     return c.text('not found', 404)
   })
 
-  return { app, eventBus, watcher, startedAt, rootDir: opts.rootDir }
+  return { app, eventBus, watcher, startedAt, rootDir: opts.rootDir, registry }
 }
 
 export async function startServer(opts: ServerOptions): Promise<RunningServer> {
@@ -106,7 +117,7 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
   }
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (!import.meta.url.endsWith('.mjs') && import.meta.url === `file://${process.argv[1]}`) {
   startServer({ rootDir: process.cwd() }).then(
     (s) => {
       const handler = async () => {

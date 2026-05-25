@@ -16,6 +16,7 @@ export interface WatcherOptions {
   eventBus: EventBus
   awaitWriteFinishMs?: number
   ignoreInitial?: boolean
+  projectId?: string
 }
 
 export interface Watcher {
@@ -43,6 +44,7 @@ export function createWatcher(opts: WatcherOptions): Watcher {
   const root = atomicSkillsRoot(opts.rootDir)
   const awaitMs = opts.awaitWriteFinishMs ?? 50
   const ignoreInitial = opts.ignoreInitial ?? false
+  const projectTag = opts.projectId ? { projectId: opts.projectId } : {}
 
   let fsw: FSWatcher | null = null
   const jsonlState = new Map<string, JsonlState>()
@@ -63,7 +65,8 @@ export function createWatcher(opts: WatcherOptions): Watcher {
         slug,
         entityKind: kind,
         changeType,
-        entity: parsed.value
+        entity: parsed.value,
+        ...projectTag
       })
     } else {
       opts.eventBus.emit({
@@ -72,7 +75,8 @@ export function createWatcher(opts: WatcherOptions): Watcher {
         path,
         code: parsed.error.code,
         message: parsed.error.message,
-        suggestion: parsed.error.suggestion
+        suggestion: parsed.error.suggestion,
+        ...projectTag
       })
     }
   }
@@ -87,7 +91,8 @@ export function createWatcher(opts: WatcherOptions): Watcher {
         consumer,
         path,
         code: 'io_error',
-        message: `failed to read jsonl: ${cause instanceof Error ? cause.message : String(cause)}`
+        message: `failed to read jsonl: ${cause instanceof Error ? cause.message : String(cause)}`,
+        ...projectTag
       })
       return
     }
@@ -121,7 +126,7 @@ export function createWatcher(opts: WatcherOptions): Watcher {
     if (kind === 'annotations-jsonl') {
       const { items, errors } = parseJsonlString(slice, parseAnnotation, path, () => {})
       for (const annotation of items) {
-        opts.eventBus.emit({ kind: 'annotation-added', consumer, annotation })
+        opts.eventBus.emit({ kind: 'annotation-added', consumer, annotation, ...projectTag })
       }
       for (const e of errors) {
         opts.eventBus.emit({
@@ -130,13 +135,14 @@ export function createWatcher(opts: WatcherOptions): Watcher {
           path,
           code: e.error.code,
           message: e.error.message,
-          suggestion: e.error.suggestion
+          suggestion: e.error.suggestion,
+          ...projectTag
         })
       }
     } else if (kind === 'highlights-jsonl') {
       const { items, errors } = parseJsonlString(slice, parseHighlight, path, () => {})
       for (const highlight of items) {
-        opts.eventBus.emit({ kind: 'highlight-added', consumer, highlight })
+        opts.eventBus.emit({ kind: 'highlight-added', consumer, highlight, ...projectTag })
       }
       for (const e of errors) {
         opts.eventBus.emit({
@@ -145,7 +151,8 @@ export function createWatcher(opts: WatcherOptions): Watcher {
           path,
           code: e.error.code,
           message: e.error.message,
-          suggestion: e.error.suggestion
+          suggestion: e.error.suggestion,
+          ...projectTag
         })
       }
     }
@@ -170,7 +177,8 @@ export function createWatcher(opts: WatcherOptions): Watcher {
           consumer: cls.consumer,
           slug: cls.slug ?? '',
           entityKind: cls.kind,
-          changeType
+          changeType,
+          ...projectTag
         })
       } else {
         await handleMdAdd(path, cls.kind, cls.consumer, cls.slug ?? '', changeType)
@@ -182,7 +190,8 @@ export function createWatcher(opts: WatcherOptions): Watcher {
           consumer: cls.consumer,
           slug: '',
           entityKind: 'discover-run',
-          changeType
+          changeType,
+          ...projectTag
         })
       } else {
         const res = await parseDiscoverRunFile(path)
@@ -191,7 +200,8 @@ export function createWatcher(opts: WatcherOptions): Watcher {
           consumer: cls.consumer,
           slug: res.ok ? res.value.runId : '',
           entityKind: 'discover-run',
-          changeType
+          changeType,
+          ...projectTag
         })
       }
     } else if (cls.kind === 'annotations-jsonl' || cls.kind === 'highlights-jsonl' || cls.kind === 'inbox-jsonl') {

@@ -21,18 +21,21 @@ export interface StateChangeEvent extends BaseEvent {
   entityKind: EntityKind
   changeType: ChangeType
   entity?: Plan | Initiative
+  projectId?: string
 }
 
 export interface AnnotationAddedEvent extends BaseEvent {
   kind: 'annotation-added'
   consumer: string
   annotation: Annotation
+  projectId?: string
 }
 
 export interface HighlightAddedEvent extends BaseEvent {
   kind: 'highlight-added'
   consumer: string
   highlight: Highlight
+  projectId?: string
 }
 
 export interface ParseErrorEvent extends BaseEvent {
@@ -42,6 +45,7 @@ export interface ParseErrorEvent extends BaseEvent {
   code: ErrorResponse['code']
   message: string
   suggestion?: string
+  projectId?: string
 }
 
 export interface HealthTickEvent extends BaseEvent {

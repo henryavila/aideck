@@ -8,6 +8,8 @@ COMMANDS
                   (auto-fallback to 7778..7787 if 7777 is busy and --port not given)
   demo            Run HTTP server with seeded fixtures (auto-opens browser)
   mcp             Run MCP server (stdio mode) — connect from Claude Code/Cursor via MCP config
+  up              Ensure aideck is running (start if needed) and print the URL
+                  Idempotent: reuses existing instance or starts a detached one.
   env             Print shell exports for AIDECK_URL/AIDECK_PORT (use: eval "$(aideck env)")
 
 OPTIONS

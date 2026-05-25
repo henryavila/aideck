@@ -19,6 +19,8 @@ import { projectInbox } from '../projections/inbox.js'
 import { projectNextAction } from '../projections/next-action.js'
 import { projectHelp } from '../projections/help.js'
 import type { EventBus } from '../event-bus.js'
+import type { ProjectRegistry } from '../project-registry.js'
+import { validateRootDir } from '../project-registry.js'
 
 export interface ApiDeps {
   rootDir: string
@@ -26,6 +28,7 @@ export interface ApiDeps {
   startedAt: number
   version: string
   demo: boolean
+  registry: ProjectRegistry
 }
 
 function errResp(c: Context, e: ErrorResponse, status: number): Response {
@@ -106,6 +109,7 @@ export function createApiRouter(deps: ApiDeps): Hono {
 
   app.get('/api/health', async (c) => {
     const consumers = await listConsumers(deps.rootDir)
+    const projects = deps.registry.list().map(({ watcher: _w, ...p }) => p)
     return c.json({
       schemaVersion: '0.1',
       apiVersion: '0.1',
@@ -116,7 +120,8 @@ export function createApiRouter(deps: ApiDeps): Hono {
       consumerCount: consumers.length,
       demo: deps.demo,
       modes: ['http', 'sse'] as const,
-      rootDir: deps.rootDir
+      rootDir: deps.rootDir,
+      projects
     })
   })
 
@@ -129,6 +134,40 @@ export function createApiRouter(deps: ApiDeps): Hono {
     const consumers = await listConsumers(deps.rootDir)
     return c.json({ schemaVersion: '0.1', consumers })
   })
+
+  // ─── Project-scoped state routes ───────────────────────────────────────
+
+  app.get('/api/projects/:projectId/state/:consumer', async (c) => {
+    const projectId = c.req.param('projectId')
+    const consumer = c.req.param('consumer')
+    const project = deps.registry.get(projectId)
+    if (!project) {
+      return errResp(c, { code: 'path_not_found', message: `project ${projectId} not registered` }, 404)
+    }
+    if (hasDiscoverRun(project.rootDir, consumer)) {
+      const r = await buildDiscoverState(project.rootDir, consumer)
+      if (!r.ok) return errResp(c, r.error, statusFor(r.error.code))
+      return c.json({ schemaVersion: '0.1', state: r.value })
+    }
+    const r = await buildAllForConsumer(project.rootDir, consumer)
+    if (!r.ok) return errResp(c, r.error, statusFor(r.error.code))
+    return c.json({ schemaVersion: '0.1', state: r.value })
+  })
+
+  app.get('/api/projects/:projectId/state/:consumer/:slug', async (c) => {
+    const projectId = c.req.param('projectId')
+    const consumer = c.req.param('consumer')
+    const slug = c.req.param('slug')
+    const project = deps.registry.get(projectId)
+    if (!project) {
+      return errResp(c, { code: 'path_not_found', message: `project ${projectId} not registered` }, 404)
+    }
+    const r = await buildForSlug(project.rootDir, consumer, slug)
+    if (!r.ok) return errResp(c, r.error, statusFor(r.error.code))
+    return c.json({ schemaVersion: '0.1', entity: r.value })
+  })
+
+  // ─── Legacy state routes (backward-compat: uses rootDir / default project) ─
 
   app.get('/api/state/:consumer', async (c) => {
     const id = c.req.param('consumer')
@@ -285,6 +324,50 @@ export function createApiRouter(deps: ApiDeps): Hono {
     await appendJsonlLine(path, resolution)
     return c.json({ schemaVersion: '0.1', resolution }, 201)
   })
+
+  // ─── Project registration ─────────────────────────────────────────────
+
+  app.post('/api/projects/register', async (c) => {
+    const raw = await readBody(c)
+    if (!raw || typeof raw !== 'object' || !('rootDir' in raw) || typeof (raw as Record<string, unknown>).rootDir !== 'string') {
+      return errResp(c, { code: 'invalid_input', message: 'body must include rootDir (string)' }, 400)
+    }
+    const body = raw as { rootDir: string; projectId?: string }
+
+    const validation = await validateRootDir(body.rootDir)
+    if (!validation.ok) {
+      return errResp(c, { code: 'invalid_input', message: validation.reason }, 400)
+    }
+
+    const existing = deps.registry.getByRootDir(validation.canonical)
+    if (existing) {
+      const { watcher: _w, ...proj } = existing
+      return c.json({ schemaVersion: '0.1', project: proj }, 200)
+    }
+
+    const entry = deps.registry.register(validation.canonical, body.projectId)
+    if (entry.watcher) {
+      entry.watcher.start().catch(() => { /* watcher start failure is non-fatal */ })
+    }
+    const { watcher: _w, ...proj } = entry
+    return c.json({ schemaVersion: '0.1', project: proj }, 201)
+  })
+
+  app.get('/api/projects', (c) => {
+    const projects = deps.registry.list().map(({ watcher: _w, ...p }) => p)
+    return c.json({ schemaVersion: '0.1', projects })
+  })
+
+  app.delete('/api/projects/:id', async (c) => {
+    const id = c.req.param('id')
+    const removed = await deps.registry.unregister(id)
+    if (!removed) {
+      return errResp(c, { code: 'path_not_found', message: `project ${id} not registered` }, 404)
+    }
+    return c.json({ schemaVersion: '0.1', status: 'unregistered' })
+  })
+
+  // ─── Highlight acknowledge ──────────────────────────────────────────
 
   app.post('/api/highlight/:id/acknowledge', async (c) => {
     const id = c.req.param('id')
