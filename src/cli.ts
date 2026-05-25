@@ -168,6 +168,49 @@ async function dispatchEnv(stdout: NodeJS.WritableStream): Promise<number> {
   return runEnvCmd(stdout)
 }
 
+async function dispatchUp(
+  parsed: ReturnType<typeof parseCliArgs>,
+  stdout: NodeJS.WritableStream,
+  stderr: NodeJS.WritableStream
+): Promise<number> {
+  const { runUp } = await import('./cli/up.js')
+  return runUp(parsed, stdout, stderr)
+}
+
+async function dispatchBuildDiscoverRun(
+  parsed: ReturnType<typeof parseCliArgs>,
+  stdout: NodeJS.WritableStream,
+  stderr: NodeJS.WritableStream
+): Promise<number> {
+  const { runBuildDiscoverRun } = await import('./cli/build-discover-run.js')
+  return runBuildDiscoverRun(parsed, stdout, stderr)
+}
+
+async function dispatchValidate(
+  parsed: ReturnType<typeof parseCliArgs>,
+  stdout: NodeJS.WritableStream,
+  stderr: NodeJS.WritableStream
+): Promise<number> {
+  const { resolve } = await import('node:path')
+  const { parseDiscoverRunFile } = await import('./server/parsers/discover-run.js')
+
+  const filePath = parsed.positionals[0]
+  if (!filePath) {
+    stderr.write('aideck validate: missing file path\nUsage: aideck validate <discover-run.json>\n')
+    return 1
+  }
+
+  const result = await parseDiscoverRunFile(resolve(filePath))
+  if (result.ok) {
+    stdout.write('valid\n')
+    return 0
+  }
+
+  stderr.write(`aideck validate: INVALID\n`)
+  stderr.write(JSON.stringify(result.error, null, 2) + '\n')
+  return 1
+}
+
 export async function runCli(opts: CliRunOptions = {}): Promise<number> {
   const stdout = opts.stdout ?? process.stdout
   const stderr = opts.stderr ?? process.stderr
@@ -201,6 +244,12 @@ export async function runCli(opts: CliRunOptions = {}): Promise<number> {
       return dispatchMcp()
     case 'env':
       return dispatchEnv(stdout)
+    case 'up':
+      return dispatchUp(parsed, stdout, stderr)
+    case 'validate':
+      return dispatchValidate(parsed, stdout, stderr)
+    case 'build-discover-run':
+      return dispatchBuildDiscoverRun(parsed, stdout, stderr)
   }
 }
 
@@ -208,7 +257,7 @@ export function placeholder(): void {
   // Kept so prior re-exports remain compatible during transition.
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (!import.meta.url.endsWith('.mjs') && import.meta.url === pathToFileURL(process.argv[1]).href) {
   runCli().then(
     (code) => {
       if (code >= 0) process.exit(code)

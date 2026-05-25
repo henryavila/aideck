@@ -115,8 +115,14 @@ export function createApiRouter(deps: ApiDeps): Hono {
       uptimeMs: Date.now() - deps.startedAt,
       consumerCount: consumers.length,
       demo: deps.demo,
-      modes: ['http', 'sse'] as const
+      modes: ['http', 'sse'] as const,
+      rootDir: deps.rootDir
     })
+  })
+
+  app.post('/api/shutdown', (c) => {
+    setTimeout(() => process.kill(process.pid, 'SIGTERM'), 100)
+    return c.json({ schemaVersion: '0.1', status: 'shutting-down' })
   })
 
   app.get('/api/consumers', async (c) => {

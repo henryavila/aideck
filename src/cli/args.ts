@@ -1,13 +1,15 @@
 import { parseArgs } from 'node:util'
 
-export type Subcommand = 'serve' | 'demo' | 'mcp' | 'env'
+export type Subcommand = 'serve' | 'demo' | 'mcp' | 'env' | 'up' | 'validate' | 'build-discover-run'
 
 export interface ParsedArgs {
   subcommand?: Subcommand
+  positionals: string[]
   flags: {
     port?: number
     config?: string
     staticDir?: string
+    out?: string
     help?: boolean
     version?: boolean
   }
@@ -21,7 +23,7 @@ export class ArgError extends Error {
   }
 }
 
-const SUBCOMMANDS: ReadonlySet<string> = new Set(['serve', 'demo', 'mcp', 'env'])
+const SUBCOMMANDS: ReadonlySet<string> = new Set(['serve', 'demo', 'mcp', 'env', 'up', 'validate', 'build-discover-run'])
 
 export function parseCliArgs(argv: string[]): ParsedArgs {
   let parsed
@@ -32,6 +34,7 @@ export function parseCliArgs(argv: string[]): ParsedArgs {
         port: { type: 'string' },
         config: { type: 'string' },
         'static-dir': { type: 'string' },
+        out: { type: 'string' },
         help: { type: 'boolean', short: 'h' },
         version: { type: 'boolean', short: 'v' }
       },
@@ -66,10 +69,12 @@ export function parseCliArgs(argv: string[]): ParsedArgs {
 
   return {
     subcommand: sub as Subcommand | undefined,
+    positionals: parsed.positionals.slice(1),
     flags: {
       port: portNum,
       config: parsed.values.config,
       staticDir: parsed.values['static-dir'],
+      out: parsed.values.out,
       help: parsed.values.help,
       version: parsed.values.version
     },
