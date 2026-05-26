@@ -4,7 +4,7 @@ slug: aideck-v2-generic-runtime-f0-core-runtime
 title: 'Core Runtime'
 goal: 'Build the foundation: ConsumerRegistry, manifest loader, schema validator (AJV), generic file watcher, data source parsing.'
 status: active
-branch: null
+branch: feat/aideck-v2-generic-runtime
 started: '2026-05-26T15:58:39Z'
 lastUpdated: '2026-05-26T15:58:39Z'
 nextAction: 'Write the writing-plans detailed implementation plan for this phase'

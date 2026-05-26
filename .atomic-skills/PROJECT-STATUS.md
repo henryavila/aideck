@@ -1,9 +1,9 @@
 ---
-lastUpdated: '2026-05-25T23:38:00-03:00'
+lastUpdated: '2026-05-26T19:00:00Z'
 schemaVersion: '0.1'
 activePlans: 1
 activeInitiatives: 1
-archivedCount: 0
+archivedCount: 5
 ---
 
 # Project Status Index
@@ -22,16 +22,18 @@ Standalone initiatives (no `parentPlan`) coexist with plan-anchored initiatives.
 
 | Slug | Status | Current Phase | Branch | Started |
 |------|--------|---------------|--------|---------|
-| [aideck-v02-roadmap](plans/aideck-v02-roadmap.md) | active | F0 — Cross-project search | — | 2026-05-25 |
+| [aideck-v2-generic-runtime](plans/aideck-v2-generic-runtime.md) | active | F0 — Core Runtime | feat/aideck-v2-generic-runtime | 2026-05-26 |
 
-### aideck-v02-roadmap — Initiatives
+### aideck-v2-generic-runtime — Initiatives
 
 | Phase | Slug | Status | Tasks | Next Action |
 |-------|------|--------|-------|-------------|
-| F0 | [cross-project-search](initiatives/aideck-v02-roadmap-f0-cross-project-search.md) | active | 0/6 | Iniciar T-001: construir indice invertido in-process |
-| F1 | [timeline-view](initiatives/aideck-v02-roadmap-f1-timeline-view.md) | pending | 0/6 | Aguardando ativacao |
-| F2 | [parallel-dispatch-renderer](initiatives/aideck-v02-roadmap-f2-parallel-dispatch-renderer.md) | pending | 0/7 | Aguardando ativacao |
-| F3 | [code-review-html-reports](initiatives/aideck-v02-roadmap-f3-code-review-html-reports.md) | pending | 0/5 | Aguardando ativacao |
+| F0 | [core-runtime](initiatives/aideck-v2-generic-runtime-f0-core-runtime.md) | active | 0/0 (plan pending) | Write detailed implementation plan |
+| F1 | [mcp-rest](initiatives/aideck-v2-generic-runtime-f1-mcp-rest.md) | pending | 0/0 | Aguardando F0 |
+| F2 | [cli](initiatives/aideck-v2-generic-runtime-f2-cli.md) | pending | 0/0 | Aguardando F0 |
+| F3 | [frontend-foundation](initiatives/aideck-v2-generic-runtime-f3-frontend-foundation.md) | pending | 0/0 | Aguardando F1 |
+| F4 | [component-library](initiatives/aideck-v2-generic-runtime-f4-component-library.md) | pending | 0/0 | Aguardando F3 |
+| F5 | [integration-demo](initiatives/aideck-v2-generic-runtime-f5-integration-demo.md) | pending | 0/0 | Aguardando F4 |
 
 ## Active Initiatives (standalone)
 
@@ -42,7 +44,13 @@ _(none)_
 
 ## Recently Archived (last 10)
 
-_(empty)_
+| Slug | Kind | Archived | Reason |
+|------|------|----------|--------|
+| aideck-v02-roadmap | plan | 2026-05-26 | Superseded by aideck-v2-generic-runtime |
+| aideck-v02-roadmap-f0-cross-project-search | initiative | 2026-05-26 | Parent plan archived |
+| aideck-v02-roadmap-f1-timeline-view | initiative | 2026-05-26 | Parent plan archived |
+| aideck-v02-roadmap-f2-parallel-dispatch-renderer | initiative | 2026-05-26 | Parent plan archived |
+| aideck-v02-roadmap-f3-code-review-html-reports | initiative | 2026-05-26 | Parent plan archived |
 
 ## Ad-Hoc Sessions Log (last 5)
 

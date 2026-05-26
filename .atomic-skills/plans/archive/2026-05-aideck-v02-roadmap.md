@@ -3,9 +3,9 @@ schemaVersion: '0.1'
 slug: aideck-v02-roadmap
 title: 'aiDeck v0.2+ Roadmap'
 version: '1.0'
-status: active
+status: archived
 started: '2026-05-25T23:38:00-03:00'
-lastUpdated: '2026-05-25T23:38:00-03:00'
+lastUpdated: '2026-05-26T16:25:26Z'
 currentPhase: F0
 parallelismAllowed: true
 
@@ -32,7 +32,7 @@ phases:
     goal: 'Permitir busca de plans/initiatives/tasks por texto livre ou filtro estruturado atraves de todos os projetos registrados no ProjectRegistry'
     dependsOn: []
     subPhaseCount: 6
-    status: active
+    status: archived
     exitGate:
       summary: 'Busca cross-project funcional via REST + MCP com indice incremental'
       criteria:

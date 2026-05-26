@@ -56,15 +56,15 @@ phases:
         - id: G0-1
           description: 'ConsumerRegistry scans ~/.aideck/consumers/*/manifest.yaml and registers all valid consumers'
           status: pending
-          verifier: { kind: test, command: 'npm test -- tests/unit/server/consumer-registry.test.ts' }
+          verifier: { kind: shell, command: 'npm test -- tests/unit/server/consumer-registry.test.ts' }
         - id: G0-2
           description: 'AJV validates data files against consumer schema.json with LLM-friendly errors'
           status: pending
-          verifier: { kind: test, command: 'npm test -- tests/unit/server/schema-validator.test.ts' }
+          verifier: { kind: shell, command: 'npm test -- tests/unit/server/schema-validator.test.ts' }
         - id: G0-3
           description: 'File watcher dispatches events for any consumer without hardcoded entity types'
           status: pending
-          verifier: { kind: test, command: 'npm test -- tests/unit/server/watcher.test.ts' }
+          verifier: { kind: shell, command: 'npm test -- tests/unit/server/watcher.test.ts' }
 
   - id: F1
     slug: aideck-v2-generic-runtime-f1-mcp-rest
@@ -79,15 +79,15 @@ phases:
         - id: G1-1
           description: 'All 6 Tier 1 MCP tools (read, list, write, health, list_consumers, schema_version) work against any consumer'
           status: pending
-          verifier: { kind: test, command: 'npm test -- tests/integration/mcp/' }
+          verifier: { kind: shell, command: 'npm test -- tests/integration/mcp/' }
         - id: G1-2
           description: 'All 4 handler types (file-mutation, shell-exec, composite, script) execute correctly'
           status: pending
-          verifier: { kind: test, command: 'npm test -- tests/unit/server/handlers/' }
+          verifier: { kind: shell, command: 'npm test -- tests/unit/server/handlers/' }
         - id: G1-3
           description: 'Consumer-declared tools registered with aideck.<mcpNamespace>.<tool> namespacing'
           status: pending
-          verifier: { kind: test, command: 'npm test -- tests/integration/mcp/consumer-tools.test.ts' }
+          verifier: { kind: shell, command: 'npm test -- tests/integration/mcp/consumer-tools.test.ts' }
 
   - id: F2
     slug: aideck-v2-generic-runtime-f2-cli
@@ -102,11 +102,11 @@ phases:
         - id: G2-1
           description: 'aideck validate <file> outputs path+expected+got errors, exit 0=valid, exit 1=errors'
           status: pending
-          verifier: { kind: test, command: 'npm test -- tests/unit/cli/validate.test.ts' }
+          verifier: { kind: shell, command: 'npm test -- tests/unit/cli/validate.test.ts' }
         - id: G2-2
           description: 'aideck init-consumer scaffolds manifest.yaml + schema.json + data/ skeleton'
           status: pending
-          verifier: { kind: test, command: 'npm test -- tests/unit/cli/init-consumer.test.ts' }
+          verifier: { kind: shell, command: 'npm test -- tests/unit/cli/init-consumer.test.ts' }
 
   - id: F3
     slug: aideck-v2-generic-runtime-f3-frontend-foundation
@@ -125,7 +125,7 @@ phases:
         - id: G3-2
           description: 'Layout engine renders sections, grid, and single modes correctly'
           status: pending
-          verifier: { kind: test, command: 'npm test -- tests/unit/client/layout-engine.test.ts' }
+          verifier: { kind: shell, command: 'npm test -- tests/unit/client/layout-engine.test.ts' }
 
   - id: F4
     slug: aideck-v2-generic-runtime-f4-component-library
@@ -144,7 +144,7 @@ phases:
         - id: G4-2
           description: 'Each component has a configSchema and validates its props'
           status: pending
-          verifier: { kind: test, command: 'npm test -- tests/unit/client/components/' }
+          verifier: { kind: shell, command: 'npm test -- tests/unit/client/components/' }
 
   - id: F5
     slug: aideck-v2-generic-runtime-f5-integration-demo
