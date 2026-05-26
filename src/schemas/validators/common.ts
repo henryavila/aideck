@@ -86,7 +86,9 @@ export const errorResponseSchema = z
       'invalid_input',
       'precondition_failed',
       'io_error',
-      'internal_error'
+      'internal_error',
+      'not_implemented',
+      'validation_error'
     ]),
     message: z.string(),
     suggestion: z.string().optional(),

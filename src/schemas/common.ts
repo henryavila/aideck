@@ -86,6 +86,7 @@ export interface ErrorResponse {
     | 'precondition_failed'
     | 'io_error'
     | 'internal_error'
+    | 'not_implemented'
     | 'validation_error'
   message: string
   suggestion?: string
