@@ -142,6 +142,7 @@ Total: 25 + consumer-provided custom components for anything missing.
 ```yaml
 schemaVersion: '0.1'
 id: atomic-skills
+mcpNamespace: atomic_skills    # required, [a-z][a-z0-9_]{0,31}, used in MCP tool names
 title: "Project Status"
 icon: mdi:clipboard-check
 
@@ -157,6 +158,7 @@ dataSources:
   - id: inbox
     path: "data/inbox/*.jsonl"
     format: jsonl
+    schema: { $ref: "schema.json#/inboxRecord" }
 
 nav:
   style: tabs          # tabs | sidebar
@@ -238,7 +240,7 @@ tools:
       source: handlers/mark-task-done.js
 
   - name: update_status
-    description: "Update a task's status"
+    description: "Record a status change intent for a task"
     input:
       type: object
       required: [taskId, newStatus]
@@ -247,9 +249,14 @@ tools:
         newStatus: { type: string, enum: [pending, active, done] }
     handler:
       type: file-mutation
-      target: "data/tasks.yaml"
-      match: { field: id, value: "{{ taskId }}" }
-      set: { status: "{{ newStatus }}" }
+      target: "data/inbox/{{ isoDate }}.jsonl"
+      operation: append
+      record:
+        kind: status_change
+        taskId: "{{ taskId }}"
+        newStatus: "{{ newStatus }}"
+        by: ai
+        recordedAt: "{{ now }}"
 
 # Optional custom components
 components:
@@ -289,6 +296,10 @@ The `script` handler receives `{ args, data, files, log }`:
 
 Dynamic registration via MCP's built-in `tools/list_changed` notification when consumers are loaded/unloaded.
 
+**Handler security model:** All handlers execute within the consumer's directory scope. `shell-exec` commands have their `cwd` set to the consumer root and cannot access other consumers' directories. `script` handlers receive a sandboxed `files` object that only exposes declared writable paths. Network access is not restricted at the aiDeck level (consumers may legitimately need it for verifiers), but the Iron Law "no telemetry/no phone-home" applies to aiDeck core only, not to consumer handlers. Handler timeouts (default 30s) kill the process group on expiry.
+
+**Intent-based mutation model:** Domain mutations (changing task status, updating entities) follow the v0.1 intent pattern: handlers write intent records to inbox JSONL, not directly to entity files. The consumer's AI agent skill tails inbox and applies changes to entity files. This preserves Iron Law #1 (aiDeck never owns state). The `file-mutation` handler's `append` operation on inbox targets is the canonical mutation path. Direct entity file writes are NOT supported by the `file-mutation` handler.
+
 ### 9. Handler audit: declarative vs code
 
 From the current 18 atomic-skills MCP tools:
@@ -314,7 +325,7 @@ aiDeck serves multiple consumers simultaneously by default. Seven conflict risks
 
 | Concern | Mechanism |
 |---------|-----------|
-| MCP tool collisions | Auto-namespace: consumer declares `mark_task_done`, aiDeck registers as `aideck.<consumer>.mark_task_done` |
+| MCP tool collisions | Auto-namespace: consumer declares `mark_task_done`, aiDeck registers as `aideck.<mcpNamespace>.mark_task_done`. The `mcpNamespace` field in manifest.yaml is required and must match `[a-z][a-z0-9_]{0,31}` (no hyphens — MCP tool names use dots as separators). Example: consumer `atomic-skills` uses `mcpNamespace: atomic_skills`. |
 | Custom component collisions | Auto-prefix: consumer declares `phase-card`, aiDeck registers as `<consumer>/phase-card` |
 | SSE flooding | Per-consumer event throttle (configurable debounce, default 100ms). SSE supports `?consumer=X` filter |
 | Parse error propagation | Per-consumer error boundaries in watcher dispatch. Errors logged + emitted as events, never crash the server |
