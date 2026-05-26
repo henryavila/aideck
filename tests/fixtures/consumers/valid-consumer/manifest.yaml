@@ -1,0 +1,21 @@
+schemaVersion: '0.1'
+id: valid-consumer
+mcpNamespace: valid_consumer
+title: 'Valid Test Consumer'
+
+dataSources:
+  - id: items
+    path: 'data/items.yaml'
+    format: yaml
+
+pages:
+  - slug: overview
+    title: 'Overview'
+    layout: sections
+    default: true
+    sections:
+      - title: 'Items'
+        widgets:
+          - widget: table
+            colSpan: 12
+            source: { ref: items }
