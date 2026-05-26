@@ -92,6 +92,8 @@ This gives low barrier for simple consumers (just write YAML) and full power whe
 
 Note: widget `config` values like `count(status=active)` in the manifest examples are **widget-specific config strings**, not a general expression language. Each widget defines its own config schema (e.g., the Stat widget accepts a `value` string with a small set of aggregate functions). aiDeck does NOT ship a general-purpose expression engine.
 
+The `{{ }}` template syntax in `file-mutation` and `shell-exec` handlers is a **separate, minimal substitution mechanism** (variable interpolation from `args` only, no expressions). It is NOT related to widget config strings.
+
 ### 5. Component library: 25 built-in widgets
 
 Cross-referenced from Grafana, Home Assistant, Retool, Appsmith, Superset, and Streamlit. Gap-analyzed against the atomic-skills wireframes.
@@ -139,7 +141,7 @@ Total: 25 + consumer-provided custom components for anything missing.
 
 ```yaml
 schemaVersion: '0.1'
-id: project-status
+id: atomic-skills
 title: "Project Status"
 icon: mdi:clipboard-check
 
@@ -251,7 +253,7 @@ tools:
 
 # Optional custom components
 components:
-  - type: project-status/phase-card
+  - type: atomic-skills/phase-card
     source: components/phase-card.js
 ```
 
@@ -332,6 +334,63 @@ File-by-file audit of 7,226 LOC across 63 files:
 
 The 3,624 LOC of domain-specific code moves OUT of aiDeck core and INTO the atomic-skills consumer package (handlers/, schemas, components).
 
+## REST API Surface (browser-facing)
+
+MCP tools serve AI agents. The browser dashboard needs REST endpoints. In v2, the REST API becomes generic:
+
+| Method | Path | Returns | Notes |
+|--------|------|---------|-------|
+| GET | `/api/health` | runtime status, uptime, consumer count | Generic (aiDeck core) |
+| GET | `/api/consumers` | list of registered consumers with manifest metadata | Generic |
+| GET | `/api/consumers/:id` | consumer manifest (pages, dataSources, nav) | Generic — browser reads this to build the consumer's UI |
+| GET | `/api/consumers/:id/data/:dataSourceId` | validated data from a consumer data source | Generic — dataSourceId matches manifest `dataSources[].id` |
+| GET | `/api/consumers/:id/data/:dataSourceId/:slug` | single entity from a data source | Generic |
+| POST | `/api/consumers/:id/write/:target` | write to writable path (annotations, highlights, inbox) | Generic |
+| GET | `/sse` | SSE event stream (supports `?consumer=X` filter) | Generic |
+
+Domain-specific endpoints (old `/api/state/:consumer`, `/api/help`) are removed. The browser builds consumer pages dynamically from the manifest + generic data endpoints.
+
+## Feature Ownership: v0.1 → v2
+
+| v0.1 Feature | v2 Owner | Notes |
+|-------------|----------|-------|
+| F1. Canonical-data parser | **aiDeck core** | Generic — reads any format declared in manifest (yaml, frontmatter, json, jsonl) |
+| F2. File watcher + SSE | **aiDeck core** | Generic — watches `data/` for any consumer |
+| F3. HTTP REST API | **aiDeck core** | Generic endpoints (see REST API above) |
+| F4. MCP server | **aiDeck core** | Tier 1 generic + Tier 2 consumer-declared |
+| F5. Plan bird's-eye view | **Consumer** (atomic-skills) | Declared as a page in manifest using Tree View + Card components |
+| F6. Initiative zoom view | **Consumer** (atomic-skills) | Declared as a page in manifest using Table + Accordion + Badge components |
+| F7. Help / Skills directory | **Consumer** (atomic-skills) | Declared as a page in manifest using Card + Search components. Not an aiDeck-core feature. |
+| F8. Demo mode | **aiDeck core** | `aideck demo` seeds fixtures into `~/.aideck/consumers/demo-consumer/` using a built-in demo manifest. Cleaned on exit. |
+| F9. Dark theme | **aiDeck core** | Component library ships with CSS custom properties. Dark default. |
+| F10. CLI | **aiDeck core** | Commands: `serve`, `demo`, `mcp`, `validate`, `--help`, `--version` |
+| F11. Annotation panel | **Consumer** (via manifest) | Consumer declares a Drawer + List page/section for annotations. `aideck_write` generic tool handles the write. |
+| F12. Highlight indicators | **Consumer** (via manifest) | Consumer declares Badge components bound to highlights data source. |
+| F13. Exit-gate verifier | **Consumer** (atomic-skills) | `shell-exec` and `script` handlers in manifest. |
+
+## Demo Mode (v2)
+
+`aideck demo` seeds a complete demo consumer into `~/.aideck/consumers/aideck-demo/`:
+- A `manifest.yaml` with 3 sample pages (overview, board, detail) exercising all layout modes
+- A `schema.json` for the demo data
+- Sample data files with rich, realistic content
+- Demo banner injected by aiDeck when `--demo` flag is active
+- Cleaned on exit (removes `~/.aideck/consumers/aideck-demo/`)
+
+The demo consumer is also the **component library showcase** — it exercises all 25 built-in widgets with real data, serving as visual validation and documentation.
+
+## CLI Surface (v2)
+
+| Command | Purpose |
+|---------|---------|
+| `aideck serve [--port=N]` | Start HTTP + SSE server, watch all consumers |
+| `aideck mcp` | MCP-only mode (no HTTP server) |
+| `aideck demo` | Seed demo consumer and start server |
+| `aideck validate <file>` | Validate a data file against its consumer's schema.json. Outputs LLM-friendly errors (path + expected + got). Exit 0 = valid, exit 1 = errors. |
+| `aideck init-consumer` | Interactive scaffolding: generates manifest.yaml + schema.json + data/ skeleton |
+| `aideck --help` | List commands and flags |
+| `aideck --version` | Print version |
+
 ## URL Structure
 
 ```
@@ -378,6 +437,28 @@ Separate workstream owned by the atomic-skills agent, NOT by aiDeck. aiDeck's re
 3. **Schema validation is enforced.** Every data file validated against consumer-published `schema.json`. Mismatch returns structured error with suggestion. `aideck validate` CLI outputs LLM-friendly errors.
 4. **No telemetry. Bind localhost only.** HTTP server binds to `127.0.0.1`. No analytics, no error reporting, no phone-home. All operations local-only.
 5. **Consumers own their domain.** aiDeck has zero knowledge of Plan, Initiative, Task, or any domain type. All domain logic lives in consumer packages (manifest + handlers + schemas).
+
+## Definition of Done (v2)
+
+- [ ] Consumer loader scans `~/.aideck/consumers/*/manifest.yaml` and registers all valid consumers
+- [ ] Schema validation: data files validated against consumer's `schema.json` via AJV
+- [ ] `aideck validate <file>` CLI outputs LLM-friendly errors (path + expected + got)
+- [ ] File watcher: changes in any consumer's `data/` trigger SSE events scoped to that consumer
+- [ ] REST API: all generic endpoints return correct data for any consumer
+- [ ] MCP Tier 1: `aideck_read`, `aideck_list`, `aideck_write`, `aideck_health`, `aideck_list_consumers`, `aideck_schema_version` work
+- [ ] MCP Tier 2: consumer-declared tools registered dynamically with auto-namespacing
+- [ ] All 4 handler types work: `file-mutation`, `shell-exec`, `composite`, `script`
+- [ ] Multi-consumer: 2+ consumers active simultaneously without conflicts (SSE throttling, namespacing, error isolation)
+- [ ] Vue dashboard: home page renders consumer list from manifest metadata
+- [ ] Vue dashboard: consumer pages render widgets from manifest declarations using the 25 built-in components
+- [ ] Layout engine: `sections`, `grid`, `single` modes all work with responsive breakpoints
+- [ ] `aideck demo` seeds a demo consumer exercising all 25 components
+- [ ] `aideck init-consumer` scaffolds a minimal consumer
+- [ ] Handoff document produced for atomic-skills migration
+- [ ] Dark theme with WCAG AA contrast
+- [ ] Unit test coverage ≥ 70% on core modules
+- [ ] No TypeScript errors (`npm run typecheck` passes)
+- [ ] README updated for v2 architecture
 
 ## Out of Scope
 
