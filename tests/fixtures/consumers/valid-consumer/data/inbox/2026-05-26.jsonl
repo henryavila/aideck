@@ -1,0 +1,2 @@
+{"kind":"status_change","taskId":"T-001","newStatus":"done","recordedAt":"2026-05-26T12:00:00Z"}
+{"kind":"annotation","target":"T-002","body":"Needs review","recordedAt":"2026-05-26T13:00:00Z"}

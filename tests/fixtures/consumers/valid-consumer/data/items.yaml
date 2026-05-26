@@ -1,0 +1,6 @@
+- id: T-001
+  title: First task
+  status: active
+- id: T-002
+  title: Second task
+  status: done
