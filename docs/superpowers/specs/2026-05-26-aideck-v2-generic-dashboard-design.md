@@ -352,13 +352,24 @@ All UI is designed via Claude Design (claude.ai/design web interface). Before fr
 
 ### Atomic-skills consumer migration
 
-Separate workstream, brainstormed after this spec is approved:
-- Author `manifest.yaml` with pages, dataSources, tools
-- Publish `schema.json` from existing Zod schemas
-- Write `script` handlers for the 7 complex MCP tools
-- Build custom components for atomic-skills-specific UI elements
-- Restructure data files for `~/.aideck/consumers/atomic-skills/data/`
-- Coordinate changes to atomic-skills skill prompts (MCP tool names change)
+Separate workstream owned by the atomic-skills agent, NOT by aiDeck. aiDeck's responsibility is to produce a **handoff document** at the end of the core implementation that gives the atomic-skills agent everything it needs:
+
+**Handoff document must include:**
+- The `manifest.yaml` schema reference (what fields exist, what's required, examples)
+- The `schema.json` contract (how to publish from Zod, what AJV validates)
+- The `script` handler API (`{ args, data, files, log }` — types, constraints, sandbox rules)
+- The custom component registration contract (how to ship Vue/Web Components)
+- The list of 7 MCP tools that need `script` handlers (with current implementation as reference)
+- The 3,624 LOC of domain-specific code being extracted (as reference for the atomic-skills agent to port)
+- Breaking changes: renamed MCP tools (`aideck.atomic_skills.mark_task_done` vs old `aideck_mark_task_done`), new data directory (`~/.aideck/consumers/atomic-skills/data/` vs old `.atomic-skills/`), manifest requirement
+
+**The atomic-skills agent then:**
+- Authors `manifest.yaml` with pages, dataSources, tools
+- Publishes `schema.json` from existing Zod schemas
+- Writes `script` handlers for the 7 complex MCP tools
+- Builds custom components for atomic-skills-specific UI elements
+- Restructures data files for `~/.aideck/consumers/atomic-skills/data/`
+- Updates skill prompts to reference new MCP tool names
 
 ## Iron Laws (updated for v2)
 
