@@ -120,7 +120,11 @@ function normalizeRelationships(raw: unknown): Array<Record<string, unknown>> {
 export function normalizeDiscoverRun(loose: Record<string, unknown>): Record<string, unknown> {
   const candidates: Array<Record<string, unknown>> = []
   const alreadyTracked: string[] = Array.isArray(loose.alreadyTracked)
-    ? loose.alreadyTracked.map(String)
+    ? loose.alreadyTracked.map((item: unknown) => {
+        if (typeof item === 'string') return item
+        if (item && typeof item === 'object' && 'slug' in item) return String((item as Record<string, unknown>).slug)
+        return String(item)
+      })
     : []
 
   const rawCandidates = Array.isArray(loose.candidates) ? loose.candidates : []
