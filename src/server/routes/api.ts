@@ -43,6 +43,7 @@ function statusFor(code: ErrorResponse['code']): number {
       return 404
     case 'invalid_input':
     case 'schema_version_mismatch':
+    case 'validation_error':
       return 400
     case 'precondition_failed':
       return 412
