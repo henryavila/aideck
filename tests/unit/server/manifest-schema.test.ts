@@ -263,4 +263,63 @@ describe('parseManifest', () => {
       }
     }
   })
+
+  it('accepts a tool with a composite handler including nested composite for recursion', () => {
+    const raw = {
+      ...minimalManifest,
+      tools: [
+        {
+          name: 'multi_step',
+          description: 'Run multiple steps in sequence',
+          input: {
+            type: 'object',
+            properties: {}
+          },
+          handler: {
+            type: 'composite',
+            steps: [
+              {
+                type: 'file-mutation',
+                target: 'data/inbox/step1.jsonl',
+                operation: 'append',
+                record: { kind: 'step1' }
+              },
+              {
+                type: 'composite',
+                steps: [
+                  {
+                    type: 'shell-exec',
+                    command: 'echo done'
+                  },
+                  {
+                    type: 'script',
+                    source: 'handlers/finalize.js'
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+    const result = parseManifest(raw)
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      const handler = result.value.tools?.[0]?.handler
+      expect(handler?.type).toBe('composite')
+      if (handler?.type === 'composite') {
+        expect(handler.steps).toHaveLength(2)
+        expect(handler.steps[1].type).toBe('composite')
+      }
+    }
+  })
+
+  it('rejects a manifest with schemaVersion 0.2', () => {
+    const raw = { ...minimalManifest, schemaVersion: '0.2' }
+    const result = parseManifest(raw)
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.error.code).toBe('schema_version_mismatch')
+    }
+  })
 })

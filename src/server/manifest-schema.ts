@@ -18,10 +18,11 @@ const dataSourceSchema = z.object({
 export type DataSourceDecl = z.infer<typeof dataSourceSchema>
 
 const colSpanSchema = z.number().int().min(1).max(12)
+const colStartSchema = z.number().int().min(1).max(13)
 
 const responsiveOverrideSchema = z.object({
   colSpan: colSpanSchema.optional(),
-  colStart: colSpanSchema.optional(),
+  colStart: colStartSchema.optional(),
   rowSpan: z.number().int().min(1).optional(),
   visible: z.boolean().optional()
 })
@@ -35,7 +36,7 @@ const sourceBindingSchema = z.object({
 const widgetBindingSchema = z.object({
   widget: z.string().min(1),
   colSpan: colSpanSchema.optional(),
-  colStart: colSpanSchema.optional(),
+  colStart: colStartSchema.optional(),
   rowSpan: z.number().int().min(1).optional(),
   minColSpan: colSpanSchema.optional(),
   maxColSpan: colSpanSchema.optional(),
