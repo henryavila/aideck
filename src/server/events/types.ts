@@ -53,11 +53,21 @@ export interface HealthTickEvent extends BaseEvent {
   uptimeMs: number
 }
 
+export interface DataChangedEvent extends BaseEvent {
+  kind: 'data_changed'
+  consumer: string
+  payload: {
+    file: string
+    dataSourceHint: string
+  }
+}
+
 export type RuntimeEvent =
   | StateChangeEvent
   | AnnotationAddedEvent
   | HighlightAddedEvent
   | ParseErrorEvent
   | HealthTickEvent
+  | DataChangedEvent
 
 export type RuntimeEventKind = RuntimeEvent['kind']
