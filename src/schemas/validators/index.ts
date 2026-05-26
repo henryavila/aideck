@@ -23,6 +23,7 @@ import {
   planSchema,
   projectStatusStateSchema
 } from './project-status.js'
+import { normalizeInitiative, normalizePlan } from './normalize.js'
 
 export { err, ok } from './result.js'
 export type { Result } from './result.js'
@@ -128,10 +129,10 @@ function contextDetails(
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const parsePlan = (raw: unknown, ctx?: ParseContext) =>
-  parseOrError(planSchema, raw, { entity: 'plan', ...ctx })
+  parseOrError(planSchema, normalizePlan(raw), { entity: 'plan', ...ctx })
 
 export const parseInitiative = (raw: unknown, ctx?: ParseContext) =>
-  parseOrError(initiativeSchema, raw, { entity: 'initiative', ...ctx })
+  parseOrError(initiativeSchema, normalizeInitiative(raw), { entity: 'initiative', ...ctx })
 
 export const parseAnnotation = (raw: unknown, ctx?: ParseContext) =>
   parseOrError(annotationSchema, raw, { entity: 'annotation', ...ctx })

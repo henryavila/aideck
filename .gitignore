@@ -12,3 +12,4 @@ coverage/
 *.tsbuildinfo
 .atomic-skills/_drafts/
 .atomic-skills/status/bootstrap.json
+.superpowers/

@@ -720,3 +720,62 @@ describe('context field — schema parity with atomic-skills pre-write gate', ()
     ).not.toThrow()
   })
 })
+
+// ─── normalization: coerce legacy values before validation ──────────────
+
+describe('normalization — gate status coercion', () => {
+  it('coerces "passed" to "met" in plan exitGate criteria', () => {
+    const plan = {
+      ...minimalPlan(),
+      phases: [{
+        ...samplePhase(),
+        exitGate: {
+          summary: 'done',
+          criteria: [{ id: 'G-1', description: 'check', status: 'passed' }]
+        }
+      }]
+    }
+    const r = parsePlan(plan)
+    expect(r.ok).toBe(true)
+    if (r.ok) {
+      expect(r.value.phases[0].exitGate.criteria[0].status).toBe('met')
+    }
+  })
+
+  it('coerces "passed" to "met" in initiative exitGates', () => {
+    const init = {
+      ...baseInitiative(),
+      exitGates: [{ id: 'G-1', description: 'check', status: 'passed' }]
+    }
+    const r = parseInitiative(init)
+    expect(r.ok).toBe(true)
+    if (r.ok) {
+      expect(r.value.exitGates[0].status).toBe('met')
+    }
+  })
+})
+
+describe('normalization — legacy initiative field names', () => {
+  it('maps initiative_id to slug and adds defaults for missing arrays', () => {
+    const legacy = {
+      initiative_id: 'my-init',
+      title: 'Legacy Initiative',
+      goal: 'test coercion',
+      status: 'active',
+      branch: 'main',
+      started: TS,
+      last_updated: TS,
+      next_action: null,
+    }
+    const r = parseInitiative(legacy)
+    expect(r.ok).toBe(true)
+    if (r.ok) {
+      expect(r.value.slug).toBe('my-init')
+      expect(r.value.lastUpdated).toBe(TS)
+      expect(r.value.schemaVersion).toBe('0.1')
+      expect(r.value.exitGates).toEqual([])
+      expect(r.value.stack).toEqual([])
+      expect(r.value.tasks).toEqual([])
+    }
+  })
+})
