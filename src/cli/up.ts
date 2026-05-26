@@ -1,10 +1,49 @@
 import { spawn } from 'node:child_process'
+import { existsSync } from 'node:fs'
+import { basename, dirname, join, resolve } from 'node:path'
 import { readEnvFile, removeEnvFile } from '../server/env-file.js'
 import type { ParsedArgs } from './args.js'
 
 const POLL_INTERVAL_MS = 500
 const POLL_TIMEOUT_MS = 10_000
 const PROBE_TIMEOUT_MS = 3_000
+
+function findProjectRoot(from: string): string {
+  let dir = resolve(from)
+  while (true) {
+    if (existsSync(join(dir, '.atomic-skills'))) return dir
+    const parent = dirname(dir)
+    if (parent === dir) return resolve(from)
+    dir = parent
+  }
+}
+
+function deriveProjectId(rootDir: string): string {
+  let id = basename(rootDir)
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, '-')
+    .replace(/^[^a-z]+/, '')
+    .slice(0, 64)
+  return id || 'project'
+}
+
+async function tryRegister(url: string, rootDir: string): Promise<boolean> {
+  try {
+    const projectId = deriveProjectId(rootDir)
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS)
+    const resp = await fetch(`${url}/api/projects/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rootDir, projectId }),
+      signal: controller.signal,
+    })
+    clearTimeout(timer)
+    return resp.ok
+  } catch {
+    return false
+  }
+}
 
 export function parseUrlFromEnvContent(content: string): string | null {
   const match = content.match(/AIDECK_URL='([^']+)'/)
@@ -64,20 +103,28 @@ export async function runUp(
   stdout: NodeJS.WritableStream,
   stderr: NodeJS.WritableStream
 ): Promise<number> {
-  const cwd = process.cwd()
+  const rootDir = findProjectRoot(process.cwd())
   const content = await readEnvFile()
   if (content) {
     const url = parseUrlFromEnvContent(content)
     if (url) {
       const health = await probeHealth(url)
       if (health) {
-        if (!health.rootDir || health.rootDir === cwd) {
+        if (!health.rootDir || health.rootDir === rootDir) {
           stdout.write(`${url}\n`)
           return 0
         }
-        // rootDir mismatch — shut down old instance and start fresh
+        // rootDir mismatch — try registering with the running instance
+        if (await tryRegister(url, rootDir)) {
+          stderr.write(
+            `aideck up: registered "${deriveProjectId(rootDir)}" with running instance at ${url}\n`
+          )
+          stdout.write(`${url}\n`)
+          return 0
+        }
+        // Registration failed (old binary?) — fall back to restart
         stderr.write(
-          `aideck up: rootDir mismatch (running: ${health.rootDir}, need: ${cwd}). Restarting.\n`
+          `aideck up: rootDir mismatch (running: ${health.rootDir}, need: ${rootDir}). Restarting.\n`
         )
         await requestShutdown(url)
       }
@@ -94,7 +141,7 @@ export async function runUp(
   }
 
   const child = spawn(process.execPath, [process.argv[1], ...args], {
-    cwd,
+    cwd: rootDir,
     detached: true,
     stdio: 'ignore',
     env: process.env
