@@ -194,6 +194,53 @@ async function dispatchBuildDiscoverRun(
   return runBuildDiscoverRun(parsed, stdout, stderr)
 }
 
+async function dispatchValidateFile(
+  parsed: ReturnType<typeof parseCliArgs>,
+  stdout: NodeJS.WritableStream,
+  stderr: NodeJS.WritableStream
+): Promise<number> {
+  const { runValidate } = await import('./cli/validate.js')
+
+  const filePath = parsed.positionals[0]
+  if (!filePath || parsed.flags.help) {
+    stdout.write('Usage: aideck validate-file <file>\n\n')
+    stdout.write('Validate a data file against its consumer schema.json.\n')
+    stdout.write('Walks up from the file to find manifest.yaml, matches the dataSource\n')
+    stdout.write('by path pattern, and validates each record via schema.json.\n\n')
+    stdout.write('Exit codes: 0=valid, 1=invalid, 2=file/consumer not found\n')
+    return filePath ? 0 : 1
+  }
+
+  return runValidate(filePath, { stdout, stderr })
+}
+
+async function dispatchInitConsumer(
+  parsed: ReturnType<typeof parseCliArgs>,
+  stdout: NodeJS.WritableStream,
+  stderr: NodeJS.WritableStream
+): Promise<number> {
+  const { runInitConsumer } = await import('./cli/init-consumer.js')
+
+  const { id, title, mcpNamespace } = parsed.flags
+
+  if (parsed.flags.help || !id || !title || !mcpNamespace) {
+    if (!parsed.flags.help) {
+      const missing = [
+        !id && '--id',
+        !title && '--title',
+        !mcpNamespace && '--mcp-namespace',
+      ].filter(Boolean).join(', ')
+      stderr.write(`aideck init-consumer: missing required flags: ${missing}\n`)
+    }
+    stdout.write('Usage: aideck init-consumer --id=<id> --title=<title> --mcp-namespace=<ns>\n\n')
+    stdout.write('Scaffold a new consumer directory with manifest.yaml, schema.json,\n')
+    stdout.write('and sample data files under ~/.aideck/consumers/<id>/\n')
+    return parsed.flags.help ? 0 : 1
+  }
+
+  return runInitConsumer({ id, title, mcpNamespace })
+}
+
 async function dispatchValidate(
   parsed: ReturnType<typeof parseCliArgs>,
   stdout: NodeJS.WritableStream,
@@ -260,6 +307,10 @@ export async function runCli(opts: CliRunOptions = {}): Promise<number> {
       return dispatchValidate(parsed, stdout, stderr)
     case 'build-discover-run':
       return dispatchBuildDiscoverRun(parsed, stdout, stderr)
+    case 'validate-file':
+      return dispatchValidateFile(parsed, stdout, stderr)
+    case 'init-consumer':
+      return dispatchInitConsumer(parsed, stdout, stderr)
   }
 }
 

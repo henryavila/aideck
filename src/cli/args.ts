@@ -1,6 +1,6 @@
 import { parseArgs } from 'node:util'
 
-export type Subcommand = 'serve' | 'demo' | 'mcp' | 'env' | 'up' | 'down' | 'validate' | 'build-discover-run'
+export type Subcommand = 'serve' | 'demo' | 'mcp' | 'env' | 'up' | 'down' | 'validate' | 'build-discover-run' | 'validate-file' | 'init-consumer'
 
 export interface ParsedArgs {
   subcommand?: Subcommand
@@ -12,6 +12,9 @@ export interface ParsedArgs {
     out?: string
     help?: boolean
     version?: boolean
+    id?: string
+    title?: string
+    mcpNamespace?: string
   }
   portExplicit: boolean
 }
@@ -23,7 +26,7 @@ export class ArgError extends Error {
   }
 }
 
-const SUBCOMMANDS: ReadonlySet<string> = new Set(['serve', 'demo', 'mcp', 'env', 'up', 'down', 'validate', 'build-discover-run'])
+const SUBCOMMANDS: ReadonlySet<string> = new Set(['serve', 'demo', 'mcp', 'env', 'up', 'down', 'validate', 'build-discover-run', 'validate-file', 'init-consumer'])
 
 export function parseCliArgs(argv: string[]): ParsedArgs {
   let parsed
@@ -36,7 +39,10 @@ export function parseCliArgs(argv: string[]): ParsedArgs {
         'static-dir': { type: 'string' },
         out: { type: 'string' },
         help: { type: 'boolean', short: 'h' },
-        version: { type: 'boolean', short: 'v' }
+        version: { type: 'boolean', short: 'v' },
+        id: { type: 'string' },
+        title: { type: 'string' },
+        'mcp-namespace': { type: 'string' }
       },
       allowPositionals: true,
       strict: true
@@ -76,7 +82,10 @@ export function parseCliArgs(argv: string[]): ParsedArgs {
       staticDir: parsed.values['static-dir'],
       out: parsed.values.out,
       help: parsed.values.help,
-      version: parsed.values.version
+      version: parsed.values.version,
+      id: parsed.values.id,
+      title: parsed.values.title,
+      mcpNamespace: parsed.values['mcp-namespace']
     },
     portExplicit: parsed.values.port !== undefined
   }
