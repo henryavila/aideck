@@ -297,7 +297,30 @@ From the current 18 atomic-skills MCP tools:
 
 Industry consensus: every declarative platform (HA, GitHub Actions, Step Functions, Terraform) ships an "escape to code" primitive. None attempts to make declarative config Turing-complete.
 
-### 10. Migration strategy: hybrid A+B
+### 10. Multi-consumer isolation
+
+aiDeck serves multiple consumers simultaneously by default. Seven conflict risks identified and addressed:
+
+**Already handled by the architecture:**
+- **File isolation**: each consumer owns `~/.aideck/consumers/<id>/data/`. No cross-consumer file access.
+- **URL scoping**: `/<consumer-id>/` prefix. Each consumer gets its own page space.
+- **Event attribution**: every SSE event and API response carries a `consumer` field.
+- **Atomic writes**: JSONL files use `fs.appendFile` (atomic append). Entity files are consumer-owned, never shared.
+- **Result types**: all parsers return `Result<T, Error>`, never throw.
+
+**Must be enforced by aiDeck core:**
+
+| Concern | Mechanism |
+|---------|-----------|
+| MCP tool collisions | Auto-namespace: consumer declares `mark_task_done`, aiDeck registers as `aideck.<consumer>.mark_task_done` |
+| Custom component collisions | Auto-prefix: consumer declares `phase-card`, aiDeck registers as `<consumer>/phase-card` |
+| SSE flooding | Per-consumer event throttle (configurable debounce, default 100ms). SSE supports `?consumer=X` filter |
+| Parse error propagation | Per-consumer error boundaries in watcher dispatch. Errors logged + emitted as events, never crash the server |
+| Resource exhaustion | File count cap per consumer (configurable, default 5,000). Lazy data loading (on-demand, not all-at-startup) |
+| Script handler hangs | try/catch boundary with configurable timeout (default 30s). Hung handler doesn't block the MCP server |
+| Double-start conflicts | Instance lockfile (`~/.aideck/lock`) with PID + port. Refuse to start if another instance is alive |
+
+### 11. Migration strategy: hybrid A+B
 
 File-by-file audit of 7,226 LOC across 63 files:
 
@@ -308,39 +331,6 @@ File-by-file audit of 7,226 LOC across 63 files:
 | **Surgery (A+B)** | 1,522 | 21% | Watcher (keep chokidar, rewrite dispatch), routes (keep Hono, rewrite endpoints), paths.ts (keep utils, rewrite classify) |
 
 The 3,624 LOC of domain-specific code moves OUT of aiDeck core and INTO the atomic-skills consumer package (handlers/, schemas, components).
-
-## Multi-Consumer Isolation
-
-aiDeck serves multiple consumers simultaneously by default. Seven conflict risks identified and addressed:
-
-### Already handled by the architecture
-
-- **File isolation**: each consumer owns `~/.aideck/consumers/<id>/data/`. No cross-consumer file access.
-- **URL scoping**: `/<consumer-id>/` prefix. Each consumer gets its own page space.
-- **Event attribution**: every SSE event and API response carries a `consumer` field.
-- **Atomic writes**: JSONL files use `fs.appendFile` (atomic append). Entity files are consumer-owned, never shared.
-- **Result types**: all parsers return `Result<T, Error>`, never throw.
-
-### Must be enforced by aiDeck core
-
-**Namespacing:**
-- MCP tools auto-namespaced: consumer declares `mark_task_done`, aiDeck registers as `aideck.<consumer>.mark_task_done`. No consumer can collide with another's tools or with Tier 1 generic tools.
-- Custom components auto-namespaced: consumer declares `phase-card`, aiDeck registers as `<consumer>/phase-card`. Prevents Web Component tag collisions.
-
-**Rate limiting:**
-- Per-consumer SSE event throttle: configurable debounce window (default 100ms). A consumer with rapid file changes won't flood the event stream for others.
-- SSE endpoint supports `?consumer=X` filter so the browser only receives events from the active consumer's page space.
-
-**Error containment:**
-- Per-consumer error boundaries in the watcher dispatch loop. A parse error or handler crash in consumer A is logged and emitted as an error event — it never propagates to consumer B or crashes the server.
-- Script handlers run in a try/catch boundary with configurable timeout (default 30s). A hung handler doesn't block the MCP server.
-
-**Resource limits:**
-- Configurable file count cap per consumer (default 5,000 watched files). Exceeding the cap logs a warning and stops watching new files for that consumer.
-- Lazy data loading: data files parsed on-demand (first API request or SSE subscription), not all-at-startup.
-
-**Instance locking:**
-- On startup, write a lockfile (`~/.aideck/lock`) with PID + port. If the lockfile exists and the PID is alive, refuse to start with a message pointing to the running instance.
 
 ## URL Structure
 
