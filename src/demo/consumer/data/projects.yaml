@@ -1,0 +1,20 @@
+- id: proj-1
+  title: 'API Gateway Redesign'
+  status: active
+  owner: Alice
+  startDate: '2026-04-01'
+- id: proj-2
+  title: 'Mobile App v3'
+  status: active
+  owner: Bob
+  startDate: '2026-03-15'
+- id: proj-3
+  title: 'Data Pipeline Migration'
+  status: paused
+  owner: Carol
+  startDate: '2026-02-01'
+- id: proj-4
+  title: 'Auth Service Rewrite'
+  status: done
+  owner: Dave
+  startDate: '2026-01-10'

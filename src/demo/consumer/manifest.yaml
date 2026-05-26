@@ -1,0 +1,100 @@
+schemaVersion: '0.1'
+id: aideck-demo
+mcpNamespace: aideck_demo
+title: 'aiDeck Demo'
+icon: 'mdi:rocket'
+
+dataSources:
+  - id: projects
+    path: 'data/projects.yaml'
+    format: yaml
+  - id: tasks
+    path: 'data/tasks.yaml'
+    format: yaml
+  - id: events
+    path: 'data/events.jsonl'
+    format: jsonl
+
+pages:
+  - slug: overview
+    title: 'Overview'
+    icon: 'mdi:view-dashboard'
+    default: true
+    layout: sections
+    sections:
+      - title: 'Project Stats'
+        columns: 12
+        gap: 16
+        widgets:
+          - widget: stat
+            colSpan: 3
+            source: { ref: projects }
+            config: { value: 'count()', label: 'Total Projects' }
+          - widget: stat
+            colSpan: 3
+            source: { ref: projects }
+            config: { value: 'count(status=active)', label: 'Active', color: 'var(--color-accent)' }
+          - widget: stat
+            colSpan: 3
+            source: { ref: tasks }
+            config: { value: 'count(status=done)', label: 'Tasks Done', color: 'var(--color-success)' }
+          - widget: stat
+            colSpan: 3
+            source: { ref: tasks }
+            config: { value: 'count()', label: 'Total Tasks' }
+      - title: 'Projects'
+        widgets:
+          - widget: table
+            colSpan: 12
+            source: { ref: projects }
+      - title: 'Recent Activity'
+        widgets:
+          - widget: timeline
+            colSpan: 8
+            source: { ref: events }
+            config: { timestampField: 'timestamp', titleField: 'action', bodyField: 'detail' }
+          - widget: log-feed
+            colSpan: 4
+            source: { ref: events }
+            config: { timestampField: 'timestamp', messageField: 'action' }
+
+  - slug: board
+    title: 'Task Board'
+    icon: 'mdi:view-column'
+    layout: grid
+    columns: 12
+    rowHeight: 48
+    gap: 12
+    widgets:
+      - widget: kanban-board
+        colStart: 1
+        colSpan: 12
+        rowSpan: 8
+        source: { ref: tasks }
+        config: { columns: ['todo', 'in-progress', 'done'], statusField: 'status' }
+
+  - slug: analytics
+    title: 'Analytics'
+    icon: 'mdi:chart-line'
+    layout: sections
+    sections:
+      - title: 'Task Completion'
+        widgets:
+          - widget: bar-chart
+            colSpan: 6
+            source: { ref: tasks }
+            config: { labelField: 'title', valueField: 'priority' }
+          - widget: gauge
+            colSpan: 6
+            source: { ref: tasks }
+            config: { valueField: 'priority', max: 5, label: 'Avg Priority' }
+      - title: 'Tags'
+        widgets:
+          - widget: tag-chip
+            colSpan: 6
+            source: { ref: tasks }
+            config: { field: 'tags' }
+          - widget: badge
+            colSpan: 6
+            source: { ref: tasks }
+            config: { field: 'status' }

@@ -1,0 +1,38 @@
+{
+  "$id": "aideck-demo-schema",
+  "definitions": {
+    "project": {
+      "type": "object",
+      "required": ["id", "title", "status"],
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "paused", "done"] },
+        "owner": { "type": "string" },
+        "startDate": { "type": "string" }
+      }
+    },
+    "task": {
+      "type": "object",
+      "required": ["id", "title", "status"],
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "status": { "type": "string", "enum": ["todo", "in-progress", "done"] },
+        "priority": { "type": "integer", "minimum": 1, "maximum": 5 },
+        "project": { "type": "string" },
+        "tags": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "event": {
+      "type": "object",
+      "required": ["timestamp", "action"],
+      "properties": {
+        "timestamp": { "type": "string" },
+        "action": { "type": "string" },
+        "detail": { "type": "string" },
+        "actor": { "type": "string" }
+      }
+    }
+  }
+}

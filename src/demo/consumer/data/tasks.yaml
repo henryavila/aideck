@@ -1,0 +1,48 @@
+- id: T-001
+  title: 'Design API schema'
+  status: done
+  priority: 3
+  project: proj-1
+  tags: [design, api]
+- id: T-002
+  title: 'Implement rate limiting'
+  status: in-progress
+  priority: 4
+  project: proj-1
+  tags: [backend, security]
+- id: T-003
+  title: 'Write integration tests'
+  status: todo
+  priority: 2
+  project: proj-1
+  tags: [testing]
+- id: T-004
+  title: 'UI component library'
+  status: in-progress
+  priority: 3
+  project: proj-2
+  tags: [frontend, ui]
+- id: T-005
+  title: 'Push notification service'
+  status: todo
+  priority: 5
+  project: proj-2
+  tags: [backend, mobile]
+- id: T-006
+  title: 'Migrate Postgres to BigQuery'
+  status: todo
+  priority: 4
+  project: proj-3
+  tags: [data, migration]
+- id: T-007
+  title: 'OAuth2 provider setup'
+  status: done
+  priority: 5
+  project: proj-4
+  tags: [auth, security]
+- id: T-008
+  title: 'Session token rotation'
+  status: done
+  priority: 3
+  project: proj-4
+  tags: [auth, backend]
