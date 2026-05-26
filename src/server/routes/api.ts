@@ -50,6 +50,8 @@ function statusFor(code: ErrorResponse['code']): number {
     case 'io_error':
     case 'internal_error':
       return 500
+    case 'not_implemented':
+      return 501
   }
 }
 
