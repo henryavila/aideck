@@ -9,12 +9,17 @@ import { mutateTools } from './tools/mutate.js'
 import { gateTools } from './tools/gates.js'
 import { feedbackTools } from './tools/feedback.js'
 import { metaTools } from './tools/meta.js'
+import { registerGenericTools } from './tools/generic.js'
+import { registerConsumerTools } from './tools/consumer-tools.js'
 import type { McpToolContext } from './types.js'
+import type { ConsumerRegistry } from '../server/consumer-registry.js'
 
 export interface McpServerOptions {
   rootDir: string
   version?: string
   extraRegistrar?: (registry: ToolRegistry) => void
+  /** When provided, v2 generic + consumer-declared tools are registered alongside v0.1 tools. */
+  consumers?: ConsumerRegistry
 }
 
 export interface McpBundle {
@@ -35,6 +40,13 @@ export function createMcpServer(opts: McpServerOptions): McpBundle {
   for (const tool of feedbackTools) registry.register(tool)
   for (const tool of metaTools) registry.register(tool)
   opts.extraRegistrar?.(registry)
+
+  // v2 tools: generic (aideck_list_consumers, aideck_list, aideck_read, etc.)
+  // and consumer-declared tools from manifest.yaml
+  if (opts.consumers) {
+    registerGenericTools(registry, opts.consumers, ctx.version)
+    registerConsumerTools(registry, opts.consumers)
+  }
 
   const server = new Server(
     { name: 'aideck', version: ctx.version },
