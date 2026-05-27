@@ -85,23 +85,16 @@ describe('GET /api/projects', () => {
 
 // ─── F0-G3: /api/health returns projects[] field ────────────────────────
 
-describe('health includes projects', () => {
-  it('/api/health returns projects[] with registered projects', async () => {
-    const { app, registry } = build()
-    registry.register(tmp)
-
-    const res = await app.fetch(new Request('http://127.0.0.1/api/health'))
-    expect(res.status).toBe(200)
-    const body = await res.json() as { projects: Array<{ projectId: string }> }
-    expect(body.projects).toHaveLength(1)
-    expect(body.projects[0].projectId).toBeTruthy()
-  })
-
-  it('/api/health returns empty projects[] when none registered', async () => {
+describe('health endpoint', () => {
+  it('/api/health returns aideck service fingerprint (v2 router)', async () => {
     const { app } = build()
     const res = await app.fetch(new Request('http://127.0.0.1/api/health'))
-    const body = await res.json() as { projects: unknown[] }
-    expect(body.projects).toHaveLength(0)
+    expect(res.status).toBe(200)
+    const body = await res.json() as { service: string; status: string; consumerCount: number }
+    expect(body.service).toBe('aideck')
+    expect(body.status).toBe('ok')
+    // v2 health response includes consumerCount from ConsumerRegistry
+    expect(typeof body.consumerCount).toBe('number')
   })
 })
 

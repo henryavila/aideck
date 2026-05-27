@@ -66,11 +66,11 @@ afterEach(async () => {
 })
 
 describe('aideck mcp — real stdio subprocess', () => {
-  it('completes initialize + tools/list with at least 24 aideck_ tools', async () => {
+  it('completes initialize + tools/list and all tools have the aideck_ prefix', async () => {
     const list = await client.listTools()
-    // 24 v0.1 tools + v2 generic tools (aideck_list, aideck_read, aideck_write)
-    // when ~/.aideck/consumers/ has entries; exact count depends on environment
-    expect(list.tools.length).toBeGreaterThanOrEqual(24)
+    // After v0.1 decoupling, only v2 generic + consumer-declared tools are registered.
+    // Exact count depends on ~/.aideck/consumers/ state on the host. Zero is valid
+    // when no consumers are installed.
     for (const t of list.tools) {
       expect(t.name).toMatch(/^aideck_/)
       expect(typeof t.description).toBe('string')
@@ -78,22 +78,8 @@ describe('aideck mcp — real stdio subprocess', () => {
     }
   }, 15_000)
 
-  it('aideck_schema_version answers via stdio', async () => {
-    const res = await client.callTool({ name: 'aideck_schema_version', arguments: {} })
-    const body = JSON.parse((res.content as Array<{ text: string }>)[0].text) as {
-      schemaVersion: string
-      toolCount: number
-    }
-    expect(body.schemaVersion).toBe('0.1')
-    expect(body.toolCount).toBe(24)
-  }, 15_000)
-
-  it('aideck_get_plan reads the seeded plan over stdio', async () => {
-    const res = await client.callTool({
-      name: 'aideck_get_plan',
-      arguments: { consumer: 'project-status', slug: 'stdio-plan' }
-    })
-    const body = JSON.parse((res.content as Array<{ text: string }>)[0].text) as { slug: string }
-    expect(body.slug).toBe('stdio-plan')
+  it('unknown tool returns isError via stdio', async () => {
+    const res = await client.callTool({ name: 'aideck_does_not_exist', arguments: {} })
+    expect((res as { isError?: boolean }).isError).toBe(true)
   }, 15_000)
 })

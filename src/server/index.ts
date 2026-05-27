@@ -3,7 +3,7 @@ import { serve, type ServerType } from '@hono/node-server'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { createEventBus, type EventBus } from './event-bus.js'
-import { createWatcher, type Watcher } from './watcher.js'
+import { createWatcher } from './watcher.js'
 import { corsMiddleware } from './cors.js'
 import { createApiRouter } from './routes/api.js'
 import { createApiV2Router } from './routes/api-v2.js'
@@ -35,7 +35,6 @@ const LOCALHOST = '127.0.0.1'
 export interface RunningServer {
   app: Hono
   eventBus: EventBus
-  watcher: Watcher | null
   consumers: ConsumerRegistry
   consumerWatcher: ConsumerWatcher | null
   server: ServerType | null
@@ -46,7 +45,6 @@ export interface RunningServer {
 export interface BuiltApp {
   app: Hono
   eventBus: EventBus
-  watcher: Watcher | null
   consumers: ConsumerRegistry
   consumerWatcher: ConsumerWatcher | null
   startedAt: number
@@ -59,15 +57,13 @@ export function buildApp(opts: ServerOptions): BuiltApp {
   const startedAt = Date.now()
   const registry = createProjectRegistry()
 
+  // Per-project watchers: created on-demand when projects register via /api/projects/register.
+  // These watch .atomic-skills/ inside each registered project and emit SSE events.
   if (!opts.skipWatcher) {
     registry.setWatcherFactory((projectId, rootDir) =>
       createWatcher({ rootDir, eventBus, projectId })
     )
   }
-
-  const watcher = opts.skipWatcher
-    ? null
-    : createWatcher({ rootDir: opts.rootDir, eventBus })
 
   // v2 consumer registry — scans ~/.aideck/consumers/
   const aideckBaseDir = join(homedir(), '.aideck')
@@ -81,7 +77,14 @@ export function buildApp(opts: ServerOptions): BuiltApp {
   const app = new Hono()
   app.use('*', corsMiddleware())
 
-  // v0.1 API router (mounted first so colliding paths like /api/health keep v0.1 behavior)
+  // v2 API router mounted FIRST — gets priority on shared paths (/api/health, /api/consumers)
+  app.route('/', createApiV2Router({
+    consumers,
+    version: opts.version ?? '0.0.1',
+    startedAt,
+  }))
+
+  // v0.1 API router (legacy routes: /api/state/*, /api/annotate, /api/inbox, etc.)
   app.route('/', createApiRouter({
     rootDir: opts.rootDir,
     eventBus,
@@ -89,13 +92,6 @@ export function buildApp(opts: ServerOptions): BuiltApp {
     version: opts.version ?? '0.0.1',
     demo: opts.demo ?? false,
     registry
-  }))
-
-  // v2 API router (new paths: /api/consumers/:id, /api/consumers/:id/data/*, /api/consumers/:id/write/*)
-  app.route('/', createApiV2Router({
-    consumers,
-    version: opts.version ?? '0.0.1',
-    startedAt,
   }))
 
   app.route('/', createSseRouter({ eventBus, startedAt, registry }))
@@ -118,7 +114,7 @@ export function buildApp(opts: ServerOptions): BuiltApp {
     return c.text('not found', 404)
   })
 
-  return { app, eventBus, watcher, consumers, consumerWatcher, startedAt, rootDir: opts.rootDir, registry }
+  return { app, eventBus, consumers, consumerWatcher, startedAt, rootDir: opts.rootDir, registry }
 }
 
 export async function startServer(opts: ServerOptions): Promise<RunningServer> {
@@ -127,9 +123,6 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
   // Scan v2 consumers before starting (safe even if ~/.aideck/consumers/ doesn't exist)
   await built.consumers.scan()
 
-  if (built.watcher) {
-    await built.watcher.start()
-  }
   if (built.consumerWatcher) {
     await built.consumerWatcher.start()
   }
@@ -143,14 +136,12 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
   return {
     app: built.app,
     eventBus: built.eventBus,
-    watcher: built.watcher,
     consumers: built.consumers,
     consumerWatcher: built.consumerWatcher,
     server,
     port,
     async stop() {
       if (built.consumerWatcher) await built.consumerWatcher.stop()
-      if (built.watcher) await built.watcher.stop()
       await new Promise<void>((resolve) => server.close(() => resolve()))
     }
   }

@@ -27,6 +27,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 import { createMcpServer } from '../../../src/mcp/server.js'
+import { registerV01Tools } from './register-v01-tools.js'
 
 const ID_REGEX = /^[a-z]+-\d{4}-\d{2}-\d{2}-[0-9a-f]{8}$/
 
@@ -145,7 +146,7 @@ beforeEach(async () => {
   await writeFile(planPath, PLAN)
   await writeFile(initPath, INITIATIVE)
 
-  const { server } = createMcpServer({ rootDir: tmp })
+  const { server } = createMcpServer({ rootDir: tmp, extraRegistrar: registerV01Tools })
   const [a, b] = InMemoryTransport.createLinkedPair()
   client = new Client({ name: 'smoke', version: '0' }, { capabilities: {} })
   await Promise.all([server.connect(a), client.connect(b)])

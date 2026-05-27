@@ -106,7 +106,7 @@ describe('multi-watcher', () => {
 
     // Cleanup watchers
     await built.registry.clear()
-    if (built.watcher) await built.watcher.stop()
+    // v0.1 global watcher removed; per-project watchers cleaned up by registry.clear()
   }, 10000)
 })
 
@@ -142,7 +142,7 @@ describe('unregister watcher', () => {
     expect(betaEvents.length).toBeGreaterThanOrEqual(1)
 
     await built.registry.clear()
-    if (built.watcher) await built.watcher.stop()
+    // v0.1 global watcher removed; per-project watchers cleaned up by registry.clear()
   }, 10000)
 })
 
@@ -175,6 +175,6 @@ describe('watcher isolation', () => {
     expect(betaChanges.length).toBeGreaterThanOrEqual(1)
 
     await built.registry.clear()
-    if (built.watcher) await built.watcher.stop()
+    // v0.1 global watcher removed; per-project watchers cleaned up by registry.clear()
   }, 10000)
 })

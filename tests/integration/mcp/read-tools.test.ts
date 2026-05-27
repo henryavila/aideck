@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 import { createMcpServer } from '../../../src/mcp/server.js'
+import { registerV01Tools } from './register-v01-tools.js'
 
 let tmp: string
 let consumerDir: string
@@ -93,7 +94,7 @@ beforeEach(async () => {
   await writeFile(join(consumerDir, 'plans/p-one.md'), PLAN_BODY)
   await writeFile(join(consumerDir, 'initiatives/v3-f1-build.md'), INITIATIVE_BODY)
 
-  const { server } = createMcpServer({ rootDir: tmp })
+  const { server } = createMcpServer({ rootDir: tmp, extraRegistrar: registerV01Tools })
   const [a, b] = InMemoryTransport.createLinkedPair()
   client = new Client({ name: 'test', version: '0' }, { capabilities: {} })
   await Promise.all([server.connect(a), client.connect(b)])

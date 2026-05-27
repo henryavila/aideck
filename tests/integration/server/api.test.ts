@@ -43,24 +43,26 @@ function build() {
 }
 
 describe('GET /api/health', () => {
-  it('returns the aideck fingerprint and consumer count', async () => {
+  it('returns the aideck fingerprint', async () => {
     const { app } = build()
     const res = await app.fetch(new Request('http://127.0.0.1/api/health'))
     expect(res.status).toBe(200)
-    const body = await res.json() as { service: string; consumerCount: number; modes: string[] }
+    const body = await res.json() as { service: string; consumerCount: number; status: string }
     expect(body.service).toBe('aideck')
-    expect(body.consumerCount).toBeGreaterThanOrEqual(1)
-    expect(body.modes).toContain('http')
+    expect(body.status).toBe('ok')
+    // v2 router serves /api/health now; consumerCount reflects v2 ConsumerRegistry
+    expect(typeof body.consumerCount).toBe('number')
   })
 })
 
 describe('GET /api/consumers', () => {
-  it('lists discovered consumers under .atomic-skills', async () => {
+  it('returns consumers array (empty when no v2 consumers registered)', async () => {
     const { app } = build()
     const res = await app.fetch(new Request('http://127.0.0.1/api/consumers'))
     expect(res.status).toBe(200)
-    const body = await res.json() as { consumers: Array<{ id: string; state: string }> }
-    expect(body.consumers.find((c) => c.id === 'project-status')?.state).toBe('active')
+    const body = await res.json() as { consumers: unknown[] }
+    // v2 router serves /api/consumers now; returns manifest-based consumers
+    expect(Array.isArray(body.consumers)).toBe(true)
   })
 })
 
