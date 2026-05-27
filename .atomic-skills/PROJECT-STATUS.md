@@ -1,5 +1,5 @@
 ---
-lastUpdated: '2026-05-27T06:54:13Z'
+lastUpdated: '2026-05-27T08:56:24Z'
 schemaVersion: '0.1'
 activePlans: 0
 activeInitiatives: 1
@@ -43,7 +43,7 @@ _(none)_
 
 | Slug | Status | Branch | Started | Next Action |
 |------|--------|--------|---------|-------------|
-| [v2-spec-gaps](initiatives/v2-spec-gaps.md) | active | feat/aideck-v2-generic-runtime | 2026-05-27 | T-001: Gerar prompts Claude Design |
+| [v2-spec-gaps](initiatives/v2-spec-gaps.md) | active | feat/aideck-v2-generic-runtime | 2026-05-27 | 18/19 done — T-019 aguarda HTMLs Claude Design |
 
 ## Recently Archived (last 10)
 
