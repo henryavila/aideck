@@ -3,10 +3,10 @@ schemaVersion: '0.1'
 slug: aideck-v2-generic-runtime-f5-integration-demo
 title: 'Integration + Demo'
 goal: 'Build demo consumer, end-to-end tests, and produce handoff document for atomic-skills migration.'
-status: pending
-branch: null
+status: done
+branch: feat/aideck-v2-generic-runtime
 started: '2026-05-26T15:58:39Z'
-lastUpdated: '2026-05-26T15:58:39Z'
+lastUpdated: '2026-05-27T06:54:13Z'
 nextAction: null
 
 parentPlan: aideck-v2-generic-runtime
@@ -16,7 +16,16 @@ exitGates: []
 
 stack: []
 
-tasks: []
+tasks:
+  - { id: T-034, title: 'Demo consumer manifest + schema + data', status: done, lastUpdated: '2026-05-27T06:54:13Z', closedAt: '2026-05-27T06:54:13Z' }
+  - { id: T-035, title: 'Seed utility', status: done, lastUpdated: '2026-05-27T06:54:13Z', closedAt: '2026-05-27T06:54:13Z' }
+  - { id: T-036, title: 'Handoff document', status: done, lastUpdated: '2026-05-27T06:54:13Z', closedAt: '2026-05-27T06:54:13Z' }
+  - { id: T-037, title: 'Final verification', status: done, lastUpdated: '2026-05-27T06:54:13Z', closedAt: '2026-05-27T06:54:13Z' }
+  - { id: T-038, title: 'Wire server', status: done, lastUpdated: '2026-05-27T06:54:13Z', closedAt: '2026-05-27T06:54:13Z' }
+  - { id: T-039, title: 'Wire MCP', status: done, lastUpdated: '2026-05-27T06:54:13Z', closedAt: '2026-05-27T06:54:13Z' }
+  - { id: T-040, title: 'Wire CLI', status: done, lastUpdated: '2026-05-27T06:54:13Z', closedAt: '2026-05-27T06:54:13Z' }
+  - { id: T-041, title: 'E2E test', status: done, lastUpdated: '2026-05-27T06:54:13Z', closedAt: '2026-05-27T06:54:13Z' }
+  - { id: T-042, title: 'v0.1 decoupling', status: done, lastUpdated: '2026-05-27T06:54:13Z', closedAt: '2026-05-27T06:54:13Z' }
 
 parked: []
 

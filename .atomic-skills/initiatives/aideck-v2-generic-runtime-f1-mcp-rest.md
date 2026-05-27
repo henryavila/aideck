@@ -3,10 +3,10 @@ schemaVersion: '0.1'
 slug: aideck-v2-generic-runtime-f1-mcp-rest
 title: 'MCP + REST'
 goal: 'Implement Tier 1 generic MCP tools, 4 handler types, Tier 2 consumer-declared tool registration, and generic REST API endpoints.'
-status: pending
-branch: null
+status: done
+branch: feat/aideck-v2-generic-runtime
 started: '2026-05-26T15:58:39Z'
-lastUpdated: '2026-05-26T15:58:39Z'
+lastUpdated: '2026-05-27T06:54:13Z'
 nextAction: null
 
 parentPlan: aideck-v2-generic-runtime
@@ -16,7 +16,16 @@ exitGates: []
 
 stack: []
 
-tasks: []
+tasks:
+  - { id: T-008, title: 'Template Engine', status: done, lastUpdated: '2026-05-27T06:54:13Z', closedAt: '2026-05-27T06:54:13Z' }
+  - { id: T-009, title: 'file-mutation Handler', status: done, lastUpdated: '2026-05-27T06:54:13Z', closedAt: '2026-05-27T06:54:13Z' }
+  - { id: T-010, title: 'shell-exec Handler', status: done, lastUpdated: '2026-05-27T06:54:13Z', closedAt: '2026-05-27T06:54:13Z' }
+  - { id: T-011, title: 'script Handler', status: done, lastUpdated: '2026-05-27T06:54:13Z', closedAt: '2026-05-27T06:54:13Z' }
+  - { id: T-012, title: 'composite Handler', status: done, lastUpdated: '2026-05-27T06:54:13Z', closedAt: '2026-05-27T06:54:13Z' }
+  - { id: T-013, title: 'Tier 1 MCP Tools (6 generic)', status: done, lastUpdated: '2026-05-27T06:54:13Z', closedAt: '2026-05-27T06:54:13Z' }
+  - { id: T-014, title: 'Consumer-declared MCP Tools', status: done, lastUpdated: '2026-05-27T06:54:13Z', closedAt: '2026-05-27T06:54:13Z' }
+  - { id: T-015, title: 'Generic REST API v2', status: done, lastUpdated: '2026-05-27T06:54:13Z', closedAt: '2026-05-27T06:54:13Z' }
+  - { id: T-016, title: 'F1 Integration Test', status: done, lastUpdated: '2026-05-27T06:54:13Z', closedAt: '2026-05-27T06:54:13Z' }
 
 parked: []
 

@@ -1,8 +1,8 @@
 ---
-lastUpdated: '2026-05-26T19:00:00Z'
+lastUpdated: '2026-05-27T06:54:13Z'
 schemaVersion: '0.1'
-activePlans: 1
-activeInitiatives: 1
+activePlans: 0
+activeInitiatives: 0
 archivedCount: 5
 ---
 
@@ -20,20 +20,24 @@ Standalone initiatives (no `parentPlan`) coexist with plan-anchored initiatives.
 
 ## Active Plans
 
-| Slug | Status | Current Phase | Branch | Started |
-|------|--------|---------------|--------|---------|
-| [aideck-v2-generic-runtime](plans/aideck-v2-generic-runtime.md) | active | F0 — Core Runtime | feat/aideck-v2-generic-runtime | 2026-05-26 |
+_(none)_
 
-### aideck-v2-generic-runtime — Initiatives
+## Completed Plans
 
-| Phase | Slug | Status | Tasks | Next Action |
-|-------|------|--------|-------|-------------|
-| F0 | [core-runtime](initiatives/aideck-v2-generic-runtime-f0-core-runtime.md) | active | 0/0 (plan pending) | Write detailed implementation plan |
-| F1 | [mcp-rest](initiatives/aideck-v2-generic-runtime-f1-mcp-rest.md) | pending | 0/0 | Aguardando F0 |
-| F2 | [cli](initiatives/aideck-v2-generic-runtime-f2-cli.md) | pending | 0/0 | Aguardando F0 |
-| F3 | [frontend-foundation](initiatives/aideck-v2-generic-runtime-f3-frontend-foundation.md) | pending | 0/0 | Aguardando F1 |
-| F4 | [component-library](initiatives/aideck-v2-generic-runtime-f4-component-library.md) | pending | 0/0 | Aguardando F3 |
-| F5 | [integration-demo](initiatives/aideck-v2-generic-runtime-f5-integration-demo.md) | pending | 0/0 | Aguardando F4 |
+| Slug | Status | Phases | Branch | Completed |
+|------|--------|--------|--------|-----------|
+| [aideck-v2-generic-runtime](plans/aideck-v2-generic-runtime.md) | done | F0-F5 (6/6 done) | feat/aideck-v2-generic-runtime | 2026-05-27 |
+
+### aideck-v2-generic-runtime — Initiatives (all done)
+
+| Phase | Slug | Status | Tasks | Completed |
+|-------|------|--------|-------|-----------|
+| F0 | [core-runtime](initiatives/aideck-v2-generic-runtime-f0-core-runtime.md) | done | 7/7 (T-001..T-007) | 2026-05-27 |
+| F1 | [mcp-rest](initiatives/aideck-v2-generic-runtime-f1-mcp-rest.md) | done | 9/9 (T-008..T-016) | 2026-05-27 |
+| F2 | [cli](initiatives/aideck-v2-generic-runtime-f2-cli.md) | done | 3/3 (T-017..T-019) | 2026-05-27 |
+| F3 | [frontend-foundation](initiatives/aideck-v2-generic-runtime-f3-frontend-foundation.md) | done | 8/8 (T-020..T-027) | 2026-05-27 |
+| F4 | [component-library](initiatives/aideck-v2-generic-runtime-f4-component-library.md) | done | 6/6 (T-028..T-033) | 2026-05-27 |
+| F5 | [integration-demo](initiatives/aideck-v2-generic-runtime-f5-integration-demo.md) | done | 9/9 (T-034..T-042) | 2026-05-27 |
 
 ## Active Initiatives (standalone)
 

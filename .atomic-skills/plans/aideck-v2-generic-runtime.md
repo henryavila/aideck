@@ -3,10 +3,10 @@ schemaVersion: '0.1'
 slug: aideck-v2-generic-runtime
 title: 'aiDeck v2 — Generic Dashboard Runtime'
 version: '1.0'
-status: active
+status: done
 started: '2026-05-26T15:58:39Z'
-lastUpdated: '2026-05-26T15:58:39Z'
-currentPhase: F0
+lastUpdated: '2026-05-27T06:54:13Z'
+currentPhase: null
 parallelismAllowed: false
 
 principles:
@@ -49,7 +49,7 @@ phases:
     goal: 'Build the foundation: ConsumerRegistry, manifest loader, schema validator (AJV), generic file watcher, data source parsing.'
     dependsOn: []
     subPhaseCount: 12
-    status: active
+    status: done
     exitGate:
       summary: 'manifest.yaml loads, schema.json validates via AJV, watcher dispatches generically for any consumer'
       criteria:
@@ -72,7 +72,7 @@ phases:
     goal: 'Implement Tier 1 generic MCP tools, 4 handler types, Tier 2 consumer-declared tool registration, and generic REST API endpoints.'
     dependsOn: [F0]
     subPhaseCount: 10
-    status: pending
+    status: done
     exitGate:
       summary: '6 generic MCP tools work, 4 handler types execute, consumer tools auto-namespaced, 7 REST endpoints return data'
       criteria:
@@ -95,7 +95,7 @@ phases:
     goal: 'Implement aideck validate (LLM-friendly errors) and aideck init-consumer (scaffolding), update serve/demo commands.'
     dependsOn: [F0]
     subPhaseCount: 6
-    status: pending
+    status: done
     exitGate:
       summary: 'aideck validate outputs structured errors, init-consumer scaffolds a working consumer'
       criteria:
@@ -114,7 +114,7 @@ phases:
     goal: 'Scaffold Vue app, implement 12-column layout engine (sections/grid/single), home page, consumer page shell.'
     dependsOn: [F1]
     subPhaseCount: 10
-    status: pending
+    status: done
     exitGate:
       summary: 'Home page renders consumer list, 3 layout modes work with responsive breakpoints'
       criteria:
@@ -133,7 +133,7 @@ phases:
     goal: 'Implement 25 built-in widgets with props contracts, data binding, and responsive behavior.'
     dependsOn: [F3]
     subPhaseCount: 25
-    status: pending
+    status: done
     exitGate:
       summary: 'All 25 components render with real data in a demo page'
       criteria:
@@ -152,7 +152,7 @@ phases:
     goal: 'Build demo consumer, end-to-end tests, and produce handoff document for atomic-skills migration.'
     dependsOn: [F4]
     subPhaseCount: 8
-    status: pending
+    status: done
     exitGate:
       summary: 'aideck demo works end-to-end, handoff document complete'
       criteria:
