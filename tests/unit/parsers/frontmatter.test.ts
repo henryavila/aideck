@@ -34,4 +34,44 @@ describe('splitFrontmatter', () => {
     expect(res?.frontmatter).toBe('foo: 1\r\n')
     expect(res?.body).toBe('body\r\n')
   })
+
+  it('handles empty frontmatter (two delimiters back-to-back)', () => {
+    const raw = '---\n---\nbody here\n'
+    const res = splitFrontmatter(raw)
+    expect(res).not.toBeNull()
+    expect(res?.frontmatter).toBe('')
+    expect(res?.body).toBe('body here\n')
+  })
+
+  it('handles empty frontmatter with no body', () => {
+    const raw = '---\n---\n'
+    const res = splitFrontmatter(raw)
+    expect(res).not.toBeNull()
+    expect(res?.frontmatter).toBe('')
+    expect(res?.body).toBe('')
+  })
+
+  it('handles empty frontmatter with no trailing newline', () => {
+    const raw = '---\n---'
+    const res = splitFrontmatter(raw)
+    expect(res).not.toBeNull()
+    expect(res?.frontmatter).toBe('')
+    expect(res?.body).toBe('')
+  })
+
+  it('handles frontmatter closed at end of file without trailing body', () => {
+    const raw = '---\nfoo: bar\n---'
+    const res = splitFrontmatter(raw)
+    expect(res).not.toBeNull()
+    expect(res?.frontmatter).toBe('foo: bar\n')
+    expect(res?.body).toBe('')
+  })
+
+  it('handles CRLF empty frontmatter', () => {
+    const raw = '---\r\n---\r\nbody\r\n'
+    const res = splitFrontmatter(raw)
+    expect(res).not.toBeNull()
+    expect(res?.frontmatter).toBe('')
+    expect(res?.body).toBe('body\r\n')
+  })
 })

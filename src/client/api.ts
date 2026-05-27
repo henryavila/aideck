@@ -1,5 +1,17 @@
 const BASE = ''  // Vite proxy handles /api → backend
 
+export interface HealthResponse {
+  demo: boolean
+  status: string
+  version: string
+}
+
+export async function fetchHealth(): Promise<HealthResponse> {
+  const res = await fetch(`${BASE}/api/health`)
+  const data = await res.json()
+  return { demo: data.demo ?? false, status: data.status, version: data.version }
+}
+
 export interface ConsumerSummary {
   id: string
   title: string

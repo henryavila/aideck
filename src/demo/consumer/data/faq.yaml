@@ -1,0 +1,8 @@
+- title: 'What is aiDeck?'
+  content: 'A generic AI dashboard runtime that reads consumer manifests and renders widgets. Any AI tool can integrate by publishing a manifest.yaml with pages, data sources, and widget bindings.'
+- title: 'How do I create a consumer?'
+  content: 'Run `aideck init-consumer --id=my-app --title="My App" --mcp-namespace=my_app` and edit the generated manifest.yaml in ~/.aideck/consumers/my-app/.'
+- title: 'Can I use custom widgets?'
+  content: 'Yes. Place a Vue SFC or Web Component in your consumer''s components/ directory and reference it by type in your manifest.'
+- title: 'Is my data sent anywhere?'
+  content: 'No. aiDeck binds to 127.0.0.1 only, has zero telemetry, and never phones home. All data stays on your machine.'

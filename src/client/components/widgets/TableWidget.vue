@@ -8,7 +8,15 @@
         </tr>
       </thead>
       <tbody>
-        <tr v-for="(row, i) in source" :key="i">
+        <tr
+          v-for="(row, i) in source"
+          :key="i"
+          :class="{ 'table-row-link': !!linkTo }"
+          :role="linkTo ? 'link' : undefined"
+          :tabindex="linkTo ? 0 : undefined"
+          @click="linkTo && navigate()"
+          @keydown.enter="linkTo && navigate()"
+        >
           <td v-for="col in columns" :key="col">{{ formatCell(row[col]) }}</td>
         </tr>
       </tbody>
@@ -18,11 +26,22 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useRouter } from 'vue-router'
 
 const props = defineProps<{
   source: Record<string, unknown>[]
   config: Record<string, unknown>
+  consumerId?: string
 }>()
+
+const router = useRouter()
+const linkTo = computed(() => props.config.linkTo as string | undefined)
+
+function navigate(): void {
+  if (linkTo.value && props.consumerId) {
+    router.push('/' + props.consumerId + '/' + linkTo.value)
+  }
+}
 
 const SKIP_KEYS = new Set(['_body', '_file'])
 
@@ -93,5 +112,14 @@ tbody tr:nth-child(even) td {
 
 tbody tr:hover td {
   background: var(--color-bg-hover);
+}
+
+.table-row-link {
+  cursor: pointer;
+}
+
+.table-row-link:focus-visible td {
+  outline: 2px solid var(--color-accent, #4f8ff7);
+  outline-offset: -2px;
 }
 </style>

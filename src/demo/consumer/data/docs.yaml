@@ -1,0 +1,49 @@
+- id: doc-1
+  title: 'Architecture Decision Records'
+  _body: |
+    # Architecture Decision Records
+
+    ## ADR-001: File-based canonical state
+
+    **Status:** Accepted
+
+    **Context:** We need a state management approach that works across AI agents
+    and human editors without conflicts.
+
+    **Decision:** All state lives in YAML/Markdown files on disk. The dashboard
+    is a read-only projection.
+
+    **Consequences:**
+    - No database required
+    - Git provides version history for free
+    - Multiple editors can work on different files simultaneously
+    - Trade-off: no ACID transactions across files
+
+    ## ADR-002: Consumer manifest pattern
+
+    Consumers declare their UI via `manifest.yaml` instead of code. This enables:
+
+    ```yaml
+    pages:
+      - slug: overview
+        layout: sections
+        widgets:
+          - widget: stat
+            source: { ref: metrics }
+    ```
+
+    Benefits: low barrier for new consumers, no frontend code required.
+
+- id: doc-2
+  title: 'API Specification'
+  _body: |
+    # REST API v0.1
+
+    | Method | Path | Description |
+    |--------|------|-------------|
+    | GET | `/api/health` | Runtime status |
+    | GET | `/api/consumers` | List consumers |
+    | GET | `/api/consumers/:id` | Consumer manifest |
+    | GET | `/api/consumers/:id/data/:ds` | Data source records |
+
+    All endpoints return JSON with `Content-Type: application/json`.

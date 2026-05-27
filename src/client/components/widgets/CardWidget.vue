@@ -2,7 +2,13 @@
   <div class="card-widget">
     <div v-if="source.length === 0" class="empty">No data</div>
     <div v-else class="card-grid">
-      <div v-for="(record, i) in source" :key="i" class="card">
+      <component
+        v-for="(record, i) in source"
+        :key="i"
+        :is="linkTo ? 'router-link' : 'div'"
+        :to="linkTo ? '/' + consumerId + '/' + linkTo : undefined"
+        class="card"
+      >
         <div v-if="titleField" class="card-title">{{ record[titleField] ?? '—' }}</div>
         <div v-if="subtitleField" class="card-subtitle">{{ record[subtitleField] ?? '' }}</div>
         <div v-if="extraFields.length > 0" class="card-fields">
@@ -11,7 +17,7 @@
             <span class="card-field-value">{{ formatValue(record[f]) }}</span>
           </div>
         </div>
-      </div>
+      </component>
     </div>
   </div>
 </template>
@@ -22,7 +28,10 @@ import { computed } from 'vue'
 const props = defineProps<{
   source: Record<string, unknown>[]
   config: Record<string, unknown>
+  consumerId?: string
 }>()
+
+const linkTo = computed(() => props.config.linkTo as string | undefined)
 
 const titleField = computed(() => props.config.titleField as string | undefined)
 const subtitleField = computed(() => props.config.subtitleField as string | undefined)
@@ -65,6 +74,13 @@ function formatValue(v: unknown): string {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   padding: var(--spacing-md);
+  text-decoration: none;
+  color: inherit;
+  display: block;
+}
+
+a.card:hover {
+  border-color: var(--color-accent, #4f8ff7);
 }
 
 .card-title {

@@ -38,6 +38,17 @@ export class ToolRegistry {
       .sort((a, b) => a.name.localeCompare(b.name))
   }
 
+  unregisterByPrefix(prefix: string): number {
+    let removed = 0
+    for (const name of [...this.tools.keys()]) {
+      if (name.startsWith(prefix)) {
+        this.tools.delete(name)
+        removed++
+      }
+    }
+    return removed
+  }
+
   count(): number {
     return this.tools.size
   }

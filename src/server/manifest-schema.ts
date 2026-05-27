@@ -42,6 +42,9 @@ const widgetBindingSchema = z.object({
   maxColSpan: colSpanSchema.optional(),
   source: sourceBindingSchema.optional(),
   config: z.record(z.unknown()).optional(),
+  repeat: z.string().optional(),
+  repeatDirection: z.enum(['horizontal', 'vertical']).optional(),
+  maxRepeatColumns: z.number().optional(),
   responsive: z
     .object({
       sm: responsiveOverrideSchema.optional(),
@@ -59,6 +62,13 @@ const sectionSchema = z.object({
   collapsible: z.boolean().optional(),
   columns: z.number().int().min(1).optional(),
   gap: z.number().optional(),
+  align: z.string().optional(),
+  padding: z.string().optional(),
+  visible: z.union([z.boolean(), z.string()]).optional(),
+  autoGrid: z.boolean().optional(),
+  maxColumns: z.number().optional(),
+  minCardWidth: z.string().optional(),
+  fillScreen: z.boolean().optional(),
   widgets: z.array(widgetBindingSchema)
 })
 
@@ -82,6 +92,8 @@ const gridPageSchema = z.object({
   columns: z.number().int().min(1).optional(),
   rowHeight: z.number().optional(),
   gap: z.number().optional(),
+  align: z.string().optional(),
+  padding: z.string().optional(),
   widgets: z.array(widgetBindingSchema).optional()
 })
 

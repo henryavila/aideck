@@ -1,0 +1,8 @@
+- id: dep-graph
+  content: |
+    graph TD
+      A["Auth Service Rewrite ✓"] --> B["API Gateway Redesign ◉"]
+      C["Data Pipeline Migration ·"] --> B
+      B --> D["Mobile App v3 ◉"]
+      B --> E["Monitoring Dashboard ·"]
+      D --> F["App Store Release ·"]

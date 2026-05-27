@@ -329,3 +329,24 @@ a `rejected` IntentApplication record so the audit trail captures them.
 path contains characters needing URL encoding (`%20` for spaces, etc.) —
 `import.meta.url` is percent-encoded, the template-literal version is not.
 `pathToFileURL` does the encoding correctly.
+
+---
+
+## 2026-05-27 — MCP tool namespacing: underscores, not dots
+
+### Context
+The spec document (`docs/superpowers/specs/2026-05-26-aideck-v2-generic-dashboard-design.md`) uses dots in consumer tool names (`aideck.atomic_skills.mark_done`). The implementation uses underscores (`aideck_atomic_skills_mark_done`).
+
+### Investigation
+The MCP protocol (SEP-986) allows dots, underscores, and dashes in tool names. The regex is `[A-Za-z0-9._-]{1,128}`. Both conventions are valid.
+
+### Decision: keep underscores
+- Underscores are already implemented and tested in `src/mcp/tools/consumer-tools.ts`
+- The generic tools use the same pattern: `aideck_list`, `aideck_read`, `aideck_write`
+- Changing to dots would require updating all existing MCP tool references in atomic-skills skill prompts
+- No MCP client tested has issues with underscores; some shell completions choke on dots
+
+### Format
+- Generic tools: `aideck_<verb>` (e.g., `aideck_list`, `aideck_read`)
+- Consumer tools: `aideck_<mcpNamespace>_<toolName>` (e.g., `aideck_atomic_skills_mark_task_done`)
+- The `mcpNamespace` field in manifest.yaml enforces `[a-z][a-z0-9_]{0,31}` (no dots, no hyphens)

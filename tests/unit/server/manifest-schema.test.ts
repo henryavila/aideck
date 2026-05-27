@@ -123,6 +123,92 @@ describe('parseManifest', () => {
     }
   })
 
+  it('accepts a section with visible as boolean false', () => {
+    const raw = {
+      ...minimalManifest,
+      pages: [
+        {
+          slug: 'overview',
+          title: 'Overview',
+          layout: 'sections',
+          sections: [
+            {
+              title: 'Hidden Section',
+              visible: false,
+              widgets: [{ widget: 'stat' }]
+            }
+          ]
+        }
+      ]
+    }
+    const result = parseManifest(raw)
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      const page = result.value.pages[0]
+      if (page.layout === 'sections') {
+        const section = page.sections![0]
+        expect(section.visible).toBe(false)
+      }
+    }
+  })
+
+  it('accepts a section with visible as string expression', () => {
+    const raw = {
+      ...minimalManifest,
+      pages: [
+        {
+          slug: 'overview',
+          title: 'Overview',
+          layout: 'sections',
+          sections: [
+            {
+              title: 'Active Only',
+              visible: 'status=active',
+              widgets: [{ widget: 'table', source: { ref: 'tasks' } }]
+            }
+          ]
+        }
+      ]
+    }
+    const result = parseManifest(raw)
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      const page = result.value.pages[0]
+      if (page.layout === 'sections') {
+        const section = page.sections![0]
+        expect(section.visible).toBe('status=active')
+      }
+    }
+  })
+
+  it('accepts a section without visible (defaults to shown)', () => {
+    const raw = {
+      ...minimalManifest,
+      pages: [
+        {
+          slug: 'overview',
+          title: 'Overview',
+          layout: 'sections',
+          sections: [
+            {
+              title: 'Normal Section',
+              widgets: [{ widget: 'stat' }]
+            }
+          ]
+        }
+      ]
+    }
+    const result = parseManifest(raw)
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      const page = result.value.pages[0]
+      if (page.layout === 'sections') {
+        const section = page.sections![0]
+        expect(section.visible).toBeUndefined()
+      }
+    }
+  })
+
   it('accepts a grid layout page with widgets', () => {
     const raw = {
       ...minimalManifest,
@@ -320,6 +406,171 @@ describe('parseManifest', () => {
     expect(result.ok).toBe(false)
     if (!result.ok) {
       expect(result.error.code).toBe('schema_version_mismatch')
+    }
+  })
+
+  it('accepts widget binding with repeat, repeatDirection, and maxRepeatColumns', () => {
+    const raw = {
+      ...minimalManifest,
+      pages: [
+        {
+          slug: 'overview',
+          title: 'Overview',
+          layout: 'sections',
+          sections: [
+            {
+              title: 'By Status',
+              widgets: [
+                {
+                  widget: 'table',
+                  source: { ref: 'tasks' },
+                  repeat: 'status',
+                  repeatDirection: 'horizontal',
+                  maxRepeatColumns: 4
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+    const result = parseManifest(raw)
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      const page = result.value.pages[0]
+      if (page.layout === 'sections') {
+        const widget = page.sections![0].widgets[0]
+        expect(widget.repeat).toBe('status')
+        expect(widget.repeatDirection).toBe('horizontal')
+        expect(widget.maxRepeatColumns).toBe(4)
+      }
+    }
+  })
+
+  it('accepts widget binding with repeat only (direction and maxColumns default)', () => {
+    const raw = {
+      ...minimalManifest,
+      pages: [
+        {
+          slug: 'overview',
+          title: 'Overview',
+          layout: 'sections',
+          sections: [
+            {
+              widgets: [
+                {
+                  widget: 'table',
+                  source: { ref: 'tasks' },
+                  repeat: 'category'
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+    const result = parseManifest(raw)
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      const page = result.value.pages[0]
+      if (page.layout === 'sections') {
+        const widget = page.sections![0].widgets[0]
+        expect(widget.repeat).toBe('category')
+        expect(widget.repeatDirection).toBeUndefined()
+        expect(widget.maxRepeatColumns).toBeUndefined()
+      }
+    }
+  })
+
+  it('rejects invalid repeatDirection value', () => {
+    const raw = {
+      ...minimalManifest,
+      pages: [
+        {
+          slug: 'overview',
+          title: 'Overview',
+          layout: 'sections',
+          sections: [
+            {
+              widgets: [
+                {
+                  widget: 'table',
+                  repeat: 'status',
+                  repeatDirection: 'diagonal'
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+    const result = parseManifest(raw)
+    expect(result.ok).toBe(false)
+  })
+
+  it('accepts section with autoGrid, maxColumns, minCardWidth, and fillScreen', () => {
+    const raw = {
+      ...minimalManifest,
+      pages: [
+        {
+          slug: 'cards',
+          title: 'Cards',
+          layout: 'sections',
+          sections: [
+            {
+              title: 'Auto Grid',
+              autoGrid: true,
+              maxColumns: 4,
+              minCardWidth: '300px',
+              fillScreen: true,
+              widgets: [{ widget: 'card' }]
+            }
+          ]
+        }
+      ]
+    }
+    const result = parseManifest(raw)
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      const page = result.value.pages[0]
+      if (page.layout === 'sections') {
+        const section = page.sections![0]
+        expect(section.autoGrid).toBe(true)
+        expect(section.maxColumns).toBe(4)
+        expect(section.minCardWidth).toBe('300px')
+        expect(section.fillScreen).toBe(true)
+      }
+    }
+  })
+
+  it('accepts section with autoGrid only (other properties default)', () => {
+    const raw = {
+      ...minimalManifest,
+      pages: [
+        {
+          slug: 'cards',
+          title: 'Cards',
+          layout: 'sections',
+          sections: [
+            {
+              autoGrid: true,
+              widgets: [{ widget: 'card' }]
+            }
+          ]
+        }
+      ]
+    }
+    const result = parseManifest(raw)
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      const page = result.value.pages[0]
+      if (page.layout === 'sections') {
+        const section = page.sections![0]
+        expect(section.autoGrid).toBe(true)
+        expect(section.maxColumns).toBeUndefined()
+        expect(section.minCardWidth).toBeUndefined()
+        expect(section.fillScreen).toBeUndefined()
+      }
     }
   })
 })

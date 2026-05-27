@@ -24,6 +24,8 @@
         :columns="currentPage.columns"
         :row-height="currentPage.rowHeight"
         :gap="currentPage.gap"
+        :align="currentPage.align"
+        :padding="currentPage.padding"
         :consumer-id="consumerId"
       />
       <SingleLayout

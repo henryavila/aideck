@@ -8,5 +8,6 @@ export const router = createRouter({
     { path: '/', component: HomePage },
     { path: '/:consumerId', component: ConsumerPage },
     { path: '/:consumerId/:pageSlug', component: ConsumerPage },
+    { path: '/:consumerId/:pageSlug/:routeParam', component: ConsumerPage },
   ],
 })

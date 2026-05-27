@@ -62,6 +62,12 @@ export interface DataChangedEvent extends BaseEvent {
   }
 }
 
+export interface ConsumerManifestChangedEvent extends BaseEvent {
+  kind: 'consumer_manifest_changed'
+  consumer: string
+  changeType: 'add' | 'change' | 'unlink'
+}
+
 export type RuntimeEvent =
   | StateChangeEvent
   | AnnotationAddedEvent
@@ -69,5 +75,6 @@ export type RuntimeEvent =
   | ParseErrorEvent
   | HealthTickEvent
   | DataChangedEvent
+  | ConsumerManifestChangedEvent
 
 export type RuntimeEventKind = RuntimeEvent['kind']

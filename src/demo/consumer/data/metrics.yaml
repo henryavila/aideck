@@ -1,0 +1,16 @@
+- id: coverage
+  label: 'Test Coverage'
+  value: 72
+  max: 100
+- id: uptime
+  label: 'Uptime %'
+  value: 99.7
+  max: 100
+- id: build-time
+  label: 'Avg Build Time (s)'
+  value: 14.3
+  max: 60
+- id: open-issues
+  label: 'Open Issues'
+  value: 7
+  max: 50

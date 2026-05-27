@@ -14,8 +14,34 @@ dataSources:
   - id: events
     path: 'data/events.jsonl'
     format: jsonl
+  - id: docs
+    path: 'data/docs.yaml'
+    format: yaml
+  - id: metrics
+    path: 'data/metrics.yaml'
+    format: yaml
+  - id: nav
+    path: 'data/nav.yaml'
+    format: yaml
+  - id: code-samples
+    path: 'data/code-samples.yaml'
+    format: yaml
+  - id: tree
+    path: 'data/tree.yaml'
+    format: yaml
+  - id: graph
+    path: 'data/graph.yaml'
+    format: yaml
+  - id: faq
+    path: 'data/faq.yaml'
+    format: yaml
+  - id: timeseries
+    path: 'data/timeseries.yaml'
+    format: yaml
 
 pages:
+  # ── Page 1: Overview (sections layout) ──────────────────────────
+  # Widgets: stat, table, timeline, log-feed, badge, tag-chip, key-value
   - slug: overview
     title: 'Overview'
     icon: 'mdi:view-dashboard'
@@ -45,8 +71,24 @@ pages:
       - title: 'Projects'
         widgets:
           - widget: table
-            colSpan: 12
+            colSpan: 8
             source: { ref: projects }
+          - widget: key-value
+            colSpan: 4
+            source: { ref: projects, filter: { id: 'proj-1' } }
+            config: { fields: ['title', 'status', 'owner', 'startDate'] }
+      - title: 'Status Distribution'
+        columns: 12
+        gap: 16
+        widgets:
+          - widget: badge
+            colSpan: 6
+            source: { ref: tasks }
+            config: { field: 'status' }
+          - widget: tag-chip
+            colSpan: 6
+            source: { ref: tasks }
+            config: { field: 'tags' }
       - title: 'Recent Activity'
         widgets:
           - widget: timeline
@@ -58,6 +100,8 @@ pages:
             source: { ref: events }
             config: { timestampField: 'timestamp', messageField: 'action' }
 
+  # ── Page 2: Task Board (grid layout) ────────────────────────────
+  # Widgets: kanban-board, search-filter
   - slug: board
     title: 'Task Board'
     icon: 'mdi:view-column'
@@ -66,6 +110,12 @@ pages:
     rowHeight: 48
     gap: 12
     widgets:
+      - widget: search-filter
+        colStart: 1
+        colSpan: 12
+        rowSpan: 1
+        source: { ref: tasks }
+        config: { placeholder: 'Filter tasks...', field: 'title' }
       - widget: kanban-board
         colStart: 1
         colSpan: 12
@@ -73,28 +123,153 @@ pages:
         source: { ref: tasks }
         config: { columns: ['todo', 'in-progress', 'done'], statusField: 'status' }
 
+  # ── Page 3: Analytics (sections layout) ─────────────────────────
+  # Widgets: bar-chart, gauge, progress-bar, line-chart
   - slug: analytics
     title: 'Analytics'
     icon: 'mdi:chart-line'
     layout: sections
     sections:
-      - title: 'Task Completion'
+      - title: 'Task Breakdown'
+        columns: 12
+        gap: 16
         widgets:
           - widget: bar-chart
             colSpan: 6
             source: { ref: tasks }
             config: { labelField: 'title', valueField: 'priority' }
-          - widget: gauge
+          - widget: line-chart
             colSpan: 6
-            source: { ref: tasks }
-            config: { valueField: 'priority', max: 5, label: 'Avg Priority' }
-      - title: 'Tags'
+            source: { ref: timeseries }
+            config: { xField: 'x', yField: 'y', width: 500, height: 250 }
+      - title: 'Health Metrics'
+        columns: 12
+        gap: 16
         widgets:
-          - widget: tag-chip
+          - widget: gauge
+            colSpan: 3
+            source: { ref: metrics, filter: { id: 'coverage' } }
+            config: { valueField: 'value', max: 100, label: 'Test Coverage' }
+          - widget: gauge
+            colSpan: 3
+            source: { ref: metrics, filter: { id: 'uptime' } }
+            config: { valueField: 'value', max: 100, label: 'Uptime %' }
+          - widget: progress-bar
+            colSpan: 3
+            source: { ref: metrics, filter: { id: 'build-time' } }
+            config: { label: 'Build Time', valueField: 'value', maxField: 'max' }
+          - widget: progress-bar
+            colSpan: 3
+            source: { ref: metrics, filter: { id: 'open-issues' } }
+            config: { label: 'Open Issues', valueField: 'value', maxField: 'max' }
+
+  # ── Page 4: Projects (sections layout) ──────────────────────────
+  # Widgets: card, list, tree-view, graph-dag
+  - slug: projects
+    title: 'Projects'
+    icon: 'mdi:folder-multiple'
+    layout: sections
+    sections:
+      - title: 'Project Cards'
+        widgets:
+          - widget: card
+            colSpan: 12
+            source: { ref: projects }
+            config: { titleField: 'title', subtitleField: 'owner', fields: ['status', 'startDate'] }
+      - title: 'Task List'
+        columns: 12
+        gap: 16
+        widgets:
+          - widget: list
             colSpan: 6
             source: { ref: tasks }
-            config: { field: 'tags' }
-          - widget: badge
+            config: { titleField: 'title', subtitleField: 'status' }
+          - widget: tree-view
             colSpan: 6
+            source: { ref: tree }
+            config: { labelField: 'label', childrenField: 'children', expandDepth: 2 }
+      - title: 'Dependency Graph'
+        widgets:
+          - widget: graph-dag
+            colSpan: 12
+            source: { ref: graph }
+            config: { field: 'content' }
+
+  # ── Page 5: Docs (sections layout) ─────────────────────────────
+  # Widgets: markdown, code-block, accordion, tabs, breadcrumb, header-nav
+  - slug: docs
+    title: 'Documentation'
+    icon: 'mdi:book-open'
+    layout: sections
+    sections:
+      - title: 'Navigation'
+        columns: 12
+        gap: 16
+        widgets:
+          - widget: breadcrumb
+            colSpan: 6
+            source: { ref: nav }
+          - widget: header-nav
+            colSpan: 6
+            source: { ref: projects, filter: { id: 'proj-1' } }
+            config: { title: 'API Gateway Redesign', subtitle: 'Project Documentation' }
+      - title: 'Architecture Docs'
+        widgets:
+          - widget: markdown
+            colSpan: 12
+            source: { ref: docs, filter: { id: 'doc-1' } }
+            config: { field: '_body' }
+      - title: 'Code Examples'
+        columns: 12
+        gap: 16
+        widgets:
+          - widget: code-block
+            colSpan: 6
+            source: { ref: code-samples, filter: { id: 'manifest-example' } }
+            config: { field: 'content', language: 'yaml' }
+          - widget: code-block
+            colSpan: 6
+            source: { ref: code-samples, filter: { id: 'typescript-example' } }
+            config: { field: 'content', language: 'typescript' }
+      - title: 'FAQ'
+        widgets:
+          - widget: accordion
+            colSpan: 12
+            source: { ref: faq }
+            config: { titleField: 'title', contentField: 'content' }
+
+  # ── Page 6: Widgets Demo (sections layout) ─────────────────────
+  # Widgets: tabs, container, grid-columns, drawer
+  - slug: widgets
+    title: 'Widget Demo'
+    icon: 'mdi:puzzle'
+    layout: sections
+    sections:
+      - title: 'Tabbed Content'
+        widgets:
+          - widget: tabs
+            colSpan: 12
             source: { ref: tasks }
-            config: { field: 'status' }
+            config:
+              tabs:
+                - label: 'Active Tasks'
+                - label: 'Completed'
+                - label: 'All'
+      - title: 'Grid Columns'
+        widgets:
+          - widget: grid-columns
+            colSpan: 12
+            source: { ref: metrics }
+            config: { columns: 2, gap: 'var(--spacing-lg)' }
+      - title: 'Container'
+        widgets:
+          - widget: container
+            colSpan: 12
+            source: { ref: projects }
+            config: { padding: 'var(--spacing-lg)', background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)' }
+      - title: 'Sidebar Drawer'
+        widgets:
+          - widget: drawer
+            colSpan: 12
+            source: { ref: nav }
+            config: { position: 'left', width: '240px' }

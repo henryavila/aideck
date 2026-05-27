@@ -9,6 +9,7 @@ export interface ApiV2Deps {
   consumers: ConsumerRegistry
   version: string
   startedAt: number
+  demo?: boolean
 }
 
 function errResp(
@@ -40,6 +41,7 @@ export function createApiV2Router(deps: ApiV2Deps): Hono {
       status: 'ok',
       uptimeMs: Date.now() - deps.startedAt,
       consumerCount: list.length,
+      demo: deps.demo ?? false,
       consumers: list.map((cs) => ({ id: cs.id, title: cs.manifest.title }))
     })
   })

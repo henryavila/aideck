@@ -218,6 +218,95 @@ describe('CORS', () => {
   })
 })
 
+describe('POST /api/highlight', () => {
+  it('appends a new highlight and emits highlight-added', async () => {
+    const { app, eventBus } = build()
+    const captured: unknown[] = []
+    eventBus.subscribe((e) => captured.push(e))
+    const res = await app.fetch(
+      new Request('http://127.0.0.1/api/highlight', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          target: { consumer: 'project-status', slug: 'p-one', path: 'phases.F0' },
+          reason: 'something is off',
+          severity: 'warn',
+          source: 'ai'
+        })
+      })
+    )
+    expect(res.status).toBe(201)
+    const body = await res.json() as { id: string }
+    expect(body.id).toMatch(/^hl-/)
+    expect(captured.find((e) => (e as { kind?: string }).kind === 'highlight-added')).toBeDefined()
+  })
+
+  it('rejects an invalid highlight body with 400', async () => {
+    const { app } = build()
+    const res = await app.fetch(
+      new Request('http://127.0.0.1/api/highlight', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ target: {}, reason: 123 })
+      })
+    )
+    expect(res.status).toBe(400)
+  })
+})
+
+describe('POST /api/decision', () => {
+  it('appends a decision to the inbox', async () => {
+    const { app } = build()
+    const res = await app.fetch(
+      new Request('http://127.0.0.1/api/decision', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          target: { consumer: 'project-status', slug: 'p-one', path: 'phases.F0' },
+          decision: 'approve',
+          reason: 'looks good',
+          by: 'human'
+        })
+      })
+    )
+    expect(res.status).toBe(201)
+    const body = await res.json() as { id: string }
+    expect(body.id).toMatch(/^dec-/)
+  })
+
+  it('rejects invalid decision payload', async () => {
+    const { app } = build()
+    const res = await app.fetch(
+      new Request('http://127.0.0.1/api/decision', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ target: {}, decision: 'maybe' })
+      })
+    )
+    expect(res.status).toBe(400)
+  })
+})
+
+describe('GET /api/inbox edge cases', () => {
+  it('rejects limit=0', async () => {
+    const { app } = build()
+    const res = await app.fetch(new Request('http://127.0.0.1/api/inbox?limit=0'))
+    expect(res.status).toBe(400)
+  })
+
+  it('rejects limit=abc', async () => {
+    const { app } = build()
+    const res = await app.fetch(new Request('http://127.0.0.1/api/inbox?limit=abc'))
+    expect(res.status).toBe(400)
+  })
+
+  it('rejects limit=999', async () => {
+    const { app } = build()
+    const res = await app.fetch(new Request('http://127.0.0.1/api/inbox?limit=999'))
+    expect(res.status).toBe(400)
+  })
+})
+
 describe('SPA fallback', () => {
   it('returns 404 JSON for unknown /api/ routes', async () => {
     const { app } = build()

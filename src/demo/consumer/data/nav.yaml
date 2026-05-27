@@ -1,0 +1,6 @@
+- label: 'Home'
+  href: '/'
+- label: 'aiDeck Demo'
+  href: '/aideck-demo'
+- label: 'Overview'
+  href: '/aideck-demo/overview'

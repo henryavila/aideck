@@ -6,17 +6,18 @@
 set -euo pipefail
 
 # ── Fast filter: skip files outside .atomic-skills/ ──────────────────────────
+FP=""
 if [ -n "${TOOL_INPUT:-}" ]; then
   FP=$(echo "$TOOL_INPUT" | jq -r '.file_path // empty' 2>/dev/null)
-  if [ -n "$FP" ]; then
-    case "$FP" in
-      */.atomic-skills/plans/*.md|*/.atomic-skills/initiatives/*.md) ;;
-      *) exit 0 ;;
-    esac
-    # Skip archive files
-    case "$FP" in */archive/*) exit 0 ;; esac
-  fi
 fi
+if [ -z "$FP" ]; then
+  exit 0
+fi
+case "$FP" in
+  */.atomic-skills/plans/*.md|*/.atomic-skills/initiatives/*.md) ;;
+  *) exit 0 ;;
+esac
+case "$FP" in */archive/*) exit 0 ;; esac
 
 # ── Determine project root ───────────────────────────────────────────────────
 PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)

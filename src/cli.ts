@@ -28,6 +28,7 @@ async function dispatchServe(
   const { startServer } = await import('./server/index.js')
   const { resolvePort, PortInUseError } = await import('./server/port-resolver.js')
   const { writeEnvFile, removeEnvFile } = await import('./server/env-file.js')
+  const { InstanceAlreadyRunningError } = await import('./server/lockfile.js')
   const { stat } = await import('node:fs/promises')
   const { resolve } = await import('node:path')
   try {
@@ -71,6 +72,10 @@ async function dispatchServe(
       stderr.write(`aideck serve: ${cause.message}. Try --port=<higher>\n`)
       return 1
     }
+    if (cause instanceof InstanceAlreadyRunningError) {
+      stderr.write(`aideck serve: ${cause.message}. Stop it first with 'aideck down'\n`)
+      return 1
+    }
     stderr.write(`aideck serve: ${cause instanceof Error ? cause.message : String(cause)}\n`)
     return 1
   }
@@ -80,6 +85,7 @@ async function dispatchDemo(parsed: ReturnType<typeof parseCliArgs>, stdout: Nod
   const { startServer } = await import('./server/index.js')
   const { resolvePort, PortInUseError } = await import('./server/port-resolver.js')
   const { writeEnvFile, removeEnvFile } = await import('./server/env-file.js')
+  const { InstanceAlreadyRunningError } = await import('./server/lockfile.js')
   const { seedDemo } = await import('./demo/seed.js')
   const { createFakeConsumer } = await import('./demo/fake-consumer.js')
   const { seedDemoConsumer, cleanDemoConsumer } = await import('./demo/seed-demo.js')
@@ -158,6 +164,10 @@ async function dispatchDemo(parsed: ReturnType<typeof parseCliArgs>, stdout: Nod
       process.stderr.write(`aideck demo: ${cause.message}. Try --port=<higher>\n`)
       return 1
     }
+    if (cause instanceof InstanceAlreadyRunningError) {
+      process.stderr.write(`aideck demo: ${cause.message}. Stop it first with 'aideck down'\n`)
+      return 1
+    }
     process.stderr.write(`aideck demo: ${cause instanceof Error ? cause.message : String(cause)}\n`)
     return 1
   }
@@ -165,14 +175,44 @@ async function dispatchDemo(parsed: ReturnType<typeof parseCliArgs>, stdout: Nod
 
 async function dispatchMcp(): Promise<number> {
   const { startStdio } = await import('./mcp/index.js')
+  const { setupToolListWatcher } = await import('./mcp/tool-list-watcher.js')
   const { createConsumerRegistry } = await import('./server/consumer-registry.js')
+  const { createConsumerWatcher } = await import('./server/consumer-watcher.js')
+  const { createEventBus } = await import('./server/event-bus.js')
   const { homedir } = await import('node:os')
   const { join } = await import('node:path')
   try {
     const aideckBaseDir = join(homedir(), '.aideck')
     const consumers = createConsumerRegistry(aideckBaseDir)
     await consumers.scan()
-    await startStdio({ rootDir: process.cwd(), consumers })
+    const bundle = await startStdio({ rootDir: process.cwd(), consumers })
+
+    const eventBus = createEventBus()
+    const consumerWatcher = createConsumerWatcher({
+      consumersDir: consumers.consumersDir(),
+      eventBus
+    })
+
+    setupToolListWatcher({
+      server: bundle.server,
+      registry: bundle.registry,
+      consumers,
+      eventBus
+    })
+
+    await consumerWatcher.start()
+
+    let stopping = false
+    const shutdown = async (signal: string) => {
+      if (stopping) return
+      stopping = true
+      process.stderr.write(`aideck mcp: received ${signal}, shutting down\n`)
+      await consumerWatcher.stop()
+      process.exit(0)
+    }
+    process.on('SIGINT', () => void shutdown('SIGINT'))
+    process.on('SIGTERM', () => void shutdown('SIGTERM'))
+
     return -1
   } catch (cause) {
     process.stderr.write(`aideck mcp: ${cause instanceof Error ? cause.message : String(cause)}\n`)

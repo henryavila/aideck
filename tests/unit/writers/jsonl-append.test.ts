@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { appendJsonlLine } from '../../../src/server/writers/jsonl-append.js'
+import { appendJsonlLine, JsonlLineTooLargeError } from '../../../src/server/writers/jsonl-append.js'
 
 let tmp: string
 beforeEach(async () => {
@@ -39,5 +39,23 @@ describe('appendJsonlLine', () => {
     const cycle: Record<string, unknown> = {}
     cycle.self = cycle
     await expect(appendJsonlLine(join(tmp, 'bad.jsonl'), cycle)).rejects.toBeInstanceOf(Error)
+  })
+
+  it('throws JsonlLineTooLargeError when payload exceeds max bytes', async () => {
+    const huge = { data: 'x'.repeat(70 * 1024) }
+    await expect(appendJsonlLine(join(tmp, 'big.jsonl'), huge)).rejects.toBeInstanceOf(
+      JsonlLineTooLargeError
+    )
+  })
+
+  it('JsonlLineTooLargeError includes byte count', async () => {
+    const huge = { data: 'x'.repeat(70 * 1024) }
+    try {
+      await appendJsonlLine(join(tmp, 'big2.jsonl'), huge)
+      expect.unreachable('should have thrown')
+    } catch (e) {
+      expect(e).toBeInstanceOf(JsonlLineTooLargeError)
+      expect((e as JsonlLineTooLargeError).bytes).toBeGreaterThan(64 * 1024)
+    }
   })
 })

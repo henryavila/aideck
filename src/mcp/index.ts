@@ -3,6 +3,7 @@ import { createMcpServer, type McpServerOptions, type McpBundle } from './server
 
 export { createMcpServer } from './server.js'
 export { ToolRegistry } from './registry.js'
+export { setupToolListWatcher } from './tool-list-watcher.js'
 export type { McpToolContext, RegisteredTool } from './types.js'
 
 export async function startStdio(opts: McpServerOptions): Promise<McpBundle> {

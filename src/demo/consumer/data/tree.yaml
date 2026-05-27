@@ -1,0 +1,33 @@
+- label: 'API Gateway Redesign'
+  status: active
+  children:
+    - label: 'Design API schema'
+      status: done
+    - label: 'Implement rate limiting'
+      status: in-progress
+      children:
+        - label: 'Token bucket algorithm'
+          status: done
+        - label: 'Redis integration'
+          status: in-progress
+    - label: 'Write integration tests'
+      status: todo
+- label: 'Mobile App v3'
+  status: active
+  children:
+    - label: 'UI component library'
+      status: in-progress
+    - label: 'Push notification service'
+      status: todo
+- label: 'Data Pipeline Migration'
+  status: paused
+  children:
+    - label: 'Migrate Postgres to BigQuery'
+      status: todo
+- label: 'Auth Service Rewrite'
+  status: done
+  children:
+    - label: 'OAuth2 provider setup'
+      status: done
+    - label: 'Session token rotation'
+      status: done

@@ -1,0 +1,35 @@
+- id: manifest-example
+  language: yaml
+  content: |
+    schemaVersion: '0.1'
+    id: my-consumer
+    mcpNamespace: my_consumer
+    title: 'My Dashboard'
+    dataSources:
+      - id: items
+        path: 'data/items.yaml'
+        format: yaml
+    pages:
+      - slug: overview
+        title: 'Overview'
+        layout: sections
+
+- id: typescript-example
+  language: typescript
+  content: |
+    export interface Consumer {
+      id: string
+      title: string
+      icon?: string
+      dataSourceCount: number
+      pageCount: number
+    }
+
+    export function formatStatus(status: string): string {
+      const colors: Record<string, string> = {
+        active: 'var(--color-accent)',
+        done: 'var(--color-success)',
+        blocked: 'var(--color-warning)',
+      }
+      return colors[status] ?? 'var(--color-text-muted)'
+    }

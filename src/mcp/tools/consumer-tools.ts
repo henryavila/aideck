@@ -3,7 +3,7 @@ import { ok } from '../../schemas/validators/index.js'
 import { readDataSource } from '../../server/data-source-reader.js'
 import { executeFileMutation } from '../../server/handlers/file-mutation.js'
 import { executeShellExec } from '../../server/handlers/shell-exec.js'
-import { executeScript } from '../../server/handlers/script.js'
+import { executeScript, type ScriptSandboxOptions } from '../../server/handlers/script.js'
 import { executeComposite } from '../../server/handlers/composite.js'
 import type { ToolRegistry } from '../registry.js'
 import type { ConsumerRegistry, RegisteredConsumer } from '../../server/consumer-registry.js'
@@ -35,6 +35,10 @@ async function dispatchHandler(
   handler: HandlerDecl,
   args: Record<string, unknown>
 ): Promise<McpResult<unknown>> {
+  const sandbox: ScriptSandboxOptions = {
+    dataSources: consumer.manifest.dataSources,
+  }
+
   if (handler.type === 'file-mutation') {
     return executeFileMutation(consumer.dir, handler, args)
   }
@@ -43,11 +47,11 @@ async function dispatchHandler(
   }
   if (handler.type === 'script') {
     const dataMap = await loadConsumerData(consumer)
-    return executeScript(consumer.dir, handler, args, dataMap)
+    return executeScript(consumer.dir, handler, args, dataMap, sandbox)
   }
   if (handler.type === 'composite') {
     const dataMap = await loadConsumerData(consumer)
-    return executeComposite(consumer.dir, handler, args, dataMap)
+    return executeComposite(consumer.dir, handler, args, dataMap, sandbox)
   }
   // TypeScript exhaustiveness — handler.type is never at this point
   const exhaustive: never = handler

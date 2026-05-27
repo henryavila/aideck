@@ -3,13 +3,14 @@ import { type Result, err, ok } from '../../schemas/validators/index.js'
 import type { HandlerDecl } from '../manifest-schema.js'
 import { executeFileMutation } from './file-mutation.js'
 import { executeShellExec } from './shell-exec.js'
-import { executeScript } from './script.js'
+import { executeScript, type ScriptSandboxOptions } from './script.js'
 
 export async function executeComposite(
   consumerDir: string,
   decl: { type: 'composite'; steps: HandlerDecl[] },
   args: Record<string, unknown>,
-  dataMap: Map<string, unknown[]>
+  dataMap: Map<string, unknown[]>,
+  sandbox?: ScriptSandboxOptions
 ): Promise<Result<{ stepsCompleted: number }, ErrorResponse>> {
   for (let i = 0; i < decl.steps.length; i++) {
     const step = decl.steps[i]
@@ -20,9 +21,9 @@ export async function executeComposite(
     } else if (step.type === 'shell-exec') {
       result = await executeShellExec(consumerDir, step, args)
     } else if (step.type === 'script') {
-      result = await executeScript(consumerDir, step, args, dataMap)
+      result = await executeScript(consumerDir, step, args, dataMap, sandbox)
     } else {
-      result = await executeComposite(consumerDir, step, args, dataMap)
+      result = await executeComposite(consumerDir, step, args, dataMap, sandbox)
     }
 
     if (!result.ok) {

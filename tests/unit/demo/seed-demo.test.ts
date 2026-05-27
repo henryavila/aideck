@@ -51,11 +51,11 @@ describe('seedDemoConsumer', () => {
     if (result.ok) {
       expect(result.value.id).toBe('aideck-demo')
       expect(result.value.mcpNamespace).toBe('aideck_demo')
-      expect(result.value.pages).toHaveLength(3)
+      expect(result.value.pages).toHaveLength(6)
     }
   })
 
-  it('manifest has 3 pages exercising all layout modes', async () => {
+  it('manifest has 6 pages exercising all layout modes and 25 widgets', async () => {
     const target = await seedDemoConsumer(tmp)
     const raw = await readFile(join(target, 'manifest.yaml'), 'utf8')
     const parsed = parseYaml(raw)

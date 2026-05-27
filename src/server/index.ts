@@ -12,6 +12,7 @@ import { createSpaRouter } from './routes/spa.js'
 import { createProjectRegistry, type ProjectRegistry } from './project-registry.js'
 import { createConsumerRegistry, type ConsumerRegistry } from './consumer-registry.js'
 import { createConsumerWatcher, type ConsumerWatcher } from './consumer-watcher.js'
+import { acquireLock, releaseLock } from './lockfile.js'
 
 export interface ServerOptions {
   rootDir: string
@@ -82,6 +83,7 @@ export function buildApp(opts: ServerOptions): BuiltApp {
     consumers,
     version: opts.version ?? '0.0.1',
     startedAt,
+    demo: opts.demo ?? false,
   }))
 
   // v0.1 API router (legacy routes: /api/state/*, /api/annotate, /api/inbox, etc.)
@@ -128,6 +130,10 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
   }
 
   const port = opts.port ?? 7777
+
+  // Acquire instance lock before binding the port
+  await acquireLock({ port })
+
   const server = serve({
     fetch: built.app.fetch,
     hostname: LOCALHOST,
@@ -143,6 +149,7 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
     async stop() {
       if (built.consumerWatcher) await built.consumerWatcher.stop()
       await new Promise<void>((resolve) => server.close(() => resolve()))
+      await releaseLock()
     }
   }
 }
