@@ -14,7 +14,14 @@ export function registerGenericTools(
 ): void {
   const launchMs = startedAt ?? Date.now()
 
-  registry.register({
+  // v0.1 meta tools may already register aideck_list_consumers, aideck_health,
+  // and aideck_schema_version. When both v0.1 and v2 tool sets coexist, the
+  // v0.1 versions take precedence — skip duplicates silently.
+  const safeRegister: typeof registry.register = (tool) => {
+    if (!registry.has(tool.name)) registry.register(tool)
+  }
+
+  safeRegister({
     name: 'aideck_list_consumers',
     description: 'List all registered consumers with their metadata.',
     inputSchema: z.object({}),
@@ -30,7 +37,7 @@ export function registerGenericTools(
     }
   })
 
-  registry.register({
+  safeRegister({
     name: 'aideck_list',
     description:
       'List all records from a named data source. Optionally filter by key=value pairs.',
@@ -72,7 +79,7 @@ export function registerGenericTools(
     }
   })
 
-  registry.register<
+  safeRegister<
     { consumer: string; dataSource: string; slug?: string },
     { records: Record<string, unknown>[] } | { record: Record<string, unknown> }
   >({
@@ -124,7 +131,7 @@ export function registerGenericTools(
     }
   })
 
-  registry.register({
+  safeRegister({
     name: 'aideck_write',
     description:
       'Append a JSONL record to a writable path within the consumer directory. Target must start with data/.',
@@ -157,7 +164,7 @@ export function registerGenericTools(
     }
   })
 
-  registry.register({
+  safeRegister({
     name: 'aideck_health',
     description: 'Return server health status, version, consumer count, and uptime.',
     inputSchema: z.object({}),
@@ -171,7 +178,7 @@ export function registerGenericTools(
     }
   })
 
-  registry.register({
+  safeRegister({
     name: 'aideck_schema_version',
     description: 'Return the schema version and API version supported by this server.',
     inputSchema: z.object({}),

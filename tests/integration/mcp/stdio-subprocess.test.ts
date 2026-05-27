@@ -66,9 +66,11 @@ afterEach(async () => {
 })
 
 describe('aideck mcp — real stdio subprocess', () => {
-  it('completes initialize + tools/list with 24 aideck_ tools', async () => {
+  it('completes initialize + tools/list with at least 24 aideck_ tools', async () => {
     const list = await client.listTools()
-    expect(list.tools).toHaveLength(24)
+    // 24 v0.1 tools + v2 generic tools (aideck_list, aideck_read, aideck_write)
+    // when ~/.aideck/consumers/ has entries; exact count depends on environment
+    expect(list.tools.length).toBeGreaterThanOrEqual(24)
     for (const t of list.tools) {
       expect(t.name).toMatch(/^aideck_/)
       expect(typeof t.description).toBe('string')

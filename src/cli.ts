@@ -82,15 +82,22 @@ async function dispatchDemo(parsed: ReturnType<typeof parseCliArgs>, stdout: Nod
   const { writeEnvFile, removeEnvFile } = await import('./server/env-file.js')
   const { seedDemo } = await import('./demo/seed.js')
   const { createFakeConsumer } = await import('./demo/fake-consumer.js')
+  const { seedDemoConsumer, cleanDemoConsumer } = await import('./demo/seed-demo.js')
 
   // Track resources in startup order so the catch path can tear them down.
   let env: Awaited<ReturnType<typeof seedDemo>> | null = null
   let running: Awaited<ReturnType<typeof startServer>> | null = null
   let consumer: ReturnType<typeof createFakeConsumer> | null = null
   let envFileWritten = false
+  let demoConsumerSeeded = false
 
   try {
     env = await seedDemo()
+
+    // Seed v2 demo consumer into ~/.aideck/consumers/aideck-demo/
+    await seedDemoConsumer()
+    demoConsumerSeeded = true
+
     const port = await resolvePort({
       requested: parsed.flags.port,
       isExplicit: parsed.portExplicit
@@ -124,6 +131,7 @@ async function dispatchDemo(parsed: ReturnType<typeof parseCliArgs>, stdout: Nod
       await startedConsumer.stop()
       await startedRunning.stop()
       await startedEnv.cleanup()
+      await cleanDemoConsumer()
       process.exit(0)
     }
     process.on('SIGINT', () => void shutdown('SIGINT'))
@@ -143,6 +151,9 @@ async function dispatchDemo(parsed: ReturnType<typeof parseCliArgs>, stdout: Nod
     if (env) {
       try { await env.cleanup() } catch { /* swallow */ }
     }
+    if (demoConsumerSeeded) {
+      try { await cleanDemoConsumer() } catch { /* swallow */ }
+    }
     if (cause instanceof PortInUseError) {
       process.stderr.write(`aideck demo: ${cause.message}. Try --port=<higher>\n`)
       return 1
@@ -154,8 +165,14 @@ async function dispatchDemo(parsed: ReturnType<typeof parseCliArgs>, stdout: Nod
 
 async function dispatchMcp(): Promise<number> {
   const { startStdio } = await import('./mcp/index.js')
+  const { createConsumerRegistry } = await import('./server/consumer-registry.js')
+  const { homedir } = await import('node:os')
+  const { join } = await import('node:path')
   try {
-    await startStdio({ rootDir: process.cwd() })
+    const aideckBaseDir = join(homedir(), '.aideck')
+    const consumers = createConsumerRegistry(aideckBaseDir)
+    await consumers.scan()
+    await startStdio({ rootDir: process.cwd(), consumers })
     return -1
   } catch (cause) {
     process.stderr.write(`aideck mcp: ${cause instanceof Error ? cause.message : String(cause)}\n`)
