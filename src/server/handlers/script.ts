@@ -1,8 +1,9 @@
-import { join, resolve } from 'node:path'
+import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import type { ErrorResponse } from '../../schemas/common.js'
 import { type Result, err, ok } from '../../schemas/validators/index.js'
 import { appendJsonlLine } from '../writers/jsonl-append.js'
+import { resolveWithinDir } from '../writers/path-guard.js'
 import type { DataSourceDecl } from '../manifest-schema.js'
 
 const TIMEOUT_MS = 30_000
@@ -75,7 +76,14 @@ export async function executeScript(
   dataMap: Map<string, unknown[]>,
   sandbox?: ScriptSandboxOptions
 ): Promise<Result<Record<string, unknown>, ErrorResponse>> {
-  const modulePath = join(consumerDir, decl.source)
+  const modulePath = resolveWithinDir(consumerDir, decl.source)
+  if (modulePath === null) {
+    return err({
+      code: 'invalid_input',
+      message: `script source escapes the consumer directory: ${decl.source}`,
+      details: { code: 'script_error', source: decl.source },
+    })
+  }
   const moduleUrl = pathToFileURL(modulePath).href
 
   const writablePaths = computeWritablePaths(consumerDir, sandbox?.dataSources ?? [])

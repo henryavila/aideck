@@ -178,4 +178,25 @@ describe('createApiV2Router', () => {
     const parsed = JSON.parse(contents.trim()) as typeof record
     expect(parsed).toMatchObject(record)
   })
+
+  it('POST /api/consumers/:id/write/:target — rejects path traversal escaping data/', async () => {
+    const consumers = createConsumerRegistry(baseDir)
+    await consumers.scan()
+    const app = createApiV2Router({ consumers, version: '0.0.0', startedAt: Date.now() })
+
+    // Encode the slashes as %2f so the URL parser sees a single opaque segment
+    // and does NOT collapse the dot-segments; Hono then decodes the param back
+    // to "data/../../../../tmp/aideck-evil.jsonl" — the realistic traversal vector.
+    const res = await app.request(
+      '/api/consumers/test-consumer/write/data%2f%2e%2e%2f%2e%2e%2f%2e%2e%2f%2e%2e%2ftmp%2faideck-evil.jsonl',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pwned: true })
+      }
+    )
+    expect(res.status).toBe(400)
+    const body = await res.json() as { error: { code: string } }
+    expect(body.error.code).toBe('validation_error')
+  })
 })

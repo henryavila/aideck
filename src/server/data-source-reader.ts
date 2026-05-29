@@ -5,6 +5,7 @@ import type { ErrorResponse } from '../schemas/common.js'
 import { type Result, err, ok } from '../schemas/validators/index.js'
 import type { DataSourceDecl } from './manifest-schema.js'
 import { splitFrontmatter } from './parsers/frontmatter.js'
+import { resolveWithinDir } from './writers/path-guard.js'
 
 export interface DataSourceResult {
   dataSourceId: string
@@ -15,7 +16,8 @@ export interface DataSourceResult {
 async function expandGlob(consumerDir: string, pattern: string): Promise<string[]> {
   const starIdx = pattern.indexOf('*')
   if (starIdx === -1) {
-    return [join(consumerDir, pattern)]
+    const abs = resolveWithinDir(consumerDir, pattern)
+    return abs ? [abs] : []
   }
 
   const slashBefore = pattern.lastIndexOf('/', starIdx)
@@ -26,7 +28,8 @@ async function expandGlob(consumerDir: string, pattern: string): Promise<string[
   const [prefixPart, suffixPart] = filePart.split('*') as [string, string | undefined]
   const suffix = suffixPart ?? ''
 
-  const absDir = join(consumerDir, dirPart)
+  const absDir = resolveWithinDir(consumerDir, dirPart)
+  if (absDir === null) return []
   let entries: string[]
   try {
     entries = await readdir(absDir)

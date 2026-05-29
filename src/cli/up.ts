@@ -70,21 +70,6 @@ async function probeHealth(url: string): Promise<HealthResponse | null> {
   }
 }
 
-async function requestShutdown(url: string): Promise<void> {
-  try {
-    const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS)
-    await fetch(`${url}/api/shutdown`, { method: 'POST', signal: controller.signal })
-    clearTimeout(timer)
-  } catch { /* best effort — process may already be gone */ }
-  // Wait for port to be released
-  const deadline = Date.now() + 5_000
-  while (Date.now() < deadline) {
-    if (await probeHealth(url) === null) return
-    await new Promise(r => setTimeout(r, 300))
-  }
-}
-
 async function pollUntilHealthy(timeoutMs: number): Promise<string | null> {
   const deadline = Date.now() + timeoutMs
   while (Date.now() < deadline) {
@@ -110,11 +95,10 @@ export async function runUp(
     if (url) {
       const health = await probeHealth(url)
       if (health) {
-        if (!health.rootDir || health.rootDir === rootDir) {
-          stdout.write(`${url}\n`)
-          return 0
-        }
-        // rootDir mismatch — try registering with the running instance
+        // v2 is multi-project: register THIS project with the already-running
+        // instance (idempotent) instead of restarting it. The v2 /api/health no
+        // longer carries `rootDir`, so the previous rootDir-mismatch branch was
+        // dead code that silently skipped registering the current project.
         if (await tryRegister(url, rootDir)) {
           stderr.write(
             `aideck up: registered "${deriveProjectId(rootDir)}" with running instance at ${url}\n`
@@ -122,11 +106,14 @@ export async function runUp(
           stdout.write(`${url}\n`)
           return 0
         }
-        // Registration failed (old binary?) — fall back to restart
+        // Registration unavailable (e.g. an older binary without
+        // /api/projects/register): the server is healthy, so reuse it rather
+        // than fighting over the port.
         stderr.write(
-          `aideck up: rootDir mismatch (running: ${health.rootDir}, need: ${rootDir}). Restarting.\n`
+          `aideck up: running instance did not accept registration; reusing it at ${url}\n`
         )
-        await requestShutdown(url)
+        stdout.write(`${url}\n`)
+        return 0
       }
       await removeEnvFile()
     }

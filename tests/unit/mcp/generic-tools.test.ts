@@ -202,4 +202,22 @@ describe('registerGenericTools', () => {
     expect(parsed.apiVersion).toBe('0.1')
     expect(parsed.version).toBe('0.0.0-test')
   })
+
+  it('aideck_write — rejects path traversal escaping data/', async () => {
+    const { consumers, registry } = buildRegistries(baseDir)
+    await consumers.scan()
+
+    const result = await registry.invoke(
+      'aideck_write',
+      {
+        consumer: 'test-consumer',
+        target: 'data/../../../../tmp/aideck-evil.jsonl',
+        record: { pwned: true }
+      },
+      ctx
+    )
+    expect(result.isError).toBe(true)
+    const parsed = JSON.parse(result.content[0].text) as { error: { code: string } }
+    expect(parsed.error.code).toBe('invalid_input')
+  })
 })

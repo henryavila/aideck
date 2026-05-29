@@ -48,10 +48,20 @@ export function createProjectRegistry(): ProjectRegistry {
 
   function resolveCollision(baseId: string): string {
     if (!entries.has(baseId)) return baseId
-    for (let i = 2; ; i++) {
-      const candidate = `${baseId}-${i}`.slice(0, 64)
+    // Truncate the base BEFORE appending the counter so the suffix is always
+    // preserved within the 64-char cap. The previous `${baseId}-${i}`.slice(0, 64)
+    // stripped the suffix for a 64-char baseId, yielding baseId forever -> an
+    // infinite loop (DoS) on a collision.
+    for (let i = 2; i < 1000; i++) {
+      const suffix = `-${i}`
+      const candidate =
+        baseId.length + suffix.length > 64
+          ? baseId.slice(0, 64 - suffix.length) + suffix
+          : baseId + suffix
       if (!entries.has(candidate)) return candidate
     }
+    const unique = `-${Date.now().toString(36)}`
+    return baseId.slice(0, 64 - unique.length) + unique
   }
 
   return {

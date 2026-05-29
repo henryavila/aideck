@@ -62,4 +62,14 @@ describe('executeScript', () => {
     expect(result.error.details?.code).toBe('script_error')
     expect(result.error.message).toMatch(/does not export a default function/)
   })
+
+  it('rejects a script source that escapes the consumer directory (path traversal)', async () => {
+    const decl = { type: 'script' as const, source: '../../../../../../etc/evil.js' }
+
+    const result = await executeScript(fixturesDir, decl, {}, new Map())
+
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.error.code).toBe('invalid_input')
+  })
 })

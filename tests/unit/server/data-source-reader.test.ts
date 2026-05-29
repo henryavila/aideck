@@ -70,4 +70,15 @@ describe('readDataSource', () => {
     expect(result.error.code).toBe('io_error')
     expect(result.error.details?.['dataSourceId']).toBe('missing')
   })
+
+  it('does not read files outside the consumer directory (path traversal)', async () => {
+    // ../../../../package.json escapes tests/fixtures/consumers/valid-consumer to the repo root.
+    const decl: DataSourceDecl = { id: 'evil', path: '../../../../package.json', format: 'json' }
+    const result = await readDataSource(CONSUMER_DIR, decl)
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    // Containment rejects the escaping path -> nothing read.
+    expect(result.value.files).toHaveLength(0)
+    expect(result.value.records).toHaveLength(0)
+  })
 })

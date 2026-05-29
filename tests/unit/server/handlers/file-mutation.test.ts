@@ -73,4 +73,19 @@ describe('executeFileMutation', () => {
     const lines = content.trim().split('\n').map((l) => JSON.parse(l))
     expect(lines).toEqual([{ msg: 'first' }, { msg: 'second' }])
   })
+
+  it('rejects a target that escapes the consumer directory (path traversal via arg)', async () => {
+    const decl = {
+      type: 'file-mutation' as const,
+      target: 'data/events/{{ evil }}.jsonl',
+      operation: 'append' as const,
+      record: { x: 1 },
+    }
+    const result = await executeFileMutation(consumerDir, decl, {
+      evil: '../../../../../../tmp/aideck-pwn',
+    })
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.error.code).toBe('invalid_input')
+  })
 })

@@ -1,7 +1,7 @@
-import { join } from 'node:path'
 import type { ErrorResponse } from '../../schemas/common.js'
 import { type Result, err, ok } from '../../schemas/validators/index.js'
 import { appendJsonlLine } from '../writers/jsonl-append.js'
+import { resolveWithinDir } from '../writers/path-guard.js'
 import { renderTemplate } from './template.js'
 
 export interface FileMutationDecl {
@@ -25,7 +25,14 @@ export async function executeFileMutation(
     })
   }
 
-  const targetPath = join(consumerDir, renderTemplate(decl.target, args))
+  const renderedTarget = renderTemplate(decl.target, args)
+  const targetPath = resolveWithinDir(consumerDir, renderedTarget)
+  if (targetPath === null) {
+    return err({
+      code: 'invalid_input',
+      message: `file-mutation target escapes the consumer directory: "${renderedTarget}"`,
+    })
+  }
 
   const rawRecord = decl.record ?? {}
   const rendered: Record<string, unknown> = {}

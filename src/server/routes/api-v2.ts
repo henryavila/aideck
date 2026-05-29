@@ -4,6 +4,7 @@ import type { Context } from 'hono'
 import type { ConsumerRegistry } from '../consumer-registry.js'
 import { readDataSource } from '../data-source-reader.js'
 import { appendJsonlLine } from '../writers/jsonl-append.js'
+import { isWithinDir } from '../writers/path-guard.js'
 
 export interface ApiV2Deps {
   consumers: ConsumerRegistry
@@ -175,6 +176,14 @@ export function createApiV2Router(deps: ApiV2Deps): Hono {
     }
 
     const filePath = join(consumer.dir, target)
+    if (!isWithinDir(filePath, join(consumer.dir, 'data'))) {
+      return errResp(
+        c,
+        'validation_error',
+        `write target escapes the data directory: "${target}"`,
+        400
+      )
+    }
     try {
       await appendJsonlLine(filePath, body as object)
     } catch (e) {

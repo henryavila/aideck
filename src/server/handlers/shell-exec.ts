@@ -8,6 +8,15 @@ const execFile = promisify(execFileCb)
 
 const DEFAULT_TIMEOUT_MS = 30_000
 
+/**
+ * POSIX single-quote escaping. Wraps a value so the shell treats it as one
+ * literal argument; embedded single quotes are closed, escaped, and reopened
+ * (`'` -> `'\''`). Neutralizes command injection through templated args.
+ */
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, `'\\''`)}'`
+}
+
 export interface ShellExecDecl {
   type: 'shell-exec'
   command: string
@@ -19,7 +28,7 @@ export async function executeShellExec(
   decl: ShellExecDecl,
   args: Record<string, unknown>
 ): Promise<Result<{ stdout: string; stderr: string; exitCode: number }, ErrorResponse>> {
-  const command = renderTemplate(decl.command, args)
+  const command = renderTemplate(decl.command, args, shellQuote)
   const timeout = decl.timeout ?? DEFAULT_TIMEOUT_MS
 
   try {

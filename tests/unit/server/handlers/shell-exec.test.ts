@@ -56,4 +56,14 @@ describe('executeShellExec', () => {
     if (!result.ok) return
     expect(result.value.stdout.trim()).toBe('hello world')
   })
+
+  it('neutralizes command injection through templated args', async () => {
+    const decl = { type: 'shell-exec' as const, command: 'echo {{ name }}' }
+    const result = await executeShellExec(consumerDir, decl, { name: '$(id)' })
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    // Shell-quoted: the arg is echoed literally, never command-substituted.
+    expect(result.value.stdout.trim()).toBe('$(id)')
+  })
 })

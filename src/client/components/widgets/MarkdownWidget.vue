@@ -40,6 +40,21 @@ function escapeHtml(text: string): string {
     .replace(/>/g, '&gt;')
 }
 
+const SAFE_URL_SCHEMES = ['http', 'https', 'mailto', 'tel']
+
+// The rendered HTML is injected via v-html, so a link URL must not be able to
+// (a) carry a dangerous scheme (javascript:, data:, vbscript:) or
+// (b) break out of the href="" attribute with a quote. escapeHtml runs before
+// this and handles & < > ; here we block schemes and escape quotes.
+function sanitizeHref(url: string): string {
+  const trimmed = url.trim()
+  const scheme = /^([a-z][a-z0-9+.-]*):/i.exec(trimmed)
+  if (scheme && !SAFE_URL_SCHEMES.includes(scheme[1].toLowerCase())) {
+    return '#'
+  }
+  return trimmed.replace(/"/g, '&quot;').replace(/'/g, '&#39;')
+}
+
 function renderMarkdown(md: string): string {
   let html = escapeHtml(md)
 
@@ -61,7 +76,9 @@ function renderMarkdown(md: string): string {
   html = html.replace(/`(.+?)`/g, '<code>$1</code>')
 
   // Links
-  html = html.replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
+  html = html.replace(/\[(.+?)\]\((.+?)\)/g, (_match, text: string, url: string) => {
+    return `<a href="${sanitizeHref(url)}" target="_blank" rel="noopener noreferrer">${text}</a>`
+  })
 
   // Line breaks (only outside block elements)
   html = html.replace(/\n/g, '<br>')

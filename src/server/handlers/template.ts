@@ -6,12 +6,22 @@ function builtins(): Record<string, string> {
   }
 }
 
-export function renderTemplate(template: string, vars: Record<string, unknown>): string {
+/**
+ * Render `{{ var }}` placeholders. When `escapeValue` is supplied, each
+ * substituted value is passed through it before insertion — callers that
+ * splice the result into a shell command MUST pass a shell-escaping function
+ * so attacker-controlled args cannot inject commands.
+ */
+export function renderTemplate(
+  template: string,
+  vars: Record<string, unknown>,
+  escapeValue?: (value: string) => string
+): string {
   const resolved: Record<string, unknown> = { ...builtins(), ...vars }
   return template.replace(/\{\{\s*(\w+)\s*\}\}/g, (match, name: string) => {
     if (!(name in resolved)) return match
     const value = resolved[name]
-    if (typeof value === 'string') return value
-    return JSON.stringify(value)
+    const str = typeof value === 'string' ? value : JSON.stringify(value)
+    return escapeValue ? escapeValue(str) : str
   })
 }

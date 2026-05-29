@@ -1,8 +1,9 @@
 import { z } from 'zod'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import { err, ok } from '../../schemas/validators/index.js'
 import { readDataSource } from '../../server/data-source-reader.js'
 import { appendJsonlLine } from '../../server/writers/jsonl-append.js'
+import { isWithinDir } from '../../server/writers/path-guard.js'
 import type { ToolRegistry } from '../registry.js'
 import type { ConsumerRegistry } from '../../server/consumer-registry.js'
 
@@ -158,7 +159,14 @@ export function registerGenericTools(
         })
       }
 
-      const absolutePath = join(consumer.dir, input.target)
+      const absolutePath = resolve(consumer.dir, input.target)
+      if (!isWithinDir(absolutePath, join(consumer.dir, 'data'))) {
+        return err({
+          code: 'invalid_input',
+          message: `target escapes the consumer data directory: "${input.target}"`,
+          suggestion: 'Targets must stay within data/ (no "../" path traversal).'
+        })
+      }
       await appendJsonlLine(absolutePath, input.record)
       return ok({ path: absolutePath })
     }
