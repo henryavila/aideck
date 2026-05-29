@@ -1,55 +1,66 @@
 <template>
-  <header class="headernav-widget">
-    <div class="headernav-text">
-      <h1 class="headernav-title">{{ title }}</h1>
-      <p v-if="subtitle" class="headernav-subtitle">{{ subtitle }}</p>
+  <WidgetFrame frameless>
+    <div v-if="vertical" class="vnav">
+      <span
+        v-for="link in links"
+        :key="link.id"
+        class="vnav-link"
+        :class="{ on: link.id === active }"
+      >
+        <span v-if="link.glyph" class="gly">{{ link.glyph }}</span>
+        <span class="vn-name">{{ link.name }}</span>
+        <span v-if="link.count != null" class="vn-ct">{{ link.count }}</span>
+      </span>
     </div>
-    <hr class="headernav-rule" />
-  </header>
+    <div v-else class="hnav" :class="{ wrap }">
+      <span
+        v-for="link in links"
+        :key="link.id"
+        class="hnav-link"
+        :class="{ on: link.id === active }"
+      >
+        <span v-if="showGlyphs && link.glyph" class="gly">{{ link.glyph }}</span>
+        <span>{{ link.name }}</span>
+      </span>
+    </div>
+  </WidgetFrame>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import WidgetFrame from '../WidgetFrame.vue'
 
 const props = defineProps<{
   source: Record<string, unknown>[]
   config: Record<string, unknown>
+  consumerId?: string
 }>()
 
-const title = computed(() => {
-  const row = props.source[0]
-  return String(props.config.title ?? row?.title ?? 'Untitled')
+interface NavLink { id: string; name: string; glyph?: string; count?: number }
+
+const vertical = computed(
+  () => props.config.orientation === 'vertical' || props.config.variant === 'sidebar',
+)
+const wrap = computed(() => props.config.wrap === true)
+const showGlyphs = computed(() => props.config.glyphs === true)
+
+const links = computed<NavLink[]>(() => {
+  const cfgItems = props.config.items ?? props.config.links
+  const rows = Array.isArray(cfgItems) ? (cfgItems as Record<string, unknown>[]) : props.source
+  return rows.map((r, i) => {
+    const id = r.id ?? r.key ?? r.name ?? i
+    const count = r.count
+    return {
+      id: String(id),
+      name: String(r.name ?? r.label ?? r.title ?? id),
+      glyph: r.glyph != null ? String(r.glyph) : r.icon != null ? String(r.icon) : undefined,
+      count: typeof count === 'number' ? count : undefined,
+    }
+  })
 })
 
-const subtitle = computed(() => {
-  const row = props.source[0]
-  const s = props.config.subtitle ?? row?.subtitle
-  return s ? String(s) : ''
+const active = computed(() => {
+  if (props.config.active != null) return String(props.config.active)
+  return links.value[0]?.id
 })
 </script>
-
-<style scoped>
-.headernav-widget {
-  padding: var(--spacing-md) var(--spacing-md) 0;
-}
-
-.headernav-title {
-  margin: 0;
-  font-size: var(--font-size-2xl);
-  font-weight: 700;
-  color: var(--color-text-primary);
-  line-height: 1.2;
-}
-
-.headernav-subtitle {
-  margin: var(--spacing-xs) 0 0;
-  font-size: var(--font-size-base);
-  color: var(--color-text-secondary);
-}
-
-.headernav-rule {
-  margin: var(--spacing-md) 0 0;
-  border: none;
-  border-top: 1px solid var(--color-border);
-}
-</style>

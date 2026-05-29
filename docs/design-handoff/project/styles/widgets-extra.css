@@ -1,0 +1,425 @@
+/* ─────────────────────────────────────────────────────────────────
+   aiDeck — single layout · tree view · bar chart · gauge · tag chip · badge
+   Used by Plan Detail (single) and Analytics (sections) pages.
+   ───────────────────────────────────────────────────────────────── */
+
+/* ── Single layout container ─────────────────────────────────────── */
+.single-layout {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 48px - 26px - 56px - 36px - 24px);
+  /* viewport - chrome - statusbar - tabs - page-title - main padding */
+  min-height: 380px;
+}
+.single-layout > .w {
+  flex: 1;
+  min-height: 0;
+  box-shadow: var(--shadow-md);
+}
+
+/* ── Tree view widget ────────────────────────────────────────────── */
+.tree {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--fg-default);
+  font-feature-settings: 'calt' 0;
+  padding: 4px 6px;
+  overflow-y: auto;
+  height: 100%;
+}
+
+.tree-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  position: relative;
+  transition: background 100ms var(--ease-out);
+}
+.tree-row:hover { background: var(--bg-elevated); }
+.tree-row.is-active {
+  background: var(--status-info-bg);
+}
+.tree-row.is-active .tree-name { color: var(--status-info); }
+
+.tree-row .caret {
+  width: 12px; height: 16px;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--fg-subtle);
+  font-size: 10px;
+  flex: none;
+  transition: color 100ms var(--ease-out);
+}
+.tree-row .caret.empty { color: transparent; }
+.tree-row:hover .caret { color: var(--fg-muted); }
+
+.tree-row .glyph {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--fg-faint);
+  font-feature-settings: 'calt' 0;
+  flex: none;
+  width: 12px;
+  text-align: center;
+}
+.tree-row.is-project > .glyph { color: var(--chart-1); }
+.tree-row.is-task    > .glyph { color: var(--fg-subtle); }
+
+.tree-name {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-feature-settings: 'calt' 0;
+  color: var(--fg-default);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  flex: 1;
+  letter-spacing: 0;
+}
+.tree-row.is-project .tree-name { color: var(--chart-1); }
+.tree-row.is-task    .tree-name { color: var(--fg-default); }
+
+.tree-id {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--fg-subtle);
+  letter-spacing: 0.04em;
+  font-feature-settings: 'calt' 0;
+  flex: none;
+  margin-right: 2px;
+}
+.tree-row.is-project .tree-id { color: color-mix(in srgb, var(--chart-1) 70%, var(--fg-subtle)); }
+
+.tree-meta {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--fg-subtle);
+  letter-spacing: 0.04em;
+  font-feature-settings: 'calt' 0;
+  flex: none;
+}
+
+.tree-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  height: 15px;
+  padding: 0 6px;
+  font-family: var(--font-sans);
+  font-size: 9.5px;
+  font-weight: 500;
+  border-radius: var(--radius-pill);
+  border: 1px solid;
+  letter-spacing: 0;
+  flex: none;
+}
+.tree-chip .dot { width: 4px; height: 4px; border-radius: 50%; background: currentColor; }
+.tree-chip.success { color: var(--status-success); border-color: var(--status-success-line); background: color-mix(in srgb, var(--status-success) 8%, transparent); }
+.tree-chip.warning { color: var(--status-warning); border-color: var(--status-warning-line); background: color-mix(in srgb, var(--status-warning) 8%, transparent); }
+.tree-chip.error   { color: var(--status-error);   border-color: var(--status-error-line);   background: color-mix(in srgb, var(--status-error) 8%, transparent); }
+.tree-chip.info    { color: var(--status-info);    border-color: var(--status-info-line);    background: color-mix(in srgb, var(--status-info) 8%, transparent); }
+.tree-chip.neutral { color: var(--status-neutral); border-color: var(--status-neutral-line); background: var(--bg-elevated); }
+
+.tree-children {
+  /* Subtle vertical guide line for the indented subtree */
+  position: relative;
+  margin-left: 14px;
+  padding-left: 14px;
+  border-left: 1px solid var(--border-subtle);
+}
+.tree-children .tree-row { margin-left: -8px; }
+
+/* ── Bar chart widget ────────────────────────────────────────────── */
+.bar-chart {
+  display: flex; flex-direction: column;
+  gap: 10px;
+  height: 100%;
+}
+.bar-axis {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 18px;
+  flex: 1;
+  position: relative;
+  padding: 18px 0 24px;
+}
+.bar-axis .gridline {
+  position: absolute;
+  left: 28px; right: 0;
+  height: 1px;
+  background: var(--border-subtle);
+}
+.bar-axis .gridline-label {
+  position: absolute;
+  left: 0;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  color: var(--fg-subtle);
+  font-feature-settings: 'calt' 0;
+  letter-spacing: 0.02em;
+  transform: translateY(-50%);
+}
+
+.bar-row {
+  display: grid;
+  grid-template-columns: repeat(var(--bar-count, 4), 1fr);
+  gap: 12px;
+  align-items: end;
+  height: 100%;
+  padding: 0 6px 0 32px;
+  position: relative;
+  z-index: 1;
+}
+.bar {
+  position: relative;
+  display: flex; flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  height: 100%;
+}
+.bar .bar-rect {
+  width: 100%;
+  background: var(--chart-1);
+  border-radius: 3px 3px 0 0;
+  position: relative;
+  transition: opacity 120ms var(--ease-out);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.12);
+  min-height: 4px;
+}
+.bar.c-1 .bar-rect { background: linear-gradient(180deg, var(--chart-1), color-mix(in srgb, var(--chart-1) 75%, black)); }
+.bar.c-2 .bar-rect { background: linear-gradient(180deg, var(--chart-2), color-mix(in srgb, var(--chart-2) 75%, black)); }
+.bar.c-3 .bar-rect { background: linear-gradient(180deg, var(--chart-3), color-mix(in srgb, var(--chart-3) 75%, black)); }
+.bar.c-4 .bar-rect { background: linear-gradient(180deg, var(--chart-4), color-mix(in srgb, var(--chart-4) 75%, black)); }
+.bar.c-5 .bar-rect { background: linear-gradient(180deg, var(--chart-5), color-mix(in srgb, var(--chart-5) 75%, black)); }
+.bar:hover .bar-rect { opacity: 0.85; }
+.bar:hover .bar-tip { opacity: 1; transform: translate(-50%, -100%) translateY(-4px); }
+.bar .bar-val {
+  position: absolute;
+  top: -18px; left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--fg-muted);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'calt' 0;
+}
+.bar .bar-lbl {
+  position: absolute;
+  bottom: -18px; left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--fg-subtle);
+  letter-spacing: 0.04em;
+  font-feature-settings: 'calt' 0;
+  white-space: nowrap;
+}
+.bar .bar-tip {
+  position: absolute;
+  top: 0; left: 50%;
+  padding: 4px 8px;
+  background: var(--bg-overlay);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-default);
+  white-space: nowrap;
+  box-shadow: var(--shadow-md);
+  opacity: 0;
+  transform: translate(-50%, -100%);
+  transition: opacity 120ms var(--ease-out), transform 120ms var(--ease-out);
+  pointer-events: none;
+  z-index: 5;
+}
+
+/* ── Gauge widget ────────────────────────────────────────────────── */
+.gauge-wrap {
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 10px;
+  height: 100%;
+  padding: 6px 4px 8px;
+}
+.gauge-svg { display: block; width: 100%; max-width: 300px; }
+.gauge-track { fill: none; stroke: var(--bg-elevated); }
+.gauge-fill  { fill: none; stroke: var(--chart-2); stroke-linecap: round; }
+.gauge-value {
+  font-family: var(--font-sans);
+  font-size: 38px;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  fill: var(--fg-default);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.gauge-sub {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  fill: var(--fg-subtle);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-feature-settings: 'calt' 0;
+}
+.gauge-ticks {
+  display: flex; justify-content: space-between;
+  width: 100%; max-width: 300px;
+  padding: 0 8px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  color: var(--fg-subtle);
+  font-feature-settings: 'calt' 0;
+  letter-spacing: 0.02em;
+}
+
+/* Breakdown strip — fills the bottom of the gauge widget with a
+   real per-bucket distribution so the card carries dense info     */
+.gauge-foot {
+  width: 100%;
+  margin-top: 4px;
+  padding: 10px 14px 6px;
+  border-top: 1px solid var(--border-subtle);
+  display: flex; flex-direction: column;
+  gap: 6px;
+}
+.gauge-foot .gf-row {
+  display: grid;
+  grid-template-columns: repeat(var(--gf-count, 4), 1fr);
+  gap: 8px;
+  align-items: end;
+}
+.gauge-foot .gf-cell {
+  display: flex; flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.gauge-foot .gf-bar {
+  width: 100%;
+  height: 24px;
+  background: var(--bg-elevated);
+  border-radius: 2px;
+  overflow: hidden;
+  position: relative;
+  display: flex; align-items: flex-end;
+}
+.gauge-foot .gf-bar i {
+  display: block; width: 100%;
+  background: var(--chart-2);
+  border-radius: 2px 2px 0 0;
+  transition: height 320ms var(--ease-out);
+}
+.gauge-foot .gf-bar.is-mean i {
+  background: var(--chart-1);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--chart-1) 60%, transparent);
+}
+.gauge-foot .gf-lbl {
+  display: flex; justify-content: space-between; align-items: center;
+  width: 100%;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  color: var(--fg-subtle);
+  font-feature-settings: 'calt' 0;
+  letter-spacing: 0.02em;
+}
+.gauge-foot .gf-lbl .k { color: var(--fg-muted); }
+.gauge-foot .gf-lbl .v { color: var(--fg-default); font-variant-numeric: tabular-nums; }
+.gauge-foot .gf-meta {
+  display: flex; align-items: center; gap: 10px;
+  padding: 6px 0 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--fg-subtle);
+  font-feature-settings: 'calt' 0;
+  letter-spacing: 0.02em;
+  flex-wrap: wrap;
+}
+.gauge-foot .gf-meta .em { color: var(--fg-default); }
+.gauge-foot .gf-meta .sep { color: var(--fg-faint); }
+.gauge-foot .gf-meta .ok { color: var(--status-success); }
+
+/* ── Tag chip cloud widget ───────────────────────────────────────── */
+.tag-cloud {
+  display: flex; flex-wrap: wrap;
+  gap: 6px;
+  align-items: flex-start;
+}
+.tag-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  border: 1px solid;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-feature-settings: 'calt' 0;
+  letter-spacing: 0.02em;
+}
+.tag-chip .ct {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.7;
+  margin-left: 2px;
+}
+.tag-chip.t-1 { color: var(--chart-1); border-color: color-mix(in srgb, var(--chart-1) 32%, var(--border-default)); }
+.tag-chip.t-2 { color: var(--chart-2); border-color: color-mix(in srgb, var(--chart-2) 32%, var(--border-default)); }
+.tag-chip.t-3 { color: var(--chart-3); border-color: color-mix(in srgb, var(--chart-3) 32%, var(--border-default)); }
+.tag-chip.t-4 { color: var(--chart-4); border-color: color-mix(in srgb, var(--chart-4) 32%, var(--border-default)); }
+.tag-chip.t-5 { color: var(--chart-5); border-color: color-mix(in srgb, var(--chart-5) 32%, var(--border-default)); }
+.tag-chip.t-6 { color: var(--chart-6); border-color: color-mix(in srgb, var(--chart-6) 32%, var(--border-default)); }
+.tag-chip.t-7 { color: var(--chart-7); border-color: color-mix(in srgb, var(--chart-7) 32%, var(--border-default)); }
+.tag-chip.t-8 { color: var(--chart-8); border-color: color-mix(in srgb, var(--chart-8) 32%, var(--border-default)); }
+
+/* ── Badge widget (status distribution) ──────────────────────────── */
+.badge-row {
+  display: flex; flex-direction: column;
+  gap: 8px;
+  height: 100%;
+}
+.badge {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid;
+  background: var(--bg-sunken);
+}
+.badge .dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  flex: none;
+  background: currentColor;
+  box-shadow: 0 0 6px color-mix(in srgb, currentColor 60%, transparent);
+}
+.badge .b-name {
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  flex: 1;
+}
+.badge .b-ct {
+  font-family: var(--font-mono);
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-default);
+  font-feature-settings: 'calt' 0;
+  font-weight: 500;
+}
+.badge .b-bar {
+  width: 80px; height: 4px;
+  background: var(--bg-elevated);
+  border-radius: 2px;
+  overflow: hidden;
+  flex: none;
+}
+.badge .b-bar i {
+  display: block; height: 100%;
+  background: currentColor;
+}
+.badge.success { color: var(--status-success); border-color: var(--status-success-line); }
+.badge.info    { color: var(--status-info);    border-color: var(--status-info-line); }
+.badge.warning { color: var(--status-warning); border-color: var(--status-warning-line); }
+.badge.neutral { color: var(--status-neutral); border-color: var(--status-neutral-line); }
+.badge.error   { color: var(--status-error);   border-color: var(--status-error-line); }
+.badge .b-name { color: var(--fg-default); }

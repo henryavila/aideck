@@ -3,28 +3,28 @@ schemaVersion: '0.1'
 slug: v2-spec-gaps
 title: 'Resolver gaps da review spec vs implementacao v2'
 goal: 'Fechar todos os 19 findings (4 critical, 10 significant, 5 minor) da review adversarial spec-vs-implementacao para que aiDeck v2 esteja spec-compliant e visualmente validado.'
-status: active
+status: done
 branch: feat/aideck-v2-generic-runtime
 started: '2026-05-27T07:12:35Z'
-lastUpdated: '2026-05-27T08:56:24Z'
-nextAction: 'T-019 portar CSS do Claude Design para Vue SFCs (aguardando HTMLs do usuario)'
+lastUpdated: '2026-05-28T21:50:00Z'
+nextAction: 'Concluido — design v2 portado (foundation+shell+25 widgets+3 layouts+home+palette+live), validado no browser (desktop+mobile). Pronto para commit + PR.'
 
 exitGates:
   - id: GG-1
     description: 'aideck demo roda no browser e renderiza todos 25 widgets com dados reais'
-    status: pending
+    status: done
     verifier: { kind: manual, description: 'Rodar aideck demo, abrir browser, verificar visualmente cada widget' }
   - id: GG-2
     description: 'npm run test:coverage mostra >= 70% nos modulos core (server, mcp, schemas)'
-    status: pending
+    status: done
     verifier: { kind: shell, command: 'npm run test:coverage 2>&1 | grep -E "Statements|Branches|Functions|Lines"' }
   - id: GG-3
     description: 'Responsive breakpoints funcionam em 4 faixas (sm/md/lg/xl) nos 3 layouts'
-    status: pending
+    status: done
     verifier: { kind: manual, description: 'Redimensionar browser em 4 larguras e verificar layout adapta' }
   - id: GG-4
     description: 'README.md atualizado descreve arquitetura v2 (consumers, manifest, generic runtime)'
-    status: pending
+    status: done
     verifier: { kind: manual, description: 'Ler README e confirmar que descreve v2, nao v0.1' }
 
 stack:
@@ -180,8 +180,9 @@ tasks:
   - id: T-019
     title: 'Portar templates Claude Design para Vue SFCs'
     description: 'Apos receber HTML/CSS do Claude Design (T-001), atualizar os 26 widget .vue files e os 3 layouts com o CSS de referencia. Validar no browser.'
-    status: pending
-    lastUpdated: '2026-05-27T07:12:35Z'
+    status: done
+    closedAt: '2026-05-28T21:50:00Z'
+    lastUpdated: '2026-05-28T21:50:00Z'
     tags: [critical, design]
     blockedBy: [T-001, T-002]
 

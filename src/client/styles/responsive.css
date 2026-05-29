@@ -1,0 +1,412 @@
+/* ─────────────────────────────────────────────────────────────────
+   aiDeck — responsive layer (mobile-first overrides)
+   Loaded last. Targets ≤ 1024px (tablet), ≤ 720px (mobile),
+   ≤ 480px (small). The widget vocabulary is preserved on every
+   breakpoint — only density, chrome and grid layout adapt.
+   ───────────────────────────────────────────────────────────────── */
+
+/* ── Base hides (desktop-only chrome doesn't render these) ───────── */
+.drawer-tg        { display: none; }
+.pal-icon-btn     { display: none; }
+.side-mobile-head { display: none; }
+.drawer-backdrop  { display: none; }
+.sb-t-only        { display: none; } /* tablet-only items hidden on desktop */
+
+/* ─────────────────────────────────────────────────────────────────
+   TABLET — 1024px and below
+   ───────────────────────────────────────────────────────────────── */
+@media (max-width: 1024px) {
+  .shell { grid-template-columns: 200px 1fr; }
+  .main  { padding: 18px 18px 24px; }
+
+  /* Trim chrome */
+  .pal { min-width: 200px; }
+  .lh-tag, .lh-sep { display: none; }
+
+  /* Home grid: smaller minimum */
+  .consumer-grid {
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   MOBILE — 720px and below
+   Sidebar becomes off-canvas drawer · chrome compresses · grids stack
+   ───────────────────────────────────────────────────────────────── */
+@media (max-width: 720px) {
+
+  /* ── Chrome ────────────────────────────────────────────────────── */
+  .chrome {
+    gap: 8px;
+    padding: 0 8px;
+  }
+  .drawer-tg { display: inline-flex; }
+  .wm-ai     { display: none; }
+  .wm-dot    { margin-left: 1px; }
+  .wm        { font-size: 13px; }
+
+  /* Breadcrumb: only current segment + leading slash */
+  .crumb { font-size: 11px; }
+  .crumb-hide-sm { display: none; }
+  .crumb .sep:first-child { display: inline; color: var(--fg-faint); }
+
+  /* Palette: collapse the wide pill into an icon button */
+  .pal { display: none; }
+  .pal-icon-btn { display: inline-flex; }
+
+  /* Trust signal: keep but compress */
+  .lh {
+    padding: 0 8px 0 7px;
+    font-size: 9.5px;
+    letter-spacing: 0;
+  }
+  .lh-tag, .lh-sep { display: none; }
+  .lh-host { letter-spacing: 0; }
+
+  /* Touch-friendly icon buttons */
+  .icon-btn { width: 34px; height: 34px; font-size: 16px; }
+  .chrome-help { display: none; } /* fold into ⋯ */
+
+  /* ── Demo banner ───────────────────────────────────────────────── */
+  .banner {
+    height: auto;
+    padding: 8px 12px;
+    font-size: 10px;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .banner .b-cmd {
+    width: 100%;
+    margin-left: 0;
+    justify-content: flex-start;
+    padding-left: 18px;
+  }
+
+  /* ── Sidebar → off-canvas drawer ───────────────────────────────── */
+  .shell { grid-template-columns: 1fr; }
+  .shell.no-side { grid-template-columns: 1fr; }
+
+  .side {
+    position: fixed;
+    top: 48px;
+    bottom: 26px;
+    left: 0;
+    width: 280px;
+    max-width: 84vw;
+    z-index: 30;
+    transform: translateX(-100%);
+    transition: transform 220ms var(--ease-out);
+    border-right: 1px solid var(--border-default);
+    box-shadow: 24px 0 48px -16px rgba(0,0,0,0.7);
+    padding: 4px 8px 14px;
+  }
+  .app.drawer-open .side { transform: translateX(0); }
+
+  .drawer-backdrop {
+    display: block;
+    position: fixed;
+    top: 48px;
+    bottom: 26px;
+    left: 0; right: 0;
+    background: rgba(7, 9, 13, 0.62);
+    -webkit-backdrop-filter: blur(2px);
+            backdrop-filter: blur(2px);
+    z-index: 20;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 220ms var(--ease-out);
+  }
+  .app.drawer-open .drawer-backdrop {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .side-mobile-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 6px 8px 10px;
+    border-bottom: 1px solid var(--border-subtle);
+    margin: 0 -8px 4px;
+  }
+  .side-mobile-title {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--fg-muted);
+    letter-spacing: 0.10em;
+    text-transform: uppercase;
+    font-feature-settings: 'calt' 0;
+  }
+  .side-mobile-head .icon-btn {
+    width: 34px; height: 34px;
+  }
+  .consumer-row { padding: 9px 10px; }
+  .page-row     { padding: 9px 10px 9px 22px; }
+
+  /* ── Main ──────────────────────────────────────────────────────── */
+  .main { padding: 14px 14px 22px; }
+
+  /* ── Home page ─────────────────────────────────────────────────── */
+  .home-head {
+    flex-wrap: wrap;
+    gap: 6px 12px;
+  }
+  .home-head h1 { font-size: 22px; }
+  .home-head .meta {
+    width: 100%;
+    padding-bottom: 0;
+  }
+  .home-head .actions {
+    margin-left: 0;
+    width: 100%;
+    margin-top: 2px;
+  }
+  .home-head .actions .btn { flex: 1; justify-content: center; }
+
+  .consumer-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .empty-msg { font-size: 14px; }
+  .empty-cmd { font-size: 11px; }
+
+  /* ── Consumer page header / tabs ───────────────────────────────── */
+  .page-title {
+    flex-wrap: wrap;
+    gap: 4px 10px;
+    margin-bottom: 4px;
+  }
+  .page-title h1 {
+    font-size: 18px;
+    white-space: normal;
+    line-height: 1.2;
+  }
+  .page-title .pt-sep { font-size: 14px; }
+  .page-title .meta {
+    width: 100%;
+    padding-bottom: 0;
+    font-size: 10px;
+  }
+  .page-title .actions {
+    margin-left: 0;
+    width: 100%;
+  }
+  .page-title .actions .btn { flex: 1; justify-content: center; }
+
+  .tabs-bar {
+    margin: 8px -14px 14px;
+    padding: 0 14px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .tabs-bar::-webkit-scrollbar { display: none; }
+  .tabs-bar .tb {
+    padding: 0 12px;
+    white-space: nowrap;
+  }
+  .tabs-bar .tabs-tail { display: none; }
+
+  /* ── Section grid: 1-col by default, stats = 2 cols ────────────── */
+  .sec-grid {
+    /* !important beats the inline grid-template-columns the layout sets for
+       the desktop 12-col grid, so the mobile collapse actually applies. */
+    grid-template-columns: 1fr !important;
+    gap: 10px;
+  }
+  .sec-grid > * {
+    grid-column: auto !important;
+  }
+  .sec-grid.is-stats {
+    grid-template-columns: 1fr 1fr !important;
+  }
+
+  .sec-head { margin-bottom: 8px; }
+
+  /* ── Stat widget: horizontal layout on mobile (value right-aligned) */
+  .w .w-body:has(.stat) { padding: 12px; }
+  .w .w-head { padding: 8px 12px; }
+  .w-title   { font-size: 11.5px; }
+
+  .stat {
+    display: grid;
+    grid-template-areas: "l v" "d d";
+    grid-template-columns: 1fr auto;
+    column-gap: 12px;
+    row-gap: 4px;
+    align-items: center;
+  }
+  .stat .lbl { grid-area: l; font-size: 9.5px; align-self: end; }
+  .stat .v   {
+    grid-area: v;
+    font-size: 30px;
+    line-height: 1;
+    justify-self: end;
+    align-self: center;
+  }
+  .stat .d   { grid-area: d; font-size: 10.5px; margin-top: 0; }
+
+  /* ── Table → card list at mobile width ─────────────────────────── */
+  .tab-desktop { display: none; }
+  .tab-cards   { display: block; }
+  /* Body no longer needs horizontal scroll on mobile */
+  .w-body.flush { overflow-x: visible; }
+  .w-body.flush::after { display: none; } /* drop the scroll fade hint */
+  .table-foot { padding: 10px 14px; border-top: 1px solid var(--border-subtle); margin-top: 0; }
+
+  /* ── Timeline ──────────────────────────────────────────────────── */
+  .tl { padding-left: 18px; }
+  .tl-row { padding: 9px 0; }
+  .tl-row::before { left: -16px; top: 13px; }
+
+  /* ── Log: smaller font, allow wrap-trim ────────────────────────── */
+  .log { font-size: 10.5px; padding: 8px 10px; }
+
+  /* ── Buttons: roomier touch targets ────────────────────────────── */
+  .btn { height: 36px; padding: 0 14px; font-size: 12.5px; }
+
+  /* ── Grid layout: stack vertically on mobile ───────────────────── */
+  .grid-layout {
+    grid-template-columns: 1fr !important;
+    grid-auto-rows: auto !important;
+    gap: 10px;
+  }
+  .grid-layout > * {
+    grid-column: auto !important;
+    grid-row: auto !important;
+  }
+  .grid-fill { min-height: 0; }
+  .grid-debug .w::before { display: none; } /* slot indicator irrelevant when stacked */
+
+  /* ── Kanban: desktop 3-col hidden; segmented mobile view shows ─── */
+  .kb-desktop { display: none; }
+  .kb-mobile  { display: flex; }
+  .w-body:has(.kb-mobile) { position: relative; }
+
+  /* ── Status bar ────────────────────────────────────────────────── */
+  .statusbar { gap: 8px; padding: 0 10px; font-size: 9.5px; overflow: hidden; }
+  /* Specificity needs to beat `.statusbar .sb-item` (0,2,0). */
+  .statusbar .sb-d-only { display: none !important; }
+  .statusbar .sb-t-only { display: flex !important; }
+
+  /* ── Single layout: relax fixed height calc on mobile ──────────── */
+  .single-layout {
+    height: auto;
+    min-height: calc(100vh - 220px);
+  }
+
+  /* ── Tree view ─────────────────────────────────────────────────── */
+  .tree { font-size: 11.5px; padding: 4px; }
+  .tree-row { padding: 7px 6px; min-height: 32px; gap: 6px; }
+  .tree-row .tree-id { font-size: 10px; }
+  .tree-row .tree-meta { font-size: 9.5px; }
+  .tree-row .tree-chip { height: 17px; font-size: 9.5px; padding: 0 7px; }
+  .tree-children { margin-left: 10px; padding-left: 10px; }
+
+  /* ── Bar chart ─────────────────────────────────────────────────── */
+  .bar-axis { padding: 18px 0 22px; }
+  .bar-row { padding: 0 4px 0 28px; gap: 8px; }
+  .bar .bar-val { font-size: 9.5px; top: -16px; }
+  .bar .bar-lbl { font-size: 9.5px; bottom: -16px; }
+  .bar-axis .gridline-label { font-size: 9px; }
+
+  /* ── Gauge: smaller numbers, tighter padding ───────────────────── */
+  .gauge-svg { max-width: 200px; }
+  .gauge-value { font-size: 26px; }
+  .gauge-ticks { font-size: 9px; max-width: 200px; }
+
+  /* ── Badge widget: tighter rows ────────────────────────────────── */
+  .badge { padding: 9px 10px; }
+  .badge .b-ct { font-size: 15px; }
+  .badge .b-bar { width: 60px; }
+
+  /* ── Tag chip cloud: cozy on mobile ────────────────────────────── */
+  .tag-chip { height: 24px; font-size: 11px; }
+  .tag-cloud { gap: 5px; }
+
+  /* ── Widget reference pages: 4-col grids collapse ──────────────── */
+  .wref-grid,
+  .wref-grid.cols-3,
+  .wref-grid.cols-4 {
+    grid-template-columns: 1fr 1fr;
+  }
+  .wref-grid.cols-2 { grid-template-columns: 1fr; }
+  .wref-grid > .wref-cell.span-2,
+  .wref-grid > .wref-cell.span-3,
+  .wref-grid > .wref-cell.span-4 {
+    grid-column: span 2;
+  }
+  .wref-head { gap: 6px; }
+  .wref-head .src { width: 100%; margin-left: 0; }
+  .stat-centered .v { font-size: 26px; }
+  .gauge-svg { max-width: 180px; }
+  .gauge-ticks { max-width: 180px; }
+
+  /* ── Command palette on mobile ─────────────────────────────────── */
+  .pal-overlay { padding: 8vh 8px 8px; }
+  .pal-panel { width: 100%; max-height: 86vh; border-radius: var(--radius-md); }
+  .pal-head { height: 52px; padding: 0 14px; gap: 10px; }
+  .pal-head input { font-size: 16px; /* avoid iOS auto-zoom */ }
+  .pal-row { padding: 10px 12px; min-height: 44px; }
+  .pal-row .pal-name { font-size: 13.5px; }
+  .pal-row .pal-tail { flex-wrap: wrap; justify-content: flex-end; max-width: 110px; }
+  .pal-foot {
+    height: auto;
+    padding: 8px 10px;
+    flex-wrap: wrap;
+    gap: 6px 10px;
+  }
+  .pal-foot .pf-spacer { display: none; }
+  .pal-demo-shell { min-height: 480px; overflow: hidden; }
+  /* Chrome variant inside states demo can wrap on mobile */
+  .chrome-variant .cv-banner { flex-wrap: wrap; }
+  .toast { right: 8px; bottom: 8px; padding: 7px 10px; font-size: 11px; max-width: calc(100% - 16px); }
+
+  /* ── States reference page: stack widget grids ─────────────────── */
+  .state-block .sb-grid,
+  .state-block .sb-grid.cols-3,
+  .state-block .sb-grid.cols-4 {
+    grid-template-columns: 1fr;
+  }
+  .page-state { padding: 32px 14px; min-height: 0; }
+  .page-error { padding: 14px; }
+  .page-error pre.pe-code { font-size: 10.5px; }
+  .chrome-variant .cv-bar { padding: 0 10px; gap: 8px; height: 44px; }
+  .chrome-variant .cv-bar .crumb { display: none; }
+
+  /* ── Grid columns widget collapses to 1 col ────────────────────── */
+  .grid-cols.c-2, .grid-cols.c-3, .grid-cols.c-uneven {
+    grid-template-columns: 1fr;
+  }
+
+  /* ── Empty state on Home ───────────────────────────────────────── */
+  .empty-wrap { padding: 24px 12px; gap: 10px; }
+}
+
+/* small mobile: simplify tree row */
+@media (max-width: 480px) {
+  .tree-row .tree-id { display: none; }
+  .tree-row .tree-meta { display: none; }
+  .badge .b-bar { display: none; }
+  .main { padding: 12px 12px 20px; }
+
+  .crumb { display: none; } /* leave just the wordmark on tiny screens */
+
+  /* Stats: keep 2-col layout (avoids wasted space of full-width stats) */
+  /* .sec-grid.is-stats stays 2-col from 720 rule */
+  .stat .v { font-size: 26px; }
+  .stat .lbl { letter-spacing: 0.06em; font-size: 9px; }
+
+  /* Home meta wraps gracefully */
+  .home-head h1 { font-size: 20px; }
+
+  /* Page title even tighter */
+  .page-title h1 { font-size: 17px; }
+
+  /* Sidebar drawer near full-width */
+  .side { width: 90vw; max-width: 320px; }
+
+  /* Status bar: hide tablet items too */
+  .statusbar .sb-t-only { display: none !important; }
+}

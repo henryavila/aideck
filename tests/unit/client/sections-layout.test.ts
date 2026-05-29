@@ -200,7 +200,7 @@ describe('SectionsLayout autoGrid', () => {
     })
     await flushPromises()
 
-    const grid = wrapper.find('.section-grid')
+    const grid = wrapper.find('.sec-grid')
     expect(grid.element.style.gridTemplateColumns).toContain('auto-fill')
     expect(grid.element.style.gridTemplateColumns).toContain('280px')
   })
@@ -218,7 +218,7 @@ describe('SectionsLayout autoGrid', () => {
     })
     await flushPromises()
 
-    const grid = wrapper.find('.section-grid')
+    const grid = wrapper.find('.sec-grid')
     expect(grid.element.style.gridTemplateColumns).toContain('350px')
   })
 
@@ -235,7 +235,7 @@ describe('SectionsLayout autoGrid', () => {
     })
     await flushPromises()
 
-    const grid = wrapper.find('.section-grid')
+    const grid = wrapper.find('.sec-grid')
     // JSDOM resolves calc() expressions, so just verify maxWidth is set
     expect(grid.element.style.maxWidth).toBeTruthy()
   })
@@ -253,7 +253,7 @@ describe('SectionsLayout autoGrid', () => {
     })
     await flushPromises()
 
-    const grid = wrapper.find('.section-grid')
+    const grid = wrapper.find('.sec-grid')
     expect(grid.element.style.gridTemplateColumns).toBe('repeat(12, 1fr)')
   })
 
@@ -270,8 +270,8 @@ describe('SectionsLayout autoGrid', () => {
     })
     await flushPromises()
 
-    const grid = wrapper.find('.section-grid')
-    expect(grid.classes()).toContain('section-grid--fill-screen')
+    const grid = wrapper.find('.sec-grid')
+    expect(grid.classes()).toContain('sec-grid--fill-screen')
   })
 
   it('does not apply fill-screen class when fillScreen is not set', async () => {
@@ -287,7 +287,7 @@ describe('SectionsLayout autoGrid', () => {
     })
     await flushPromises()
 
-    const grid = wrapper.find('.section-grid')
-    expect(grid.classes()).not.toContain('section-grid--fill-screen')
+    const grid = wrapper.find('.sec-grid')
+    expect(grid.classes()).not.toContain('sec-grid--fill-screen')
   })
 })

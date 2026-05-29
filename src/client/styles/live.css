@@ -1,0 +1,262 @@
+/* ─────────────────────────────────────────────────────────────────
+   aiDeck — SSE live indicators (briefing 04c)
+   Four atoms · widget patterns · disconnect banner · reconnect toast
+   ───────────────────────────────────────────────────────────────── */
+
+/* ── Atom 1: live dot (4 states) ─────────────────────────────────── */
+.live-dot {
+  display: inline-block;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  flex: none;
+  background: var(--status-neutral);
+  transition: background 200ms var(--ease-out), box-shadow 200ms var(--ease-out);
+}
+.live-dot.live {
+  background: var(--status-success);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--status-success) 70%, transparent);
+}
+.live-dot.idle {
+  background: var(--status-neutral);
+}
+.live-dot.stale {
+  background: var(--status-warning);
+}
+.live-dot.disconnected {
+  background: var(--status-warning);
+  animation: live-pulse 1.6s ease-in-out infinite;
+}
+@keyframes live-pulse {
+  0%, 100% { opacity: 0.4; }
+  50%      { opacity: 1; }
+}
+
+/* Atom-gallery dot row with label */
+.dot-tile {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 6px;
+  padding: 16px 8px;
+  background: var(--bg-sunken);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+.dot-tile .live-dot { width: 10px; height: 10px; }
+.dot-tile .dt-lbl {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--fg-default);
+  font-feature-settings: 'calt' 0;
+  letter-spacing: 0.04em;
+}
+.dot-tile .dt-sub {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--fg-subtle);
+  font-feature-settings: 'calt' 0;
+}
+
+/* ── Atom 2: row-highlight flash (used by tables, kanban, timeline, log) */
+@keyframes row-flash {
+  0%   { background-color: color-mix(in srgb, var(--status-info) 22%, transparent); }
+  100% { background-color: transparent; }
+}
+.row-flash { animation: row-flash 1.2s ease-out 1; }
+
+@keyframes row-flash-bar {
+  0%   { box-shadow: inset 2px 0 0 var(--status-info); }
+  100% { box-shadow: inset 2px 0 0 transparent; }
+}
+.row-flash-bar { animation: row-flash-bar 1.2s ease-out 1; }
+
+@keyframes cell-flash {
+  0%   { background-color: color-mix(in srgb, var(--status-info) 18%, transparent); }
+  100% { background-color: transparent; }
+}
+.cell-flash { animation: cell-flash 600ms ease-out 1; }
+
+@keyframes value-fade {
+  0%   { color: color-mix(in srgb, var(--status-info) 70%, var(--fg-default)); }
+  100% { color: var(--fg-default); }
+}
+.value-fade { animation: value-fade 400ms ease-out 1; }
+
+/* ── Atom 3: scanline overlay refinement (foundations.css has .is-live) */
+/* .is-live is defined in foundations.css; here we just provide the
+   demo tile chrome and a stronger label-marker for the gallery card. */
+.scan-demo {
+  position: relative;
+  background: var(--bg-sunken);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-muted);
+  line-height: 1.7;
+  font-feature-settings: 'calt' 0;
+  min-height: 96px;
+  overflow: hidden;
+}
+
+/* ── Atom 4: trust-signal pill states (chrome) ───────────────────── */
+.trust-pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 22px; padding: 0 10px 0 8px;
+  border-radius: var(--radius-pill);
+  font-family: var(--font-mono); font-size: 10px;
+  font-feature-settings: 'calt' 0;
+  letter-spacing: 0.02em;
+  border: 1px solid;
+  white-space: nowrap;
+  transition: color 200ms var(--ease-out),
+              background 200ms var(--ease-out),
+              border-color 200ms var(--ease-out);
+}
+.trust-pill .td { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+.trust-pill.healthy {
+  color: var(--status-success);
+  background: color-mix(in srgb, var(--status-success) 10%, transparent);
+  border-color: var(--status-success-line);
+}
+.trust-pill.healthy .td { box-shadow: 0 0 6px color-mix(in srgb, var(--status-success) 80%, transparent); }
+.trust-pill.reconnecting {
+  color: var(--status-warning);
+  background: color-mix(in srgb, var(--status-warning) 10%, transparent);
+  border-color: var(--status-warning-line);
+}
+.trust-pill.reconnecting .td { animation: live-pulse 1.6s ease-in-out infinite; }
+.trust-pill.disconnected {
+  color: var(--status-warning);
+  background: color-mix(in srgb, var(--status-warning) 10%, transparent);
+  border-color: var(--status-warning-line);
+}
+.trust-pill .tp-sep { color: var(--fg-faint); }
+.trust-pill .tp-tag {
+  color: color-mix(in srgb, currentColor 70%, var(--fg-muted));
+}
+
+/* ── Live-widget patterns ────────────────────────────────────────── */
+
+/* Stream-widget header pattern: "live · 2s ago [dot]" */
+.live-meta {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--font-mono); font-size: 10px;
+  color: var(--fg-subtle);
+  letter-spacing: 0.04em;
+  font-feature-settings: 'calt' 0;
+}
+.live-meta .live-word { color: var(--status-success); }
+.live-meta .stale-word { color: var(--status-warning); }
+
+/* Log Feed live extras */
+.log-live { position: relative; }
+.log-live .follow-pill {
+  position: absolute;
+  bottom: 10px; left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 5px 12px;
+  background: var(--bg-overlay);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-pill);
+  font-family: var(--font-mono); font-size: 10px;
+  color: var(--fg-default);
+  cursor: pointer;
+  box-shadow: var(--shadow-md);
+  font-feature-settings: 'calt' 0;
+}
+.log-live .follow-pill .arrow { color: var(--status-info); font-weight: 700; }
+.log-live .follow-pill:hover { border-color: var(--border-bright); }
+.log-row {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding-left: 4px;
+  margin-left: -4px;
+}
+
+/* Timeline live extras */
+.tl-live { position: relative; }
+.tl-banner {
+  display: inline-flex; align-items: center; gap: 8px;
+  margin-bottom: 8px;
+  padding: 4px 10px;
+  background: color-mix(in srgb, var(--status-info) 8%, transparent);
+  border: 1px solid var(--status-info-line);
+  border-radius: var(--radius-pill);
+  font-family: var(--font-mono); font-size: 10px;
+  color: var(--status-info);
+  font-feature-settings: 'calt' 0;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+}
+.tl-banner .tlb-arrow { font-weight: 700; }
+.tl-row.is-newest::before {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--status-info) 30%, transparent),
+              0 0 12px color-mix(in srgb, var(--status-info) 70%, transparent);
+  animation: spine-sustain 2s ease-out 1;
+}
+@keyframes spine-sustain {
+  0%   { box-shadow: 0 0 0 5px color-mix(in srgb, var(--status-info) 50%, transparent),
+                     0 0 16px color-mix(in srgb, var(--status-info) 80%, transparent); }
+  100% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--status-info) 30%, transparent),
+                     0 0 12px color-mix(in srgb, var(--status-info) 70%, transparent); }
+}
+
+/* Kanban card move animation (used in card.is-moving snapshot) */
+.kb-card.is-moving {
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--status-info) 50%, transparent),
+    0 0 16px color-mix(in srgb, var(--status-info) 60%, transparent),
+    var(--highlight-inset);
+  transition: transform 200ms var(--ease-out), box-shadow 200ms var(--ease-out);
+}
+
+/* Tween bar height for live chart */
+.bar .bar-rect { transition: height 200ms var(--ease-out); }
+
+/* ── Disconnect banner (page-level) ──────────────────────────────── */
+.disc-banner {
+  display: flex; align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  background: var(--status-warning-bg);
+  border: 1px solid var(--status-warning-line);
+  border-radius: var(--radius-md);
+  font-family: var(--font-mono); font-size: 11px;
+  color: var(--status-warning);
+  font-feature-settings: 'calt' 0;
+  letter-spacing: 0.02em;
+  flex-wrap: wrap;
+}
+.disc-banner .em { color: var(--fg-default); }
+.disc-banner .retry-now {
+  margin-left: auto;
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 9px;
+  background: transparent;
+  border: 1px solid var(--status-warning-line);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono); font-size: 10px;
+  color: var(--status-warning);
+  cursor: pointer;
+  font-feature-settings: 'calt' 0;
+}
+.disc-banner .retry-now:hover { background: color-mix(in srgb, var(--status-warning) 12%, transparent); }
+
+/* ── Reconnect toast (re-uses .toast from states.css for shell) ──── */
+@keyframes toast-rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: none; }
+}
+.toast { animation: toast-rise 200ms var(--ease-out) 1; }
+
+/* ── Reduced motion: kill ambient animations, keep colors ────────── */
+@media (prefers-reduced-motion: reduce) {
+  .row-flash, .row-flash-bar, .cell-flash, .value-fade,
+  .tl-row.is-newest::before, .live-dot.disconnected,
+  .trust-pill.reconnecting .td, .toast {
+    animation: none !important;
+  }
+}

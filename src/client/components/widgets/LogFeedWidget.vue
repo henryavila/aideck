@@ -1,34 +1,90 @@
 <template>
-  <div class="logfeed-widget" ref="containerRef">
-    <div v-if="lines.length === 0" class="empty">No log entries</div>
-    <div v-else class="logfeed-lines">
-      <div v-for="(line, i) in lines" :key="i" class="logfeed-line">
-        <span v-if="line.timestamp" class="logfeed-ts">{{ line.timestamp }}</span>
-        <span class="logfeed-msg">{{ line.message }}</span>
-      </div>
+  <WidgetFrame
+    :title="title"
+    icon="≡"
+    :meta="meta"
+    :live="live"
+    body-class="tight"
+    :state="lines.length === 0 ? 'empty' : 'ready'"
+    empty-note="no log entries"
+  >
+    <div ref="containerRef" class="log">
+      <span v-for="(line, i) in lines" :key="i" class="row">
+        <span v-if="line.ts" class="ts">{{ line.ts }}</span>
+        <span class="lv" :class="line.lv">{{ line.lvLabel }}</span>
+        <span class="msg">{{ line.msg }}</span>
+        <span v-if="line.key" class="key">{{ line.key }}</span>
+        <span v-if="line.tail" class="msg">{{ line.tail }}</span>
+        <span v-if="line.val" class="val"> {{ line.val }}</span>
+      </span>
     </div>
-  </div>
+  </WidgetFrame>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, watch, nextTick } from 'vue'
+import WidgetFrame from '../WidgetFrame.vue'
 
 const props = defineProps<{
   source: Record<string, unknown>[]
   config: Record<string, unknown>
+  consumerId?: string
 }>()
 
 const containerRef = ref<HTMLElement | null>(null)
 
-const tsField = computed(() => String(props.config.timestampField ?? 'timestamp'))
-const msgField = computed(() => String(props.config.messageField ?? 'message'))
+const title = computed(() => (props.config.title as string | undefined) ?? 'Log · stdout')
+const live = computed(() => props.config.live === true)
+
+const tsField = computed(() => String(props.config.timestampField ?? 'ts'))
+const msgField = computed(() => String(props.config.messageField ?? 'msg'))
+const levelField = computed(() => String(props.config.levelField ?? 'lv'))
 const maxLines = computed(() => Number(props.config.maxLines ?? 200))
 
-const lines = computed(() => {
-  const all = props.source.map(r => ({
-    timestamp: r[tsField.value] ? String(r[tsField.value]) : '',
-    message: String(r[msgField.value] ?? JSON.stringify(r)),
-  }))
+// Normalize arbitrary level words onto the 4 terminal level classes.
+const LEVEL_MAP: Record<string, string> = {
+  ok: 'ok',
+  success: 'ok',
+  done: 'ok',
+  info: 'info',
+  log: 'info',
+  debug: 'info',
+  warn: 'warn',
+  warning: 'warn',
+  err: 'err',
+  error: 'err',
+  fail: 'err',
+  failed: 'err',
+}
+
+function levelClass(lv: string): string {
+  return LEVEL_MAP[lv.toLowerCase()] ?? 'info'
+}
+
+interface LogLine {
+  ts: string
+  lv: string
+  lvLabel: string
+  msg: string
+  key: string
+  tail: string
+  val: string
+}
+
+const lines = computed<LogLine[]>(() => {
+  const all = props.source.map((r): LogLine => {
+    const rawLv = String(r[levelField.value] ?? 'info')
+    const lv = levelClass(rawLv)
+    return {
+      ts: r[tsField.value] ? String(r[tsField.value]) : '',
+      lv,
+      lvLabel: `${rawLv}    `.slice(0, 4),
+      msg: String(r[msgField.value] ?? r.message ?? JSON.stringify(r)),
+      key: r.key != null ? String(r.key) : '',
+      tail: r.tail != null ? String(r.tail) : '',
+      val: r.val != null ? String(r.val) : '',
+    }
+  })
   return all.slice(-maxLines.value)
 })
 
@@ -38,43 +94,9 @@ watch(lines, async () => {
     containerRef.value.scrollTop = containerRef.value.scrollHeight
   }
 })
+
+const meta = computed(() => {
+  const n = lines.value.length
+  return `${n} ${n === 1 ? 'line' : 'lines'}`
+})
 </script>
-
-<style scoped>
-.logfeed-widget {
-  height: 100%;
-  overflow-y: auto;
-  background: var(--color-bg-primary);
-  padding: var(--spacing-sm);
-  font-family: var(--font-mono);
-  font-size: var(--font-size-sm);
-}
-
-.empty {
-  color: var(--color-text-muted);
-  padding: var(--spacing-md);
-}
-
-.logfeed-lines {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-
-.logfeed-line {
-  display: flex;
-  gap: var(--spacing-sm);
-  line-height: 1.5;
-}
-
-.logfeed-ts {
-  color: var(--color-text-muted);
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-.logfeed-msg {
-  color: var(--color-text-primary);
-  word-break: break-word;
-}
-</style>

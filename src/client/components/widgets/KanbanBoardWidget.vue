@@ -1,134 +1,191 @@
 <template>
-  <div class="kanban-widget">
-    <div v-if="columns.length === 0" class="empty">No columns configured</div>
-    <div v-else class="kanban-columns">
-      <div v-for="col in columns" :key="col" class="kanban-col">
-        <div class="kanban-col-header">
-          <span class="kanban-col-title">{{ col }}</span>
-          <span class="kanban-col-count">{{ cardsByColumn[col]?.length ?? 0 }}</span>
+  <WidgetFrame
+    :title="title"
+    icon="▦"
+    :meta="meta"
+    :live="live"
+    body-class="flush"
+    :state="columns.length === 0 ? 'empty' : 'ready'"
+    empty-note="no columns configured"
+  >
+    <!-- DESKTOP — tonal column grid -->
+    <div class="kb kb-desktop" :style="{ gridTemplateColumns: `repeat(${columns.length}, 1fr)` }">
+      <div v-for="col in columns" :key="col.id" class="kb-col" :data-col="col.id">
+        <div class="kb-col-h">
+          <span class="accent" :class="`tone-${columnTone(col.id)}`" />
+          <span class="name" :class="`tone-${columnTone(col.id)}`">{{ col.label }}</span>
+          <span class="ct" :class="`tone-${columnTone(col.id)}`">{{ cardsByColumn[col.id]?.length ?? 0 }}</span>
         </div>
-        <div class="kanban-cards">
-          <div v-for="(card, i) in cardsByColumn[col] ?? []" :key="i" class="kanban-card">
-            <div v-for="f in visibleFields" :key="f" class="kanban-card-field">
-              <span v-if="f !== statusField" class="kanban-card-val">{{ card[f] }}</span>
+        <div class="kb-cards">
+          <template v-if="(cardsByColumn[col.id]?.length ?? 0) === 0">
+            <div class="kb-empty">// no cards · drop a task to begin</div>
+          </template>
+          <div
+            v-for="(card, i) in cardsByColumn[col.id] ?? []"
+            :key="i"
+            class="kb-card"
+            :class="columnAccent(col.id)"
+            tabindex="0"
+          >
+            <div class="row-top">
+              <span class="id">{{ card.id }}</span>
+              <span v-if="card.priority" class="prio" :class="`p-${card.priority}`">
+                <span class="pdot" />
+                <span>p{{ card.priority }}</span>
+              </span>
+            </div>
+            <div class="ti">{{ card.title }}</div>
+            <div v-if="card.tags.length" class="tags">
+              <span v-for="(t, ti) in card.tags" :key="t" class="tk" :class="`t-${tagIndex(ti)}`">{{ t }}</span>
             </div>
           </div>
-          <div v-if="!cardsByColumn[col]?.length" class="kanban-empty-col">Empty</div>
         </div>
       </div>
     </div>
-  </div>
+
+    <!-- MOBILE — segmented control + single column -->
+    <div class="kb-mobile">
+      <div class="kb-seg" role="tablist">
+        <button
+          v-for="(col, i) in columns"
+          :key="col.id"
+          class="seg"
+          :class="i === activeIdx ? `on tone-${columnTone(col.id)}` : ''"
+          role="tab"
+          :aria-selected="i === activeIdx"
+          @click="activeIdx = i"
+        >
+          <span class="seg-dot" :class="`tone-${columnTone(col.id)}`" />
+          <span class="seg-name">{{ col.label }}</span>
+          <span class="seg-ct">{{ cardsByColumn[col.id]?.length ?? 0 }}</span>
+        </button>
+      </div>
+      <div class="kb-mobile-list">
+        <template v-if="(cardsByColumn[activeColumn?.id ?? '']?.length ?? 0) === 0">
+          <div class="kb-empty kb-empty-lg">
+            <span class="ke-dot" />
+            <span class="ke-msg">// nothing in <em>{{ (activeColumn?.label ?? '').toLowerCase() }}</em></span>
+            <span class="ke-hint">tasks land here when their status changes to <code>{{ activeColumn?.id }}</code>.</span>
+          </div>
+        </template>
+        <div v-else class="kb-cards kb-cards-mobile">
+          <div
+            v-for="(card, i) in cardsByColumn[activeColumn?.id ?? ''] ?? []"
+            :key="i"
+            class="kb-card"
+            :class="columnAccent(activeColumn?.id ?? '')"
+            tabindex="0"
+          >
+            <div class="row-top">
+              <span class="id">{{ card.id }}</span>
+              <span v-if="card.priority" class="prio" :class="`p-${card.priority}`">
+                <span class="pdot" />
+                <span>p{{ card.priority }}</span>
+              </span>
+            </div>
+            <div class="ti">{{ card.title }}</div>
+            <div v-if="card.tags.length" class="tags">
+              <span v-for="(t, ti) in card.tags" :key="t" class="tk" :class="`t-${tagIndex(ti)}`">{{ t }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </WidgetFrame>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
+import WidgetFrame from '../WidgetFrame.vue'
+import { statusInfo } from '../../utils/status.js'
+
+interface KanbanCard {
+  id: string
+  title: string
+  priority: string
+  tags: string[]
+  [key: string]: unknown
+}
+
+interface KanbanColumn {
+  id: string
+  label: string
+}
 
 const props = defineProps<{
   source: Record<string, unknown>[]
   config: Record<string, unknown>
+  consumerId?: string
 }>()
 
-const columns = computed<string[]>(() => {
-  const c = props.config.columns
-  if (Array.isArray(c)) return c as string[]
-  return []
-})
+const title = computed(() => (props.config.title as string | undefined) ?? 'issues')
+const live = computed(() => props.config.live === true)
 
 const statusField = computed(() => String(props.config.statusField ?? 'status'))
+const titleField = computed(() => String(props.config.titleField ?? 'title'))
+const idField = computed(() => String(props.config.idField ?? 'id'))
+const priorityField = computed(() => String(props.config.priorityField ?? 'priority'))
+const tagsField = computed(() => String(props.config.tagsField ?? 'tags'))
 
-const visibleFields = computed<string[]>(() => {
-  const f = props.config.cardFields
-  if (Array.isArray(f)) return f as string[]
-  if (props.source.length > 0) return Object.keys(props.source[0])
-  return []
+const DEFAULT_COLUMNS: KanbanColumn[] = [
+  { id: 'todo', label: 'Todo' },
+  { id: 'in-progress', label: 'In Progress' },
+  { id: 'done', label: 'Done' },
+]
+
+const columns = computed<KanbanColumn[]>(() => {
+  const c = props.config.columns
+  if (Array.isArray(c)) {
+    return (c as unknown[]).map((entry) => {
+      if (typeof entry === 'string') return { id: entry, label: entry }
+      const o = entry as Record<string, unknown>
+      const id = String(o.id ?? o.label ?? '')
+      return { id, label: String(o.label ?? id) }
+    })
+  }
+  return DEFAULT_COLUMNS
 })
 
-const cardsByColumn = computed<Record<string, Record<string, unknown>[]>>(() => {
-  const result: Record<string, Record<string, unknown>[]> = {}
-  for (const col of columns.value) result[col] = []
+function columnTone(id: string): string {
+  return statusInfo(id).tone
+}
+
+function columnAccent(id: string): string {
+  const tone = statusInfo(id).tone
+  if (tone === 'info') return 'accent-info'
+  if (tone === 'success') return 'accent-success'
+  if (tone === 'warning') return 'accent-warning'
+  return ''
+}
+
+// Tags use chart palette (t-1..t-6) rotation; status colors are reserved for status.
+function tagIndex(i: number): number {
+  return (Math.abs(i) % 6) + 1
+}
+
+const cardsByColumn = computed<Record<string, KanbanCard[]>>(() => {
+  const result: Record<string, KanbanCard[]> = {}
+  for (const col of columns.value) result[col.id] = []
   for (const row of props.source) {
     const status = String(row[statusField.value] ?? '')
-    if (result[status]) result[status].push(row)
+    if (!result[status]) continue
+    const rawTags = row[tagsField.value]
+    result[status].push({
+      ...row,
+      id: String(row[idField.value] ?? ''),
+      title: String(row[titleField.value] ?? ''),
+      priority: row[priorityField.value] != null ? String(row[priorityField.value]) : '',
+      tags: Array.isArray(rawTags) ? (rawTags as unknown[]).map(String) : [],
+    })
   }
   return result
 })
+
+const meta = computed(() => {
+  const total = props.source.length
+  return `${total} ${total === 1 ? 'card' : 'cards'} · ${columns.value.length} columns`
+})
+
+const activeIdx = ref(Math.max(0, columns.value.findIndex((c) => c.id === 'in-progress')))
+const activeColumn = computed<KanbanColumn | undefined>(() => columns.value[activeIdx.value])
 </script>
-
-<style scoped>
-.kanban-widget {
-  height: 100%;
-  overflow: auto;
-  padding: var(--spacing-md);
-}
-
-.empty {
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
-}
-
-.kanban-columns {
-  display: flex;
-  gap: var(--spacing-md);
-  height: 100%;
-  align-items: flex-start;
-}
-
-.kanban-col {
-  min-width: 180px;
-  flex: 1;
-  background: var(--color-bg-secondary);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  overflow: hidden;
-}
-
-.kanban-col-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: var(--spacing-sm) var(--spacing-md);
-  border-bottom: 1px solid var(--color-border);
-  background: var(--color-bg-tertiary);
-}
-
-.kanban-col-title {
-  font-size: var(--font-size-sm);
-  font-weight: 600;
-  color: var(--color-text-primary);
-}
-
-.kanban-col-count {
-  font-size: var(--font-size-sm);
-  color: var(--color-text-muted);
-  background: var(--color-bg-hover);
-  border-radius: 999px;
-  padding: 0 6px;
-}
-
-.kanban-cards {
-  padding: var(--spacing-sm);
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-sm);
-}
-
-.kanban-card {
-  background: var(--color-bg-primary);
-  border: 1px solid var(--color-border-muted);
-  border-radius: var(--radius-sm);
-  padding: var(--spacing-sm);
-  font-size: var(--font-size-sm);
-}
-
-.kanban-card-val {
-  color: var(--color-text-primary);
-  display: block;
-}
-
-.kanban-empty-col {
-  font-size: var(--font-size-sm);
-  color: var(--color-text-muted);
-  padding: var(--spacing-xs);
-  text-align: center;
-}
-</style>

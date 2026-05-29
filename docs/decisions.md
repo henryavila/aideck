@@ -350,3 +350,22 @@ The MCP protocol (SEP-986) allows dots, underscores, and dashes in tool names. T
 - Generic tools: `aideck_<verb>` (e.g., `aideck_list`, `aideck_read`)
 - Consumer tools: `aideck_<mcpNamespace>_<toolName>` (e.g., `aideck_atomic_skills_mark_task_done`)
 - The `mcpNamespace` field in manifest.yaml enforces `[a-z][a-z0-9_]{0,31}` (no dots, no hyphens)
+
+---
+
+## 2026-05-28 — Porting the Claude Design v2 handoff to Vue (T-019)
+
+### Context
+The `aiDesk Dashboard` handoff (from Claude Design) was ported into `src/client/`. The bundle is React/HTML prototypes + modular global CSS; production is Vue 3. The handoff also raised mobile-first to a hard requirement on every screen. Bundle staged at `docs/design-handoff/`.
+
+### Decisions
+- **Global shared CSS + semantic classes (not scoped).** The handoff is authored as shared `styles/*.css` with a class vocabulary (`.w`, `.sec-grid`, `.stat`, `.schip`…). We import those globally in `main.ts` and templates emit the classes, instead of duplicating the frame/chips/states into 28 scoped blocks. Component `<script setup>` logic was preserved; only `<template>`/`<style>` changed.
+- **Canonical `WidgetFrame.vue`.** Each widget renders its own `WidgetFrame` (`.w` head/body + loading/empty/error/disconnected states). `WidgetRenderer` was left unchanged (still passes `source`/`config`/`consumerId`) — no churn to its 13 tests.
+- **Self-hosted fonts.** Inter + JetBrains Mono via `@fontsource/*` (npm, bundled). The handoff's `@import` from Google Fonts CDN was removed — Iron Law #4 (localhost-only, no CDN).
+- **Tokens migrated** v0.1 (`--color-*`, `--spacing-*`) → v2 (`--bg-*`, `--fg-*`, `--status-*`, `--space-N`); a temporary `aliases.css` bridged the phased migration and was removed at the end.
+- **Two real bugs were found only by running the client end-to-end** (it never had been):
+  1. `fetchConsumerManifest` must unwrap the API's `{ manifest: {...} }` envelope — otherwise no consumer page renders.
+  2. Layouts set `grid-template-columns` inline, which beats media queries; the mobile collapse needed `!important` on the `responsive.css` `.sec-grid`/`.grid-layout` overrides.
+- **`aideck demo` now serves the built client** (`dist/client` via `staticDir`) so it launches the full dashboard in one command (run `npx vite build` first). Previously demo was API-only; the client was served separately by `vite`.
+- **No new heavy deps.** Markdown keeps its custom regex parser (no `marked`); Graph-DAG renders the diagram source as a styled code-block fallback (no `mermaid`). Both can be revisited later.
+- **Command Palette + live data are in scope** (user opted in): `CommandPalette.vue` + `usePalette.ts` (client-side index over consumers/pages/files, fuzzy match, global ⌘K) and `useLiveBus.ts` (one shared SSE → `WidgetRenderer` re-fetches on events).

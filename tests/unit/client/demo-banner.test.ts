@@ -22,7 +22,7 @@ describe('App demo banner', () => {
     const wrapper = mount(App, { global: { plugins: [router] } })
     await flushPromises()
 
-    expect(wrapper.find('.demo-banner').exists()).toBe(true)
+    expect(wrapper.find('.banner').exists()).toBe(true)
     expect(wrapper.text()).toContain('DEMO MODE')
     expect(wrapper.text()).toContain('seeded fixtures')
   })
@@ -32,7 +32,7 @@ describe('App demo banner', () => {
     const wrapper = mount(App, { global: { plugins: [router] } })
     await flushPromises()
 
-    expect(wrapper.find('.demo-banner').exists()).toBe(false)
+    expect(wrapper.find('.banner').exists()).toBe(false)
   })
 
   it('banner is not dismissible (no close button)', async () => {
@@ -40,7 +40,7 @@ describe('App demo banner', () => {
     const wrapper = mount(App, { global: { plugins: [router] } })
     await flushPromises()
 
-    const banner = wrapper.find('.demo-banner')
+    const banner = wrapper.find('.banner')
     expect(banner.find('button').exists()).toBe(false)
   })
 })

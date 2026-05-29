@@ -1,61 +1,68 @@
 <template>
-  <div class="tagchip-widget">
-    <div v-if="tags.length === 0" class="empty">No tags</div>
-    <div v-else class="chip-list">
-      <span v-for="tag in tags" :key="tag" class="chip">{{ tag }}</span>
+  <WidgetFrame
+    :title="title"
+    :icon="icon ?? '#'"
+    :meta="meta"
+    :live="live"
+    :state="tags.length === 0 ? 'empty' : 'ready'"
+    empty-note="no tags"
+  >
+    <div class="tag-cloud">
+      <span
+        v-for="(tag, i) in tags"
+        :key="tag.name"
+        class="tag-chip"
+        :class="'t-' + ((i % 8) + 1)"
+      >
+        <span>{{ tag.name }}</span>
+        <span v-if="!hideCounts && tag.count > 1" class="ct">·&nbsp;{{ tag.count }}</span>
+      </span>
     </div>
-  </div>
+  </WidgetFrame>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import WidgetFrame from '../WidgetFrame.vue'
+
+interface TagCount {
+  name: string
+  count: number
+}
 
 const props = defineProps<{
   source: Record<string, unknown>[]
   config: Record<string, unknown>
+  consumerId?: string
 }>()
 
-const tags = computed<string[]>(() => {
+const title = computed(() => props.config.title as string | undefined)
+const icon = computed(() => props.config.icon as string | undefined)
+const live = computed(() => props.config.live === true)
+const hideCounts = computed(() => props.config.hideCounts === true)
+const take = computed(() =>
+  typeof props.config.take === 'number' ? (props.config.take as number) : undefined,
+)
+
+const tags = computed<TagCount[]>(() => {
   const field = String(props.config.field ?? 'tags')
-  const result = new Set<string>()
+  const counts = new Map<string, number>()
   for (const row of props.source) {
     const val = row[field]
-    if (Array.isArray(val)) {
-      val.forEach(v => result.add(String(v)))
-    } else if (val !== undefined && val !== null) {
-      result.add(String(val))
+    const values = Array.isArray(val) ? val : val !== undefined && val !== null ? [val] : []
+    for (const v of values) {
+      const name = String(v)
+      counts.set(name, (counts.get(name) ?? 0) + 1)
     }
   }
-  return Array.from(result)
+  const sorted = Array.from(counts.entries())
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
+  return take.value ? sorted.slice(0, take.value) : sorted
+})
+
+const meta = computed(() => {
+  if (props.config.meta) return String(props.config.meta)
+  return `${tags.value.length} unique`
 })
 </script>
-
-<style scoped>
-.tagchip-widget {
-  padding: var(--spacing-md);
-  height: 100%;
-}
-
-.empty {
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
-}
-
-.chip-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--spacing-sm);
-}
-
-.chip {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px var(--spacing-sm);
-  background: var(--color-bg-tertiary);
-  border: 1px solid var(--color-border);
-  border-radius: 999px;
-  font-size: var(--font-size-sm);
-  color: var(--color-text-secondary);
-  white-space: nowrap;
-}
-</style>

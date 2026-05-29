@@ -45,6 +45,8 @@
     "zod-to-json-schema": "^3.25.2"
   },
   "devDependencies": {
+    "@fontsource/inter": "^5.2.8",
+    "@fontsource/jetbrains-mono": "^5.2.8",
     "@types/node": "^22.0.0",
     "@vitejs/plugin-vue": "^6.0.7",
     "@vitest/coverage-v8": "^2.1.0",

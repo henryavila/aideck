@@ -29,7 +29,10 @@ export async function fetchConsumers(): Promise<ConsumerSummary[]> {
 export async function fetchConsumerManifest(consumerId: string): Promise<Record<string, unknown>> {
   const res = await fetch(`${BASE}/api/consumers/${consumerId}`)
   if (!res.ok) throw new Error(`Consumer not found: ${consumerId}`)
-  return res.json()
+  const data = await res.json()
+  // The API wraps the manifest as { manifest: {...} }; unwrap it. Fall back to
+  // the raw body if already unwrapped (keeps mocked unit tests working).
+  return (data.manifest ?? data) as Record<string, unknown>
 }
 
 export async function fetchDataSource(consumerId: string, dataSourceId: string): Promise<Record<string, unknown>[]> {

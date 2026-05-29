@@ -19,8 +19,13 @@ defineProps<{
 </script>
 
 <style scoped>
+/* Single layout fills the available main height; the widget frame inside
+   stretches to it. responsive.css relaxes this to auto on mobile. */
 .single-layout {
   height: 100%;
-  padding: var(--spacing-md);
+  min-height: calc(100vh - 200px);
+}
+.single-layout > * {
+  height: 100%;
 }
 </style>

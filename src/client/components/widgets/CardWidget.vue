@@ -1,29 +1,47 @@
 <template>
-  <div class="card-widget">
-    <div v-if="source.length === 0" class="empty">No data</div>
-    <div v-else class="card-grid">
+  <WidgetFrame
+    :title="title"
+    :icon="icon ?? '▢'"
+    :meta="meta"
+    :live="live"
+    :state="source.length === 0 ? 'empty' : 'ready'"
+    empty-note="no records"
+  >
+    <div class="cards-grid">
       <component
+        :is="linkTo ? 'router-link' : 'a'"
         v-for="(record, i) in source"
         :key="i"
-        :is="linkTo ? 'router-link' : 'div'"
+        class="subcard"
         :to="linkTo ? '/' + consumerId + '/' + linkTo : undefined"
-        class="card"
+        :href="linkTo ? undefined : '#'"
+        @click="onCardClick"
       >
-        <div v-if="titleField" class="card-title">{{ record[titleField] ?? '—' }}</div>
-        <div v-if="subtitleField" class="card-subtitle">{{ record[subtitleField] ?? '' }}</div>
-        <div v-if="extraFields.length > 0" class="card-fields">
-          <div v-for="f in extraFields" :key="f" class="card-field">
-            <span class="card-field-key">{{ f }}</span>
-            <span class="card-field-value">{{ formatValue(record[f]) }}</span>
+        <div v-if="titleField" class="sc-title">{{ record[titleField] ?? '—' }}</div>
+        <div v-if="subtitleField" class="sc-sub">{{ record[subtitleField] ?? '' }}</div>
+        <div v-if="extraFields.length > 0" class="sc-fields">
+          <div v-for="f in extraFields" :key="f" class="sf-row">
+            <span class="sf-k">{{ f }}</span>
+            <span v-if="f === 'status'" class="sf-v">
+              <span class="schip" :class="statusInfo(String(record[f])).tone">
+                <span class="dot" />
+                <span>{{ statusInfo(String(record[f])).label }}</span>
+              </span>
+            </span>
+            <span v-else class="sf-v" :class="{ mono: isMono(f, record[f]) }">
+              {{ formatValue(record[f]) }}
+            </span>
           </div>
         </div>
       </component>
     </div>
-  </div>
+  </WidgetFrame>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import WidgetFrame from '../WidgetFrame.vue'
+import { statusInfo } from '../../utils/status.js'
 
 const props = defineProps<{
   source: Record<string, unknown>[]
@@ -32,6 +50,19 @@ const props = defineProps<{
 }>()
 
 const linkTo = computed(() => props.config.linkTo as string | undefined)
+
+function onCardClick(event: MouseEvent): void {
+  if (!linkTo.value) event.preventDefault()
+}
+
+const title = computed(() => props.config.title as string | undefined)
+const icon = computed(() => props.config.icon as string | undefined)
+const live = computed(() => props.config.live === true)
+
+const meta = computed(() => {
+  if (props.config.meta) return String(props.config.meta)
+  return `${props.source.length} record${props.source.length === 1 ? '' : 's'}`
+})
 
 const titleField = computed(() => props.config.titleField as string | undefined)
 const subtitleField = computed(() => props.config.subtitleField as string | undefined)
@@ -42,86 +73,16 @@ const extraFields = computed<string[]>(() => {
   return []
 })
 
+const MONO_FIELDS = new Set(['id', 'startDate', 'progress', 'commit', 'branch'])
+
+function isMono(field: string, value: unknown): boolean {
+  if (MONO_FIELDS.has(field)) return true
+  return typeof value === 'number'
+}
+
 function formatValue(v: unknown): string {
   if (v === null || v === undefined) return '—'
   if (typeof v === 'object') return JSON.stringify(v)
   return String(v)
 }
 </script>
-
-<style scoped>
-.card-widget {
-  padding: var(--spacing-md);
-  height: 100%;
-  overflow: auto;
-}
-
-.empty {
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
-  text-align: center;
-  padding: var(--spacing-md);
-}
-
-.card-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: var(--spacing-md);
-}
-
-.card {
-  background: var(--color-bg-secondary);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  padding: var(--spacing-md);
-  text-decoration: none;
-  color: inherit;
-  display: block;
-}
-
-a.card:hover {
-  border-color: var(--color-accent, #4f8ff7);
-}
-
-.card-title {
-  font-size: var(--font-size-base);
-  font-weight: 600;
-  color: var(--color-text-primary);
-  margin-bottom: var(--spacing-xs);
-}
-
-.card-subtitle {
-  font-size: var(--font-size-sm);
-  color: var(--color-text-secondary);
-  margin-bottom: var(--spacing-sm);
-}
-
-.card-fields {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin-top: var(--spacing-sm);
-  border-top: 1px solid var(--color-border-muted);
-  padding-top: var(--spacing-sm);
-}
-
-.card-field {
-  display: flex;
-  justify-content: space-between;
-  font-size: var(--font-size-sm);
-  gap: var(--spacing-sm);
-}
-
-.card-field-key {
-  color: var(--color-text-secondary);
-  flex-shrink: 0;
-}
-
-.card-field-value {
-  color: var(--color-text-primary);
-  text-align: right;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-</style>

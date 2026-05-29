@@ -28,7 +28,7 @@ describe('ConsumerPage', () => {
     vi.clearAllMocks()
   })
 
-  it('shows loading state before manifest resolves', async () => {
+  it('shows loading skeleton before manifest resolves', async () => {
     const { fetchConsumerManifest } = await import('../../../src/client/api.js')
     // Never resolves during this test
     vi.mocked(fetchConsumerManifest).mockReturnValue(new Promise(() => {}))
@@ -36,11 +36,9 @@ describe('ConsumerPage', () => {
     const router = makeRouter('/alpha')
     await router.isReady()
 
-    const wrapper = mount(ConsumerPage, {
-      global: { plugins: [router] },
-    })
+    const wrapper = mount(ConsumerPage, { global: { plugins: [router] } })
 
-    expect(wrapper.text()).toContain('Loading consumer')
+    expect(wrapper.find('.page-state.is-loading').exists()).toBe(true)
   })
 
   it('renders sections-layout page for a sections manifest', async () => {
@@ -49,32 +47,23 @@ describe('ConsumerPage', () => {
       id: 'alpha',
       schemaVersion: '0.1',
       pages: [
-        {
-          slug: 'overview',
-          title: 'Overview',
-          layout: 'sections',
-          default: true,
-          sections: [],
-        },
+        { slug: 'overview', title: 'Overview', layout: 'sections', default: true, sections: [] },
       ],
     })
 
     const router = makeRouter('/alpha')
     await router.isReady()
 
-    const wrapper = mount(ConsumerPage, {
-      global: { plugins: [router] },
-    })
+    const wrapper = mount(ConsumerPage, { global: { plugins: [router] } })
     await flushPromises()
 
-    // SectionsLayout should be rendered (no "Loading consumer" / "Page not found")
-    expect(wrapper.text()).not.toContain('Loading consumer')
     expect(wrapper.text()).not.toContain('Page not found')
-    // No nav tabs for single-page manifest
-    expect(wrapper.find('.consumer-nav').exists()).toBe(false)
+    expect(wrapper.find('.page-state.is-loading').exists()).toBe(false)
+    // No tab bar for a single-page manifest
+    expect(wrapper.find('.tabs-bar').exists()).toBe(false)
   })
 
-  it('renders navigation tabs when there are multiple pages', async () => {
+  it('renders a tab bar when there are multiple pages', async () => {
     const { fetchConsumerManifest } = await import('../../../src/client/api.js')
     vi.mocked(fetchConsumerManifest).mockResolvedValue({
       id: 'alpha',
@@ -88,15 +77,13 @@ describe('ConsumerPage', () => {
     const router = makeRouter('/alpha')
     await router.isReady()
 
-    const wrapper = mount(ConsumerPage, {
-      global: { plugins: [router] },
-    })
+    const wrapper = mount(ConsumerPage, { global: { plugins: [router] } })
     await flushPromises()
 
-    const nav = wrapper.find('.consumer-nav')
-    expect(nav.exists()).toBe(true)
-    expect(nav.text()).toContain('Overview')
-    expect(nav.text()).toContain('Metrics')
+    const tabs = wrapper.find('.tabs-bar')
+    expect(tabs.exists()).toBe(true)
+    expect(tabs.text()).toContain('Overview')
+    expect(tabs.text()).toContain('Metrics')
   })
 
   it('renders grid-layout page', async () => {
@@ -104,27 +91,18 @@ describe('ConsumerPage', () => {
     vi.mocked(fetchConsumerManifest).mockResolvedValue({
       id: 'alpha',
       schemaVersion: '0.1',
-      pages: [
-        {
-          slug: 'grid-view',
-          title: 'Grid',
-          layout: 'grid',
-          default: true,
-          widgets: [],
-        },
-      ],
+      pages: [{ slug: 'grid-view', title: 'Grid', layout: 'grid', default: true, widgets: [] }],
     })
 
     const router = makeRouter('/alpha')
     await router.isReady()
 
-    const wrapper = mount(ConsumerPage, {
-      global: { plugins: [router] },
-    })
+    const wrapper = mount(ConsumerPage, { global: { plugins: [router] } })
     await flushPromises()
 
-    expect(wrapper.text()).not.toContain('Loading consumer')
+    expect(wrapper.find('.page-state.is-loading').exists()).toBe(false)
     expect(wrapper.text()).not.toContain('Page not found')
+    expect(wrapper.find('.grid-layout').exists()).toBe(true)
   })
 
   it('renders single-layout page', async () => {
@@ -132,27 +110,18 @@ describe('ConsumerPage', () => {
     vi.mocked(fetchConsumerManifest).mockResolvedValue({
       id: 'alpha',
       schemaVersion: '0.1',
-      pages: [
-        {
-          slug: 'focus',
-          title: 'Focus',
-          layout: 'single',
-          default: true,
-          widget: 'markdown',
-        },
-      ],
+      pages: [{ slug: 'focus', title: 'Focus', layout: 'single', default: true, widget: 'markdown' }],
     })
 
     const router = makeRouter('/alpha')
     await router.isReady()
 
-    const wrapper = mount(ConsumerPage, {
-      global: { plugins: [router] },
-    })
+    const wrapper = mount(ConsumerPage, { global: { plugins: [router] } })
     await flushPromises()
 
-    expect(wrapper.text()).not.toContain('Loading consumer')
+    expect(wrapper.find('.page-state.is-loading').exists()).toBe(false)
     expect(wrapper.text()).not.toContain('Page not found')
+    expect(wrapper.find('.single-layout').exists()).toBe(true)
   })
 
   it('shows Page not found when pageSlug does not match', async () => {
@@ -168,27 +137,24 @@ describe('ConsumerPage', () => {
     const router = makeRouter('/alpha/nonexistent')
     await router.isReady()
 
-    const wrapper = mount(ConsumerPage, {
-      global: { plugins: [router] },
-    })
+    const wrapper = mount(ConsumerPage, { global: { plugins: [router] } })
     await flushPromises()
 
     expect(wrapper.text()).toContain('Page not found')
   })
 
-  it('shows loading when manifest fetch fails', async () => {
+  it('falls back to the loading skeleton when manifest fetch fails', async () => {
     const { fetchConsumerManifest } = await import('../../../src/client/api.js')
     vi.mocked(fetchConsumerManifest).mockRejectedValue(new Error('Consumer not found: missing'))
 
     const router = makeRouter('/missing')
     await router.isReady()
 
-    const wrapper = mount(ConsumerPage, {
-      global: { plugins: [router] },
-    })
+    const wrapper = mount(ConsumerPage, { global: { plugins: [router] } })
     await flushPromises()
 
-    // manifest becomes null on error → shows "Loading consumer..." (v-else fallback)
-    expect(wrapper.text()).toContain('Loading consumer')
+    // manifest becomes null on error → loading-skeleton fallback (cannot
+    // distinguish initial load from fetch failure with the summary API)
+    expect(wrapper.find('.page-state.is-loading').exists()).toBe(true)
   })
 })

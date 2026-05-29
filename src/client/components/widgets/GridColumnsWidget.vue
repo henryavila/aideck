@@ -1,57 +1,32 @@
 <template>
-  <div class="grid-columns-widget" :style="gridStyle">
-    <slot>
-      <div v-for="(row, i) in source" :key="i" class="grid-cell">
-        <div v-for="(val, key) in row" :key="key" class="cell-entry">
-          <span class="cell-key">{{ key }}</span>
-          <span class="cell-val">{{ val }}</span>
+  <WidgetFrame frameless>
+    <div class="grid-cols" :class="colClass">
+      <slot>
+        <div v-for="(row, i) in source" :key="i" class="lst-row">
+          <span class="l-title">{{ rowLabel(row) }}</span>
         </div>
-      </div>
-    </slot>
-  </div>
+      </slot>
+    </div>
+  </WidgetFrame>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import WidgetFrame from '../WidgetFrame.vue'
 
 const props = defineProps<{
   source: Record<string, unknown>[]
   config: Record<string, unknown>
+  consumerId?: string
 }>()
 
-const gridStyle = computed(() => ({
-  display: 'grid',
-  gridTemplateColumns: `repeat(${props.config.columns ?? 2}, 1fr)`,
-  gap: props.config.gap ? String(props.config.gap) : 'var(--spacing-md)',
-}))
+const colClass = computed(() => {
+  if (props.config.uneven === true) return 'c-uneven'
+  const n = Number(props.config.columns ?? 2)
+  return n === 3 ? 'c-3' : 'c-2'
+})
+
+function rowLabel(row: Record<string, unknown>): string {
+  return String(row.title ?? row.label ?? row.name ?? JSON.stringify(row))
+}
 </script>
-
-<style scoped>
-.grid-columns-widget {
-  height: 100%;
-  overflow: auto;
-  padding: var(--spacing-md);
-}
-
-.grid-cell {
-  background: var(--color-bg-secondary);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  padding: var(--spacing-sm);
-}
-
-.cell-entry {
-  display: flex;
-  justify-content: space-between;
-  font-size: var(--font-size-sm);
-  gap: var(--spacing-sm);
-}
-
-.cell-key {
-  color: var(--color-text-secondary);
-}
-
-.cell-val {
-  color: var(--color-text-primary);
-}
-</style>

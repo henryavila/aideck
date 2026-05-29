@@ -1,29 +1,77 @@
 <template>
-  <div class="home">
-    <header class="home-header">
-      <h1>aiDeck</h1>
-      <p class="subtitle">{{ consumers.length }} consumer{{ consumers.length !== 1 ? 's' : '' }} registered</p>
-    </header>
+  <div class="home-view">
+    <div class="home-head">
+      <div>
+        <div class="eyebrow">consumers</div>
+        <h1>Registered runtimes</h1>
+      </div>
+      <div v-if="!loading && !error && consumers.length" class="meta">
+        <span>{{ consumers.length }} registered</span>
+        <span style="color: var(--fg-faint); margin: 0 6px">·</span>
+        <span class="ok">{{ consumers.length }} healthy</span>
+      </div>
+      <div class="actions">
+        <button class="btn btn-ghost" @click="reload"><span class="gly">↻</span>refresh</button>
+      </div>
+    </div>
 
-    <div v-if="loading" class="loading">Loading consumers...</div>
-    <div v-else-if="error" class="error">{{ error }}</div>
-    <div v-else-if="consumers.length === 0" class="empty">
-      No consumers registered. Run <code>aideck init-consumer</code> to create one.
+    <div v-if="loading" class="page-state is-loading">
+      <div class="skel-stack">
+        <span class="skel-block" />
+        <span class="skel-block" />
+      </div>
+    </div>
+
+    <div v-else-if="error" class="page-error">
+      <div class="pe-head"><span class="pe-x">×</span><span>failed to load consumers</span></div>
+      <div class="pe-msg">{{ error }}</div>
+    </div>
+
+    <div v-else-if="!consumers.length" class="home-empty">
+      <div class="empty-wrap">
+        <div class="empty-note">// no consumers registered</div>
+        <div class="empty-msg">
+          Drop a <span class="em-path">manifest.yaml</span> into
+          <span class="em-path">~/.aideck/consumers/</span> to begin.
+        </div>
+        <div class="empty-cmd">
+          <span class="prompt">$</span>
+          <span>aideck</span>
+          <span style="color: var(--fg-muted)">init-consumer</span>
+          <span class="arg">my-tool</span>
+        </div>
+        <div class="empty-hint">aideck watches the directory; new consumers appear within seconds.</div>
+      </div>
     </div>
 
     <div v-else class="consumer-grid">
       <router-link
-        v-for="c in consumers"
+        v-for="(c, i) in consumers"
         :key="c.id"
         :to="`/${c.id}`"
-        class="consumer-card"
+        class="cc"
+        :class="`tone-${(i % 4) + 1}`"
       >
-        <div class="card-icon" v-if="c.icon">{{ c.icon }}</div>
-        <h2 class="card-title">{{ c.title }}</h2>
-        <div class="card-meta">
-          <span>{{ c.dataSourceCount }} data source{{ c.dataSourceCount !== 1 ? 's' : '' }}</span>
-          <span>{{ c.pageCount }} page{{ c.pageCount !== 1 ? 's' : '' }}</span>
+        <div class="cc-head">
+          <span class="cc-ico">{{ iconGlyph(c.icon) }}</span>
+          <div class="cc-title">
+            <span class="cc-name">{{ c.title }}</span>
+            <span class="cc-id">id · {{ c.id }}</span>
+          </div>
+          <span class="pill success"><span class="dot" />ready</span>
         </div>
+        <div class="cc-divide" />
+        <div class="cc-meta">
+          <div class="cc-kv">
+            <span class="k">pages</span>
+            <span class="v">{{ c.pageCount }}</span>
+          </div>
+          <div class="cc-kv">
+            <span class="k">data sources</span>
+            <span class="v">{{ c.dataSourceCount }}</span>
+          </div>
+        </div>
+        <div class="cc-filler" />
       </router-link>
     </div>
   </div>
@@ -31,85 +79,24 @@
 
 <script setup lang="ts">
 import { useConsumers } from '../composables/useConsumers.js'
+
 const { consumers, loading, error } = useConsumers()
+
+function reload(): void {
+  window.location.reload()
+}
+
+// Manifests may declare an icon as a glyph/emoji or an icon-font token
+// ("mdi:rocket"). We only render literal glyphs; tokens fall back.
+function iconGlyph(icon?: string): string {
+  if (!icon) return '◆'
+  return icon.includes(':') ? '◆' : icon
+}
 </script>
 
 <style scoped>
-.home {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: var(--spacing-xl);
-}
-
-.home-header {
-  margin-bottom: var(--spacing-xl);
-}
-
-.home-header h1 {
-  font-size: var(--font-size-2xl);
-  font-weight: 600;
-}
-
-.subtitle {
-  color: var(--color-text-secondary);
-  margin-top: var(--spacing-xs);
-}
-
-.consumer-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: var(--spacing-md);
-}
-
-.consumer-card {
-  display: block;
-  background: var(--color-bg-secondary);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  padding: var(--spacing-lg);
-  transition: border-color 0.15s, background 0.15s;
-  color: inherit;
-  text-decoration: none;
-}
-
-.consumer-card:hover {
-  border-color: var(--color-accent);
-  background: var(--color-bg-tertiary);
-  text-decoration: none;
-}
-
-.card-icon {
-  font-size: 1.5rem;
-  margin-bottom: var(--spacing-sm);
-}
-
-.card-title {
-  font-size: var(--font-size-lg);
-  font-weight: 600;
-  margin-bottom: var(--spacing-sm);
-}
-
-.card-meta {
-  display: flex;
-  gap: var(--spacing-md);
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-sm);
-}
-
-.loading, .error, .empty {
-  color: var(--color-text-secondary);
-  text-align: center;
-  padding: var(--spacing-xl);
-}
-
-.error {
-  color: var(--color-danger);
-}
-
-code {
-  font-family: var(--font-mono);
-  background: var(--color-bg-tertiary);
-  padding: 2px 6px;
-  border-radius: var(--radius-sm);
+.home-empty {
+  position: relative;
+  min-height: 360px;
 }
 </style>

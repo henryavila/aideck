@@ -1,0 +1,298 @@
+/* ─────────────────────────────────────────────────────────────────
+   aiDeck — Widget reference pages (briefings 05-09)
+   Demo-page layout, widget-cell chrome, section caption.
+   Specific widget styles live in their family files.
+   ───────────────────────────────────────────────────────────────── */
+
+/* Demo page: vertical stack of widget-family sections */
+.wref-page {
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+.wref-section { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+
+.wref-head {
+  display: flex; align-items: baseline; gap: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-subtle);
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.wref-head h2 {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--fg-default);
+}
+.wref-head h2 .num {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--fg-subtle);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: 3px;
+  padding: 1px 6px;
+  margin-right: 8px;
+  font-feature-settings: 'calt' 0;
+  vertical-align: 2px;
+}
+.wref-head .sub {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--fg-subtle);
+  letter-spacing: 0.04em;
+  font-feature-settings: 'calt' 0;
+}
+.wref-head .src {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--fg-subtle);
+  letter-spacing: 0.02em;
+  font-feature-settings: 'calt' 0;
+}
+.wref-head .src code {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--fg-default);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-feature-settings: 'calt' 0;
+}
+
+/* Per-variation caption above each widget cell */
+.wref-cell { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.wref-cap {
+  display: flex; align-items: baseline; gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  color: var(--fg-subtle);
+  text-transform: uppercase;
+  font-feature-settings: 'calt' 0;
+}
+.wref-cap .var { color: var(--accent-link); }
+.wref-cap .name { color: var(--fg-muted); text-transform: none; letter-spacing: 0.02em; }
+
+/* Grids */
+.wref-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  min-width: 0;
+}
+.wref-grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
+.wref-grid.cols-2 { grid-template-columns: repeat(2, 1fr); }
+.wref-grid.cols-1 { grid-template-columns: 1fr; }
+.wref-grid > .wref-cell.span-2 { grid-column: span 2; }
+.wref-grid > .wref-cell.span-3 { grid-column: span 3; }
+.wref-grid > .wref-cell.span-4 { grid-column: span 4; }
+
+/* ───── Widget body niceties for refs ────────────────────────────── */
+.wref-cell .w { min-width: 0; }
+.wref-cell .w-body { min-height: 110px; }
+
+/* ── Stat widget: centered variation (used in references) ────────── */
+.stat-centered {
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 8px;
+  height: 100%;
+  min-height: 110px;
+  padding: 8px 0;
+}
+.stat-centered .lbl {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--fg-subtle);
+  font-feature-settings: 'calt' 0;
+}
+.stat-centered .v {
+  font-family: var(--font-sans);
+  font-size: 32px;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  color: var(--fg-default);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.stat-centered .v.info    { color: var(--status-info); }
+.stat-centered .v.success { color: var(--status-success); }
+.stat-centered .v.warning { color: var(--status-warning); }
+.stat-centered .v.error   { color: var(--status-error); }
+.stat-centered .d {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-subtle);
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'calt' 0;
+  display: inline-flex; align-items: center; gap: 4px;
+}
+.stat-centered .d.up   { color: var(--status-success); }
+.stat-centered .d.down { color: var(--status-error); }
+
+/* ── Gauge: reference variations ─────────────────────────────────── */
+.gauge-ref .gauge-fill.c-success { stroke: var(--status-success); }
+.gauge-ref .gauge-fill.c-info    { stroke: var(--status-info); }
+.gauge-ref .gauge-fill.c-warning { stroke: var(--status-warning); }
+.gauge-ref .gauge-fill.c-error   { stroke: var(--status-error); }
+.gauge-ref .gauge-fill.c-chart-2 { stroke: var(--chart-2); }
+.gauge-ref .gauge-fill.c-chart-4 { stroke: var(--chart-4); }
+
+/* ── Progress bar widget ─────────────────────────────────────────── */
+.pbar {
+  display: flex; flex-direction: column; gap: 6px;
+}
+.pbar + .pbar { margin-top: 12px; }
+.pbar-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 8px;
+}
+.pbar-head .name {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  color: var(--fg-default);
+  letter-spacing: -0.005em;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pbar-head .frac {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-muted);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'calt' 0;
+  letter-spacing: 0.02em;
+  flex: none;
+}
+.pbar-track {
+  height: 7px;
+  background: var(--bg-elevated);
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+}
+.pbar-track i {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+  background: var(--status-info);
+  transition: width 200ms var(--ease-out);
+}
+.pbar-track.c-success i { background: var(--status-success); }
+.pbar-track.c-info    i { background: var(--status-info); }
+.pbar-track.c-warning i { background: var(--status-warning); }
+.pbar-track.c-error   i { background: var(--status-error); }
+.pbar-track.c-chart-1 i { background: var(--chart-1); }
+.pbar-track.c-chart-2 i { background: var(--chart-2); }
+.pbar-track.c-chart-3 i { background: var(--chart-3); }
+.pbar-track.c-chart-4 i { background: var(--chart-4); }
+.pbar-track.c-chart-5 i { background: var(--chart-5); }
+
+/* Inline % readout (variation d) */
+.pbar-inline {
+  display: flex; align-items: center; gap: 10px;
+}
+.pbar-inline .pbar-track { flex: 1; }
+.pbar-inline .pct {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-default);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+  font-feature-settings: 'calt' 0;
+  min-width: 36px;
+  text-align: right;
+}
+
+/* Stacked package list (variation e) */
+.pbar-stack {
+  display: flex; flex-direction: column;
+  gap: 10px;
+  padding: 4px 0;
+}
+.pbar-stack-foot {
+  display: flex; align-items: center; gap: 8px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-subtle);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--fg-subtle);
+  letter-spacing: 0.04em;
+  font-feature-settings: 'calt' 0;
+}
+.pbar-stack-foot .ok { color: var(--status-success); }
+
+/* ── Badge widget (variations) ───────────────────────────────────── */
+.bdg-row {
+  display: flex; flex-wrap: wrap;
+  gap: 6px;
+}
+.bdg-pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 22px; padding: 0 9px 0 8px;
+  border-radius: var(--radius-pill);
+  border: 1px solid;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  letter-spacing: 0;
+  background: transparent;
+  white-space: nowrap;
+}
+.bdg-pill .pdot {
+  width: 5px; height: 5px; border-radius: 50%;
+  background: currentColor;
+}
+.bdg-pill .pgly {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-feature-settings: 'calt' 0;
+}
+.bdg-pill .pct {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--fg-default);
+  letter-spacing: 0;
+  font-feature-settings: 'calt' 0;
+  background: var(--bg-elevated);
+  border-radius: 3px;
+  padding: 1px 5px;
+  margin-left: 2px;
+}
+.bdg-pill.success { color: var(--status-success); border-color: var(--status-success-line); background: color-mix(in srgb, var(--status-success) 8%, transparent); }
+.bdg-pill.info    { color: var(--status-info);    border-color: var(--status-info-line);    background: color-mix(in srgb, var(--status-info) 10%, transparent); }
+.bdg-pill.warning { color: var(--status-warning); border-color: var(--status-warning-line); background: color-mix(in srgb, var(--status-warning) 10%, transparent); }
+.bdg-pill.error   { color: var(--status-error);   border-color: var(--status-error-line);   background: color-mix(in srgb, var(--status-error) 10%, transparent); }
+.bdg-pill.neutral { color: var(--status-neutral); border-color: var(--status-neutral-line); background: var(--bg-elevated); }
+.bdg-pill.c-1 { color: var(--chart-1); border-color: color-mix(in srgb, var(--chart-1) 38%, var(--border-default)); background: color-mix(in srgb, var(--chart-1) 8%, transparent); }
+.bdg-pill.c-2 { color: var(--chart-2); border-color: color-mix(in srgb, var(--chart-2) 38%, var(--border-default)); background: color-mix(in srgb, var(--chart-2) 8%, transparent); }
+.bdg-pill.c-3 { color: var(--chart-3); border-color: color-mix(in srgb, var(--chart-3) 38%, var(--border-default)); background: color-mix(in srgb, var(--chart-3) 8%, transparent); }
+.bdg-pill.c-4 { color: var(--chart-4); border-color: color-mix(in srgb, var(--chart-4) 38%, var(--border-default)); background: color-mix(in srgb, var(--chart-4) 8%, transparent); }
+.bdg-pill.c-5 { color: var(--chart-5); border-color: color-mix(in srgb, var(--chart-5) 38%, var(--border-default)); background: color-mix(in srgb, var(--chart-5) 8%, transparent); }
+
+/* Big single-pill body for variation c */
+.bdg-single {
+  display: flex; align-items: center;
+  height: 100%;
+  min-height: 90px;
+  justify-content: center;
+}
+.bdg-single .bdg-pill { transform: scale(1.15); }

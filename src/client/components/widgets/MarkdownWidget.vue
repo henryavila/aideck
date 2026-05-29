@@ -1,14 +1,24 @@
 <template>
-  <div class="markdown-widget" v-html="renderedHtml" />
+  <WidgetFrame :title="title" :icon="icon ?? '¶'" :meta="meta" :live="live">
+    <div v-if="markdownContent" class="md" v-html="renderedHtml" />
+    <div v-else class="md-empty">// no content</div>
+  </WidgetFrame>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import WidgetFrame from '../WidgetFrame.vue'
 
 const props = defineProps<{
   source: Record<string, unknown>[]
   config: Record<string, unknown>
+  consumerId?: string
 }>()
+
+const title = computed(() => props.config.title as string | undefined)
+const icon = computed(() => props.config.icon as string | undefined)
+const meta = computed(() => props.config.meta as string | undefined)
+const live = computed(() => props.config.live === true)
 
 const field = computed(() => String(props.config.field ?? '_body'))
 
@@ -61,65 +71,3 @@ function renderMarkdown(md: string): string {
 
 const renderedHtml = computed(() => renderMarkdown(markdownContent.value))
 </script>
-
-<style scoped>
-.markdown-widget {
-  padding: var(--spacing-md);
-  color: var(--color-text-primary);
-  font-size: var(--font-size-base);
-  line-height: 1.6;
-  height: 100%;
-  overflow: auto;
-}
-
-.markdown-widget :deep(h1),
-.markdown-widget :deep(h2),
-.markdown-widget :deep(h3) {
-  color: var(--color-text-primary);
-  font-weight: 600;
-  margin: var(--spacing-md) 0 var(--spacing-sm);
-  line-height: 1.3;
-}
-
-.markdown-widget :deep(h1) { font-size: var(--font-size-xl); }
-.markdown-widget :deep(h2) { font-size: var(--font-size-lg); }
-.markdown-widget :deep(h3) { font-size: var(--font-size-base); }
-
-.markdown-widget :deep(strong) {
-  color: var(--color-text-primary);
-  font-weight: 600;
-}
-
-.markdown-widget :deep(a) {
-  color: var(--color-accent);
-  text-decoration: none;
-}
-
-.markdown-widget :deep(a:hover) {
-  text-decoration: underline;
-}
-
-.markdown-widget :deep(code) {
-  font-family: var(--font-mono);
-  font-size: var(--font-size-sm);
-  background: var(--color-bg-tertiary);
-  padding: 1px var(--spacing-xs);
-  border-radius: var(--radius-sm);
-  color: var(--color-text-primary);
-}
-
-.markdown-widget :deep(pre) {
-  background: var(--color-bg-secondary);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  padding: var(--spacing-md);
-  overflow-x: auto;
-  margin: var(--spacing-sm) 0;
-}
-
-.markdown-widget :deep(pre code) {
-  background: none;
-  padding: 0;
-  border-radius: 0;
-}
-</style>

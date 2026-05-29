@@ -12,6 +12,7 @@ export function useSse(consumerFilter?: string) {
   let source: EventSource | null = null
 
   onMounted(() => {
+    if (typeof EventSource === 'undefined') return // SSR / test (jsdom has no EventSource)
     const url = consumerFilter ? `/sse?consumer=${consumerFilter}` : '/sse'
     source = new EventSource(url)
     source.onopen = () => { connected.value = true }

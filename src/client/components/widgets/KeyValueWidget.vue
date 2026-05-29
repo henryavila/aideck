@@ -1,29 +1,67 @@
 <template>
-  <div class="kv-widget">
-    <div v-if="rows.length === 0" class="empty">No data</div>
-    <div v-else class="kv-grid">
-      <template v-for="(row, i) in rows" :key="i">
+  <WidgetFrame
+    :title="title"
+    :icon="icon ?? '≣'"
+    :meta="meta"
+    :live="live"
+    :state="rows.length === 0 ? 'empty' : 'ready'"
+    empty-note="no fields"
+  >
+    <template v-for="(row, i) in rows" :key="i">
+      <div class="kv2" :class="{ 'is-grid': grid }">
         <template v-for="field in visibleFields(row)" :key="field">
-          <div class="kv-key">{{ field }}</div>
-          <div class="kv-value">{{ formatValue(row[field]) }}</div>
+          <span class="k">{{ field }}</span>
+          <span v-if="field === 'status'" class="v">
+            <span class="schip" :class="statusInfo(String(row[field])).tone">
+              <span class="dot" />
+              <span>{{ statusInfo(String(row[field])).label }}</span>
+            </span>
+          </span>
+          <span
+            v-else
+            class="v"
+            :class="{ mono: isMono(field, row[field]) }"
+          >{{ formatValue(row[field]) }}</span>
         </template>
-      </template>
-    </div>
-  </div>
+      </div>
+    </template>
+  </WidgetFrame>
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
+import WidgetFrame from '../WidgetFrame.vue'
+import { statusInfo } from '../../utils/status.js'
+
 const props = defineProps<{
   source: Record<string, unknown>[]
   config: Record<string, unknown>
+  consumerId?: string
 }>()
 
-const rows = props.source
+const rows = computed(() => props.source)
+
+const title = computed(() => props.config.title as string | undefined)
+const icon = computed(() => props.config.icon as string | undefined)
+const live = computed(() => props.config.live === true)
+const grid = computed(() => props.config.layout === 'grid')
+
+const meta = computed(() => {
+  if (props.config.meta) return String(props.config.meta)
+  return rows.value.length === 1 ? 'all fields' : `${rows.value.length} records`
+})
 
 function visibleFields(row: Record<string, unknown>): string[] {
   const fields = props.config.fields as string[] | undefined
   if (Array.isArray(fields) && fields.length > 0) return fields
   return Object.keys(row)
+}
+
+const MONO_FIELDS = new Set(['id', 'startDate', 'progress', 'commit', 'branch'])
+
+function isMono(field: string, value: unknown): boolean {
+  if (MONO_FIELDS.has(field)) return true
+  return typeof value === 'number'
 }
 
 function formatValue(v: unknown): string {
@@ -32,39 +70,3 @@ function formatValue(v: unknown): string {
   return String(v)
 }
 </script>
-
-<style scoped>
-.kv-widget {
-  padding: var(--spacing-md);
-  height: 100%;
-  overflow: auto;
-}
-
-.empty {
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
-  text-align: center;
-  padding: var(--spacing-md);
-}
-
-.kv-grid {
-  display: grid;
-  grid-template-columns: minmax(80px, max-content) 1fr;
-  gap: var(--spacing-xs) var(--spacing-md);
-  font-size: var(--font-size-sm);
-}
-
-.kv-key {
-  color: var(--color-text-secondary);
-  font-weight: 500;
-  white-space: nowrap;
-  padding: var(--spacing-xs) 0;
-}
-
-.kv-value {
-  color: var(--color-text-primary);
-  word-break: break-word;
-  padding: var(--spacing-xs) 0;
-  border-bottom: 1px solid var(--color-border-muted);
-}
-</style>

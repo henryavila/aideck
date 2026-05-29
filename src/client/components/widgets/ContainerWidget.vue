@@ -1,48 +1,33 @@
 <template>
-  <div class="container-widget" :style="containerStyle">
-    <slot>
-      <div v-if="source.length > 0" class="container-items">
-        <div v-for="(row, i) in source" :key="i" class="container-item">
-          {{ JSON.stringify(row) }}
-        </div>
+  <WidgetFrame frameless>
+    <div class="container-w" :class="{ 'container-nested-mark': nested }">
+      <div v-if="title" class="container-title">{{ title }}</div>
+      <div class="container-w" :class="{ 'is-row': row }">
+        <slot>
+          <div v-for="(item, i) in source" :key="i" class="lst-row">
+            <span class="l-title">{{ rowLabel(item) }}</span>
+          </div>
+        </slot>
       </div>
-    </slot>
-  </div>
+    </div>
+  </WidgetFrame>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import WidgetFrame from '../WidgetFrame.vue'
 
 const props = defineProps<{
   source: Record<string, unknown>[]
   config: Record<string, unknown>
+  consumerId?: string
 }>()
 
-const containerStyle = computed(() => ({
-  padding: props.config.padding ? String(props.config.padding) : 'var(--spacing-md)',
-  background: props.config.background ? String(props.config.background) : undefined,
-  border: props.config.border ? String(props.config.border) : undefined,
-  borderRadius: props.config.border ? 'var(--radius-md)' : undefined,
-}))
+const title = computed(() => props.config.title as string | undefined)
+const row = computed(() => props.config.row === true || props.config.direction === 'row')
+const nested = computed(() => props.config.nested === true)
+
+function rowLabel(item: Record<string, unknown>): string {
+  return String(item.title ?? item.label ?? item.name ?? JSON.stringify(item))
+}
 </script>
-
-<style scoped>
-.container-widget {
-  height: 100%;
-  overflow: auto;
-}
-
-.container-items {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-xs);
-}
-
-.container-item {
-  font-size: var(--font-size-sm);
-  color: var(--color-text-secondary);
-  padding: var(--spacing-xs);
-  border-bottom: 1px solid var(--color-border-muted);
-  word-break: break-all;
-}
-</style>

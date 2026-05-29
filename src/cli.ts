@@ -89,6 +89,9 @@ async function dispatchDemo(parsed: ReturnType<typeof parseCliArgs>, stdout: Nod
   const { seedDemo } = await import('./demo/seed.js')
   const { createFakeConsumer } = await import('./demo/fake-consumer.js')
   const { seedDemoConsumer, cleanDemoConsumer } = await import('./demo/seed-demo.js')
+  const { existsSync } = await import('node:fs')
+  const { resolve, dirname, join } = await import('node:path')
+  const { fileURLToPath } = await import('node:url')
 
   // Track resources in startup order so the catch path can tear them down.
   let env: Awaited<ReturnType<typeof seedDemo>> | null = null
@@ -108,13 +111,24 @@ async function dispatchDemo(parsed: ReturnType<typeof parseCliArgs>, stdout: Nod
       requested: parsed.flags.port,
       isExplicit: parsed.portExplicit
     })
-    running = await startServer({ rootDir: env.rootDir, port, demo: true })
+    // Serve the built Vue client if it has been bundled, so `aideck demo`
+    // launches the full dashboard (not just the API) in a single command.
+    const moduleDir = dirname(fileURLToPath(import.meta.url))
+    const staticDir = [
+      resolve(process.cwd(), 'dist/client'),
+      resolve(moduleDir, '..', 'dist/client'),
+      resolve(moduleDir, 'client')
+    ].find((dir) => existsSync(join(dir, 'index.html')))
+    running = await startServer({ rootDir: env.rootDir, port, demo: true, staticDir })
     const url = `http://127.0.0.1:${running.port}`
     await writeEnvFile({ url, port: running.port, pid: process.pid })
     envFileWritten = true
     consumer = createFakeConsumer({ rootDir: env.rootDir })
     await consumer.start()
     stdout.write(`aideck DEMO mode — ${url} (root=${env.rootDir})\n`)
+    if (!staticDir) {
+      stdout.write('  note: client bundle not found — run `npx vite build` to serve the dashboard UI\n')
+    }
 
     if (!process.env.AIDECK_DEMO_NO_OPEN) {
       try {

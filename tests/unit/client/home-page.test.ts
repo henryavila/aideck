@@ -26,39 +26,38 @@ const router = createRouter({
 })
 
 describe('HomePage', () => {
-  it('renders consumer cards', async () => {
-    const wrapper = mount(HomePage, {
-      global: { plugins: [router] },
-    })
+  it('renders one consumer card per consumer', async () => {
+    const wrapper = mount(HomePage, { global: { plugins: [router] } })
     await flushPromises()
 
     expect(wrapper.text()).toContain('Alpha Consumer')
     expect(wrapper.text()).toContain('Beta Consumer')
-    expect(wrapper.text()).toContain('2 consumers')
+    expect(wrapper.findAll('.cc')).toHaveLength(2)
+    expect(wrapper.text()).toContain('2 registered')
   })
 
-  it('shows data source and page counts', async () => {
-    const wrapper = mount(HomePage, {
-      global: { plugins: [router] },
-    })
+  it('shows data source and page counts on each card', async () => {
+    const wrapper = mount(HomePage, { global: { plugins: [router] } })
     await flushPromises()
 
-    expect(wrapper.text()).toContain('2 data sources')
-    expect(wrapper.text()).toContain('3 pages')
+    const alpha = wrapper.findAll('.cc').find((c) => c.text().includes('Alpha Consumer'))
+    expect(alpha).toBeTruthy()
+    expect(alpha!.text()).toContain('pages')
+    expect(alpha!.text()).toContain('3')
+    expect(alpha!.text()).toContain('data sources')
+    expect(alpha!.text()).toContain('2')
   })
 
-  it('links to consumer page', async () => {
-    const wrapper = mount(HomePage, {
-      global: { plugins: [router] },
-    })
+  it('links each card to its consumer page', async () => {
+    const wrapper = mount(HomePage, { global: { plugins: [router] } })
     await flushPromises()
 
     const links = wrapper.findAll('a')
-    const alphaLink = links.find(l => l.text().includes('Alpha Consumer'))
+    const alphaLink = links.find((l) => l.text().includes('Alpha Consumer'))
     expect(alphaLink?.attributes('href')).toBe('/alpha')
   })
 
-  it('shows singular form for 1 consumer', async () => {
+  it('shows the registered meta for a single consumer', async () => {
     const { useConsumers } = await import('../../../src/client/composables/useConsumers.js')
     vi.mocked(useConsumers).mockReturnValueOnce({
       consumers: ref([{ id: 'solo', title: 'Solo Consumer', dataSourceCount: 1, pageCount: 1 }]),
@@ -66,17 +65,11 @@ describe('HomePage', () => {
       error: ref(null),
     })
 
-    const wrapper = mount(HomePage, {
-      global: { plugins: [router] },
-    })
+    const wrapper = mount(HomePage, { global: { plugins: [router] } })
     await flushPromises()
 
-    expect(wrapper.text()).toContain('1 consumer')
-    expect(wrapper.text()).not.toContain('1 consumers')
-    expect(wrapper.text()).toContain('1 data source')
-    expect(wrapper.text()).not.toContain('1 data sources')
-    expect(wrapper.text()).toContain('1 page')
-    expect(wrapper.text()).not.toContain('1 pages')
+    expect(wrapper.text()).toContain('1 registered')
+    expect(wrapper.findAll('.cc')).toHaveLength(1)
   })
 
   it('shows empty state when no consumers', async () => {
@@ -87,16 +80,14 @@ describe('HomePage', () => {
       error: ref(null),
     })
 
-    const wrapper = mount(HomePage, {
-      global: { plugins: [router] },
-    })
+    const wrapper = mount(HomePage, { global: { plugins: [router] } })
     await flushPromises()
 
-    expect(wrapper.text()).toContain('No consumers registered')
-    expect(wrapper.text()).toContain('0 consumers')
+    expect(wrapper.text()).toContain('no consumers registered')
+    expect(wrapper.find('.empty-wrap').exists()).toBe(true)
   })
 
-  it('shows loading state', async () => {
+  it('shows loading skeleton', async () => {
     const { useConsumers } = await import('../../../src/client/composables/useConsumers.js')
     vi.mocked(useConsumers).mockReturnValueOnce({
       consumers: ref([]),
@@ -104,12 +95,10 @@ describe('HomePage', () => {
       error: ref(null),
     })
 
-    const wrapper = mount(HomePage, {
-      global: { plugins: [router] },
-    })
+    const wrapper = mount(HomePage, { global: { plugins: [router] } })
     await flushPromises()
 
-    expect(wrapper.text()).toContain('Loading consumers')
+    expect(wrapper.find('.page-state.is-loading').exists()).toBe(true)
   })
 
   it('shows error state', async () => {
@@ -120,9 +109,7 @@ describe('HomePage', () => {
       error: ref('Network error'),
     })
 
-    const wrapper = mount(HomePage, {
-      global: { plugins: [router] },
-    })
+    const wrapper = mount(HomePage, { global: { plugins: [router] } })
     await flushPromises()
 
     expect(wrapper.text()).toContain('Network error')

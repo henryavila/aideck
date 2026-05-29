@@ -31,9 +31,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watchEffect, type Component } from 'vue'
+import { ref, computed, watch, watchEffect, type Component } from 'vue'
 import { useRoute } from 'vue-router'
 import { fetchDataSource } from '../api.js'
+import { useLiveBus } from '../composables/useLiveBus.js'
 import AccordionWidget from './widgets/AccordionWidget.vue'
 import BadgeWidget from './widgets/BadgeWidget.vue'
 import BarChartWidget from './widgets/BarChartWidget.vue'
@@ -110,6 +111,7 @@ const props = defineProps<{
 }>()
 
 const route = useRoute()
+const { lastEvent } = useLiveBus()
 
 const resolvedComponent = computed(() => widgetMap[props.binding.widget] ?? null)
 
@@ -143,7 +145,7 @@ function groupByField(records: Record<string, unknown>[], field: string): Repeat
   return Array.from(groups.entries()).map(([key, recs]) => ({ key, records: recs }))
 }
 
-watchEffect(async () => {
+async function loadData(): Promise<void> {
   if (props.binding.source?.ref) {
     const records = await fetchDataSource(props.consumerId, props.binding.source.ref as string)
     let filtered = records
@@ -176,18 +178,28 @@ watchEffect(async () => {
       repeatGroups.value = []
     }
   }
-})
+}
+
+watchEffect(loadData)
+
+// Live refresh: re-fetch when an SSE event for this consumer arrives.
+watch(
+  () => lastEvent.value,
+  (e) => {
+    if (!e || e.consumer === props.consumerId) void loadData()
+  },
+)
 </script>
 
 <style scoped>
 .unknown-widget {
-  background: var(--color-bg-tertiary);
-  border: 1px dashed var(--color-border);
+  background: var(--bg-elevated);
+  border: 1px dashed var(--border-default);
   border-radius: var(--radius-md);
-  padding: var(--spacing-md);
-  color: var(--color-text-muted);
+  padding: var(--space-8);
+  color: var(--fg-subtle);
   text-align: center;
-  font-size: var(--font-size-sm);
+  font-size: var(--fs-sm);
 }
 
 .repeat-container {
@@ -199,10 +211,10 @@ watchEffect(async () => {
 }
 
 .repeat-label {
-  font-size: var(--font-size-sm);
+  font-size: var(--fs-sm);
   font-weight: 600;
-  color: var(--color-text-secondary);
-  margin-bottom: var(--spacing-xs);
+  color: var(--fg-muted);
+  margin-bottom: var(--space-2);
   text-transform: capitalize;
 }
 </style>

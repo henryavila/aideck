@@ -1,83 +1,104 @@
 <template>
-  <div class="drawer-wrapper" :class="position">
-    <aside class="drawer-panel" :style="panelStyle">
-      <div class="drawer-content">
-        <slot>
-          <div v-for="(row, i) in source" :key="i" class="drawer-row">
-            <span v-for="(val, key) in row" :key="key" class="drawer-entry">
-              <span class="drawer-key">{{ key }}:</span>
-              <span class="drawer-val">{{ val }}</span>
-            </span>
+  <WidgetFrame :title="title" :icon="icon" :meta="meta" body-class="flush">
+    <div class="drawer-demo" :class="{ open }">
+      <span class="dd-hint">{{ side }} drawer</span>
+      <button
+        type="button"
+        class="dd-trigger dd-open-btn"
+        @click="open = true"
+      >
+        <span class="gly">⌗</span>open drawer
+      </button>
+      <div class="drawer-backdrop-local" @click="open = false" />
+      <div class="drawer-panel" :class="`from-${side}`">
+        <div class="drawer-head">
+          <span class="dh-title">{{ panelTitle }}</span>
+          <button type="button" class="dh-close" @click="open = false">✕</button>
+        </div>
+        <div class="drawer-body">
+          <div v-if="rows.length === 0" class="lst-empty">// no content</div>
+          <div v-else class="lst">
+            <div v-for="(row, i) in rows" :key="i" class="lst-row">
+              <span v-if="row.lead" class="l-lead">{{ row.lead }}</span>
+              <span class="l-title">{{ row.title }}</span>
+            </div>
           </div>
-        </slot>
+        </div>
       </div>
-    </aside>
-  </div>
+    </div>
+  </WidgetFrame>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch, onBeforeUnmount } from 'vue'
+import WidgetFrame from '../WidgetFrame.vue'
 
 const props = defineProps<{
   source: Record<string, unknown>[]
   config: Record<string, unknown>
+  consumerId?: string
 }>()
 
-const position = computed(() => String(props.config.position ?? 'left'))
+const title = computed(() => props.config.title as string | undefined)
+const icon = computed(() => (props.config.icon as string | undefined) ?? '⌗')
+const meta = computed(() => props.config.meta as string | undefined)
+const side = computed(() =>
+  props.config.position === 'left' || props.config.side === 'left' ? 'left' : 'right',
+)
+const panelTitle = computed(
+  () => String(props.config.panelTitle ?? props.config.title ?? 'Details'),
+)
 
-const panelStyle = computed(() => ({
-  width: props.config.width ? String(props.config.width) : '240px',
-}))
+interface Row { lead?: string; title: string }
+
+const rows = computed<Row[]>(() =>
+  props.source.map((r) => ({
+    lead: r.id != null ? String(r.id) : r.key != null ? String(r.key) : undefined,
+    title: String(r.title ?? r.name ?? r.label ?? Object.values(r)[0] ?? ''),
+  })),
+)
+
+const open = ref(false)
+
+function onKey(e: KeyboardEvent) {
+  if (e.key === 'Escape') open.value = false
+}
+
+watch(open, (isOpen) => {
+  if (isOpen) window.addEventListener('keydown', onKey)
+  else window.removeEventListener('keydown', onKey)
+})
+
+onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 </script>
 
 <style scoped>
-.drawer-wrapper {
-  display: flex;
-  height: 100%;
+/* The design's trigger uses `.btn .btn-secondary`, which is not part of the
+   global widget CSS. Minimal local button styling so the drawer is operable. */
+.dd-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  color: var(--fg-default);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background 100ms var(--ease-out),
+    border-color 100ms var(--ease-out);
 }
-
-.drawer-wrapper.left {
-  flex-direction: row;
+.dd-trigger:hover {
+  background: var(--bg-overlay);
+  border-color: var(--border-bright);
 }
-
-.drawer-wrapper.right {
-  flex-direction: row-reverse;
-}
-
-.drawer-panel {
-  background: var(--color-bg-secondary);
-  border-right: 1px solid var(--color-border);
-  flex-shrink: 0;
-  overflow-y: auto;
-}
-
-.drawer-wrapper.right .drawer-panel {
-  border-right: none;
-  border-left: 1px solid var(--color-border);
-}
-
-.drawer-content {
-  padding: var(--spacing-md);
-}
-
-.drawer-row {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin-bottom: var(--spacing-sm);
-  font-size: var(--font-size-sm);
-}
-
-.drawer-entry {
-  display: flex;
-  gap: var(--spacing-xs);
-}
-
-.drawer-key {
-  color: var(--color-text-secondary);
-}
-
-.drawer-val {
-  color: var(--color-text-primary);
+.dd-trigger .gly {
+  font-family: var(--font-mono);
+  font-feature-settings: 'calt' 0;
+  color: var(--fg-subtle);
 }
 </style>

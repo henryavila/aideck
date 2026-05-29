@@ -1,0 +1,203 @@
+/* ─────────────────────────────────────────────────────────────────
+   aiDeck — Group C: Charts & Visualization
+   bar-chart · line-chart · graph-dag (Mermaid)
+   Pure SVG for bar/line · transparent body · chart-N palette
+   ───────────────────────────────────────────────────────────────── */
+
+/* ── Shared chart frame ──────────────────────────────────────────── */
+.chart {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 132px;
+}
+.chart svg { display: block; width: 100%; height: 100%; overflow: visible; }
+
+.chart-svg-text {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  fill: var(--fg-muted);
+  font-feature-settings: 'calt' 0;
+  letter-spacing: 0.02em;
+}
+.chart-gridline { stroke: var(--border-subtle); stroke-width: 1; }
+.chart-axisline { stroke: var(--border-default); stroke-width: 1; }
+
+/* Tooltip (shared) */
+.chart-tip {
+  position: absolute;
+  z-index: 6;
+  pointer-events: none;
+  transform: translate(-50%, -100%);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
+  padding: 6px 9px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-default);
+  white-space: nowrap;
+  font-feature-settings: 'calt' 0;
+  letter-spacing: 0;
+  opacity: 0;
+  transition: opacity 120ms var(--ease-out);
+}
+.chart-tip.show { opacity: 1; }
+.chart-tip .tt-row { display: flex; align-items: center; gap: 7px; }
+.chart-tip .tt-row + .tt-row { margin-top: 3px; }
+.chart-tip .tt-sw { width: 9px; height: 2px; border-radius: 1px; flex: none; }
+.chart-tip .tt-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+.chart-tip .tt-k { color: var(--fg-muted); }
+.chart-tip .tt-v { color: var(--fg-default); font-variant-numeric: tabular-nums; margin-left: auto; }
+.chart-tip .tt-title { color: var(--fg-subtle); font-size: 10px; margin-bottom: 4px; letter-spacing: 0.04em; }
+
+/* ── Legend ──────────────────────────────────────────────────────── */
+.chart-legend {
+  display: flex; flex-wrap: wrap;
+  gap: 4px 14px;
+  padding-top: 8px;
+  margin-top: 8px;
+  border-top: 1px solid var(--border-subtle);
+}
+.chart-legend .le {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--fg-muted);
+  letter-spacing: 0.02em;
+  font-feature-settings: 'calt' 0;
+}
+.chart-legend .le .sw { width: 10px; height: 2px; border-radius: 1px; }
+.chart-legend .le .sw.dot { width: 8px; height: 8px; border-radius: 50%; }
+
+/* ── Bar chart interactions ──────────────────────────────────────── */
+.bar-rect-svg {
+  transition: opacity 120ms var(--ease-out);
+  cursor: pointer;
+}
+.bar-rect-svg:hover { opacity: 0.82; }
+
+/* horizontal bar labels */
+.hbar-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  fill: var(--fg-muted);
+  font-feature-settings: 'calt' 0;
+}
+.hbar-value {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  fill: var(--fg-default);
+  font-feature-settings: 'calt' 0;
+}
+
+/* ── Line chart interactions ─────────────────────────────────────── */
+.line-path { fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.line-dot { cursor: pointer; }
+.line-hover-band { fill: transparent; cursor: crosshair; }
+.line-cursor { stroke: var(--border-bright); stroke-width: 1; stroke-dasharray: 3 3; }
+
+/* ── Chart skeleton (loading) ────────────────────────────────────── */
+.chart-skel {
+  display: flex; align-items: flex-end; gap: 6px;
+  height: 132px;
+  padding: 8px 0;
+}
+.chart-skel .cs-bar {
+  flex: 1;
+  background: var(--bg-elevated);
+  border-radius: 3px 3px 0 0;
+  position: relative;
+  overflow: hidden;
+}
+.chart-skel .cs-bar::after {
+  content: "";
+  position: absolute; inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.04), transparent);
+  animation: aideck-shimmer 1.6s ease-in-out infinite;
+}
+
+/* ── Chart empty ─────────────────────────────────────────────────── */
+.chart-empty {
+  display: flex; align-items: center; justify-content: center;
+  height: 132px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-subtle);
+  font-feature-settings: 'calt' 0;
+  letter-spacing: 0.02em;
+}
+
+/* ── Graph / DAG (Mermaid host) ──────────────────────────────────── */
+.dag {
+  position: relative;
+  width: 100%;
+  min-height: 200px;
+  display: flex; align-items: center; justify-content: center;
+  overflow: auto;
+}
+.dag svg { max-width: 100%; height: auto; }
+
+/* Mermaid theme overrides — node shapes + edges in DS tokens */
+.dag .node-done    > rect, .dag .node-done    > polygon { fill: var(--status-success-bg) !important; stroke: var(--status-success-line) !important; }
+.dag .node-active  > rect, .dag .node-active  > polygon { fill: var(--status-info-bg) !important;    stroke: var(--status-info-line) !important; }
+.dag .node-paused  > rect, .dag .node-paused  > polygon { fill: var(--status-warning-bg) !important; stroke: var(--status-warning-line) !important; }
+.dag .node-error   > rect, .dag .node-error   > polygon { fill: var(--status-error-bg) !important;   stroke: var(--status-error-line) !important; }
+.dag .node-queued  > rect, .dag .node-queued  > polygon { fill: var(--bg-surface) !important;        stroke: var(--border-default) !important; }
+
+.dag-legend {
+  display: flex; flex-wrap: wrap;
+  gap: 8px 12px;
+  padding-top: 8px;
+  margin-top: 8px;
+  border-top: 1px solid var(--border-subtle);
+}
+.dag-legend .dl {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--fg-muted);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-feature-settings: 'calt' 0;
+}
+.dag-legend .dl .sw {
+  width: 10px; height: 10px; border-radius: 3px;
+  border: 1px solid;
+}
+.dag-legend .dl .sw.done   { background: var(--status-success-bg); border-color: var(--status-success-line); }
+.dag-legend .dl .sw.active { background: var(--status-info-bg);    border-color: var(--status-info-line); }
+.dag-legend .dl .sw.paused { background: var(--status-warning-bg); border-color: var(--status-warning-line); }
+.dag-legend .dl .sw.error  { background: var(--status-error-bg);   border-color: var(--status-error-line); }
+.dag-legend .dl .sw.queued { background: var(--bg-surface);        border-color: var(--border-default); }
+
+.dag-loading {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 8px;
+  min-height: 200px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--fg-subtle);
+  letter-spacing: 0.04em;
+  font-feature-settings: 'calt' 0;
+}
+.dag-loading .dl-bar {
+  width: 120px; height: 3px;
+  background: var(--bg-elevated);
+  border-radius: 2px;
+  overflow: hidden;
+  position: relative;
+}
+.dag-loading .dl-bar::after {
+  content: "";
+  position: absolute; inset: 0;
+  width: 40%;
+  background: var(--status-info);
+  border-radius: 2px;
+  animation: dag-indeterminate 1.2s ease-in-out infinite;
+}
+@keyframes dag-indeterminate {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(350%); }
+}
