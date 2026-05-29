@@ -26,7 +26,7 @@
             @mouseleave="tip = null"
           />
           <text class="chart-svg-text" :x="b.x + b.w / 2" :y="padT + innerH + 14" text-anchor="middle">
-            {{ b.label }}
+            {{ b.short }}
           </text>
         </g>
       </svg>
@@ -97,6 +97,7 @@ interface Bar {
   w: number
   h: number
   label: string
+  short: string
   value: number
 }
 
@@ -104,12 +105,17 @@ const bars = computed<Bar[]>(() => {
   const data = props.source
   if (data.length === 0) return []
   const bw = innerW / data.length
+  // Axis labels can't ellipsize in SVG — clip to what fits the slot; the
+  // full label stays in the hover tooltip.
+  const maxChars = Math.max(4, Math.floor(bw / 6))
   return data.map((r, i) => {
     const value = Number(r[valueField.value] ?? 0)
     const h = Math.max(2, (value / max.value) * innerH)
     const x = padL + i * bw + bw * 0.18
     const w = bw * 0.64
-    return { x, y: padT + innerH - h, w, h, label: String(r[labelField.value] ?? i), value }
+    const label = String(r[labelField.value] ?? i)
+    const short = label.length > maxChars ? `${label.slice(0, maxChars - 1)}…` : label
+    return { x, y: padT + innerH - h, w, h, label, short, value }
   })
 })
 
