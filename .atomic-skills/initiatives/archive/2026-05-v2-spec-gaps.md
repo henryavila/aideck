@@ -3,10 +3,10 @@ schemaVersion: '0.1'
 slug: v2-spec-gaps
 title: 'Resolver gaps da review spec vs implementacao v2'
 goal: 'Fechar todos os 19 findings (4 critical, 10 significant, 5 minor) da review adversarial spec-vs-implementacao para que aiDeck v2 esteja spec-compliant e visualmente validado.'
-status: done
+status: archived
 branch: feat/aideck-v2-generic-runtime
 started: '2026-05-27T07:12:35Z'
-lastUpdated: '2026-05-28T21:50:00Z'
+lastUpdated: '2026-05-29T01:28:37Z'
 nextAction: 'Concluido — design v2 portado (foundation+shell+25 widgets+3 layouts+home+palette+live), validado no browser (desktop+mobile). Pronto para commit + PR.'
 
 exitGates:

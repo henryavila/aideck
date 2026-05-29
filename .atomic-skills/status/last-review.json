@@ -1,0 +1,23 @@
+{
+  "schemaVersion": "0.1",
+  "branch": "feat/aideck-v2-generic-runtime",
+  "lastReviewedCommit": "9775301f3d810ac980acffa0b831e5571c97a96c",
+  "lastReviewedAt": "2026-05-28T23:04:40-03:00",
+  "reviewFile": ".atomic-skills/reviews/2026-05-28-2304-aideck-v2-hybrid-review.md",
+  "verdict": "reject",
+  "counts": {
+    "blocker": 6,
+    "critical": 5,
+    "major": 14,
+    "minor": 31,
+    "nit": 1
+  },
+  "mode": "hybrid (same-model workflow + codex cross-model)",
+  "codexCountsFinal": {
+    "blocker": 0,
+    "critical": 5,
+    "major": 2,
+    "minor": 0,
+    "nit": 0
+  }
+}

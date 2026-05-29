@@ -6,3 +6,4 @@
 | 2026-05-19 15:39 | [aideck-step01-scaffold](2026-05-19-1539-aideck-step01-scaffold.md) | code | needs_changes | 0B/0C/1M/0m/0n | 2d/0=/1+ |
 | 2026-05-19 22:10 | [aideck-backend-phase](2026-05-19-2210-aideck-backend-phase.md) | code (8-scope parallel) | needs_changes (1× reject) | 0B/2C/36M/6m/0n | 0d/32=/12+ |
 | 2026-05-25 14:30 | [aideck-v02-roadmap](2026-05-25-1430-aideck-v02-roadmap.md) | plan (both: local+codex) | needs_changes | 0B/1C/6M/0m/0n | 1d/5=/2+ |
+| 2026-05-28 23:04 | [aideck-v2-hybrid-review](2026-05-28-2304-aideck-v2-hybrid-review.md) | code (hybrid) | reject | codex 0B/5C/2M · same-model 6B/5C/14M/31m/1n | 0d/5=/3+ |
