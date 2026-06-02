@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
+import { ref } from 'vue'
 import { createRouter, createWebHashHistory } from 'vue-router'
 import WidgetRenderer from '../../../src/client/components/WidgetRenderer.vue'
+import { PROJECT_ID_KEY } from '../../../src/client/composables/useProjectScope.js'
 
 vi.mock('../../../src/client/api.js', () => ({
   fetchDataSource: vi.fn().mockResolvedValue([]),
@@ -59,9 +61,32 @@ describe('WidgetRenderer', () => {
     })
     await flushPromises()
 
-    expect(fetchDataSource).toHaveBeenCalledWith('alpha', 'tasks')
+    // 3rd arg is the injected projectId (undefined here — no project scope provided)
+    expect(fetchDataSource).toHaveBeenCalledWith('alpha', 'tasks', undefined)
     // All records should be passed (no filter, no param)
     expect((wrapper.vm as unknown as { sourceData: Record<string, unknown>[] }).sourceData).toHaveLength(2)
+  })
+
+  it('passes the injected projectId to fetchDataSource (project-scoped read)', async () => {
+    const { fetchDataSource } = await import('../../../src/client/api.js')
+    vi.mocked(fetchDataSource).mockResolvedValue([])
+
+    const router = makeRouter('/atomic-skills/overview')
+    await router.isReady()
+
+    mount(WidgetRenderer, {
+      props: {
+        binding: { widget: 'table', source: { ref: 'plans' } },
+        consumerId: 'atomic-skills',
+      },
+      global: {
+        plugins: [router],
+        provide: { [PROJECT_ID_KEY as symbol]: ref('proj-a') },
+      },
+    })
+    await flushPromises()
+
+    expect(fetchDataSource).toHaveBeenCalledWith('atomic-skills', 'plans', 'proj-a')
   })
 
   it('applies static filter on source records', async () => {

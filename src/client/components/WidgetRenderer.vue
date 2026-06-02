@@ -31,10 +31,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, watchEffect, type Component } from 'vue'
+import { ref, computed, inject, watch, watchEffect, type Component } from 'vue'
 import { useRoute } from 'vue-router'
 import { fetchDataSource } from '../api.js'
 import { useLiveBus } from '../composables/useLiveBus.js'
+import { PROJECT_ID_KEY } from '../composables/useProjectScope.js'
 import AccordionWidget from './widgets/AccordionWidget.vue'
 import BadgeWidget from './widgets/BadgeWidget.vue'
 import BarChartWidget from './widgets/BarChartWidget.vue'
@@ -112,6 +113,7 @@ const props = defineProps<{
 
 const route = useRoute()
 const { lastEvent } = useLiveBus()
+const projectId = inject(PROJECT_ID_KEY, ref<string | undefined>(undefined))
 
 const resolvedComponent = computed(() => widgetMap[props.binding.widget] ?? null)
 
@@ -147,7 +149,11 @@ function groupByField(records: Record<string, unknown>[], field: string): Repeat
 
 async function loadData(): Promise<void> {
   if (props.binding.source?.ref) {
-    const records = await fetchDataSource(props.consumerId, props.binding.source.ref as string)
+    const records = await fetchDataSource(
+      props.consumerId,
+      props.binding.source.ref as string,
+      projectId.value
+    )
     let filtered = records
 
     // Apply static filter if present

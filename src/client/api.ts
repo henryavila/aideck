@@ -35,8 +35,32 @@ export async function fetchConsumerManifest(consumerId: string): Promise<Record<
   return (data.manifest ?? data) as Record<string, unknown>
 }
 
-export async function fetchDataSource(consumerId: string, dataSourceId: string): Promise<Record<string, unknown>[]> {
-  const res = await fetch(`${BASE}/api/consumers/${consumerId}/data/${dataSourceId}`)
+export interface ProjectSummary {
+  projectId: string
+  rootDir: string
+  registeredAt?: string
+}
+
+/** Registered projects available to a consumer that has root:'project' dataSources. */
+export async function fetchProjects(consumerId: string): Promise<ProjectSummary[]> {
+  const res = await fetch(`${BASE}/api/consumers/${consumerId}/projects`)
+  if (!res.ok) return []
+  const data = await res.json()
+  return data.projects ?? []
+}
+
+export async function fetchDataSource(
+  consumerId: string,
+  dataSourceId: string,
+  projectId?: string
+): Promise<Record<string, unknown>[]> {
+  // When a projectId is selected, read the project-scoped endpoint (root:'project'
+  // dataSources resolve against the registered repo's tree). Otherwise the
+  // consumer-dir endpoint.
+  const url = projectId
+    ? `${BASE}/api/consumers/${consumerId}/projects/${projectId}/data/${dataSourceId}`
+    : `${BASE}/api/consumers/${consumerId}/data/${dataSourceId}`
+  const res = await fetch(url)
   if (!res.ok) return []
   const data = await res.json()
   return data.records ?? []

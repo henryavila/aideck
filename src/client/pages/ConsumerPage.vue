@@ -10,6 +10,15 @@
         <span>{{ currentPage.layout }} layout</span>
       </span>
       <div class="actions">
+        <select
+          v-if="hasProjectScope && projects.length"
+          class="project-select"
+          :value="selectedProjectId"
+          aria-label="Select project"
+          @change="selectProject(($event.target as HTMLSelectElement).value)"
+        >
+          <option v-for="p in projects" :key="p.projectId" :value="p.projectId">{{ p.projectId }}</option>
+        </select>
         <button class="btn btn-ghost" @click="loadManifest"><span class="gly">↻</span>refresh</button>
       </div>
     </div>
@@ -74,19 +83,39 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
-import { useRoute } from 'vue-router'
-import { fetchConsumerManifest } from '../api.js'
+import { ref, computed, onMounted, provide, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { fetchConsumerManifest, fetchProjects, type ProjectSummary } from '../api.js'
+import { PROJECT_ID_KEY } from '../composables/useProjectScope.js'
 import SectionsLayout from '../layouts/SectionsLayout.vue'
 import GridLayout from '../layouts/GridLayout.vue'
 import SingleLayout from '../layouts/SingleLayout.vue'
 import type { PageDecl } from '../../server/manifest-schema.js'
 
 const route = useRoute()
+const router = useRouter()
 const manifest = ref<Record<string, unknown> | null>(null)
+
+// Project scope: when the consumer has root:'project' dataSources, widgets read
+// the project-scoped endpoint for the selected project. The ref is provided to
+// WidgetRenderer (which injects it). Seeded from ?project= for deep-link/refresh.
+const projects = ref<ProjectSummary[]>([])
+const selectedProjectId = ref<string | undefined>(
+  typeof route.query.project === 'string' ? route.query.project : undefined
+)
+provide(PROJECT_ID_KEY, selectedProjectId)
 
 const consumerId = computed(() => String(route.params.consumerId))
 const pageSlug = computed(() => route.params.pageSlug as string | undefined)
+const dataSources = computed(
+  () => (manifest.value?.dataSources as Array<{ root?: string }> | undefined) ?? []
+)
+const hasProjectScope = computed(() => dataSources.value.some((d) => d.root === 'project'))
+
+function selectProject(id: string): void {
+  selectedProjectId.value = id
+  void router.replace({ query: { ...route.query, project: id } })
+}
 const consumerTitle = computed(() => (manifest.value?.title as string | undefined) ?? consumerId.value)
 
 const pages = computed(() => (manifest.value?.pages as PageDecl[]) ?? [])
@@ -108,6 +137,14 @@ async function loadManifest(): Promise<void> {
     manifest.value = await fetchConsumerManifest(consumerId.value)
   } catch {
     manifest.value = null
+    return
+  }
+  if (hasProjectScope.value) {
+    projects.value = await fetchProjects(consumerId.value)
+    const ids = projects.value.map((p) => p.projectId)
+    if (!selectedProjectId.value || !ids.includes(selectedProjectId.value)) {
+      selectedProjectId.value = ids[0]
+    }
   }
 }
 
