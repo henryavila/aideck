@@ -12,7 +12,26 @@ const dataSourceSchema = z.object({
   id: z.string().min(1),
   path: z.string().min(1),
   format: z.enum(['yaml', 'frontmatter', 'json', 'jsonl']),
-  schema: z.record(z.unknown()).optional()
+  schema: z.record(z.unknown()).optional(),
+  /**
+   * Resolution root for `path`:
+   *   - 'consumer' (default): relative to the consumer dir (~/.aideck/consumers/<id>/).
+   *   - 'project': relative to a registered project's rootDir. The path then
+   *     typically begins with `.atomic-skills/...` and is served by the
+   *     project-scoped endpoint `/api/consumers/:id/projects/:projectId/data/:ds`.
+   *     Lets a consumer read a repo's git-tracked tree in place — no copy into
+   *     the consumer dir.
+   */
+  root: z.enum(['consumer', 'project']).optional(),
+  /**
+   * Names for the glob wildcards in `path`, left-to-right. Each `*` / `**`
+   * segment captures the matched path segment(s); the captured value is
+   * injected onto every record read from that file under the corresponding
+   * name. Example: path `.atomic-skills/projects/<star>/<star>/plan.md` with
+   * captures `[projectId, planSlug]` tags each plan record with its projectId
+   * and planSlug — the "flatten + projectId" grouping.
+   */
+  captures: z.array(z.string().min(1)).optional()
 })
 
 export type DataSourceDecl = z.infer<typeof dataSourceSchema>

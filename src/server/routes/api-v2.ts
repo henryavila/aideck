@@ -2,12 +2,15 @@ import { join } from 'node:path'
 import { Hono } from 'hono'
 import type { Context } from 'hono'
 import type { ConsumerRegistry } from '../consumer-registry.js'
+import type { ProjectRegistry } from '../project-registry.js'
 import { readDataSource } from '../data-source-reader.js'
+import type { DataSourceDecl } from '../manifest-schema.js'
 import { appendJsonlLine } from '../writers/jsonl-append.js'
 import { isWithinDir } from '../writers/path-guard.js'
 
 export interface ApiV2Deps {
   consumers: ConsumerRegistry
+  registry: ProjectRegistry
   version: string
   startedAt: number
   demo?: boolean
@@ -143,6 +146,86 @@ export function createApiV2Router(deps: ApiV2Deps): Hono {
       )
     }
 
+    return c.json({ record })
+  })
+
+  // ─── Project-scoped data ──────────────────────────────────────────────
+  // `root: 'project'` dataSources resolve their path against a registered
+  // project's rootDir (the repo's git-tracked .atomic-skills/ tree, read in
+  // place). `root: 'consumer'` sources still read from the consumer dir.
+
+  function resolveProjectDataSource(
+    c: Context
+  ): { decl: DataSourceDecl; baseDir: string } | Response {
+    const id = c.req.param('id') ?? ''
+    const projectId = c.req.param('projectId') ?? ''
+    const dataSourceId = c.req.param('dataSourceId') ?? ''
+    const consumer = deps.consumers.get(id)
+    if (!consumer) return errResp(c, 'consumer_not_found', `consumer "${id}" not found`, 404)
+    const project = deps.registry.get(projectId)
+    if (!project) {
+      return errResp(c, 'path_not_found', `project "${projectId}" not registered`, 404)
+    }
+    const decl = consumer.manifest.dataSources.find((ds) => ds.id === dataSourceId)
+    if (!decl) {
+      return errResp(
+        c,
+        'data_source_not_found',
+        `data source "${dataSourceId}" not found in consumer "${id}"`,
+        404
+      )
+    }
+    const baseDir = decl.root === 'project' ? project.rootDir : consumer.dir
+    return { decl, baseDir }
+  }
+
+  app.get('/api/consumers/:id/projects', (c) => {
+    const id = c.req.param('id')
+    if (!deps.consumers.get(id)) {
+      return errResp(c, 'consumer_not_found', `consumer "${id}" not found`, 404)
+    }
+    const projects = deps.registry.list().map(({ watcher: _w, ...p }) => p)
+    return c.json({ projects })
+  })
+
+  app.get('/api/consumers/:id/projects/:projectId/data/:dataSourceId', async (c) => {
+    const resolved = resolveProjectDataSource(c)
+    if (resolved instanceof Response) return resolved
+    const result = await readDataSource(resolved.baseDir, resolved.decl)
+    if (!result.ok) {
+      return errResp(c, result.error.code, result.error.message, 500, {
+        suggestion: result.error.suggestion,
+        details: result.error.details
+      })
+    }
+    return c.json({ records: result.value.records, count: result.value.records.length })
+  })
+
+  app.get('/api/consumers/:id/projects/:projectId/data/:dataSourceId/:slug', async (c) => {
+    const resolved = resolveProjectDataSource(c)
+    if (resolved instanceof Response) return resolved
+    const slug = c.req.param('slug')
+    const result = await readDataSource(resolved.baseDir, resolved.decl)
+    if (!result.ok) {
+      return errResp(c, result.error.code, result.error.message, 500, {
+        suggestion: result.error.suggestion,
+        details: result.error.details
+      })
+    }
+    const record = result.value.records.find(
+      (r) =>
+        r['slug'] === slug ||
+        r['id'] === slug ||
+        (typeof r['_file'] === 'string' && r['_file'].startsWith(slug))
+    )
+    if (!record) {
+      return errResp(
+        c,
+        'entity_not_found',
+        `entity "${slug}" not found in data source "${resolved.decl.id}"`,
+        404
+      )
+    }
     return c.json({ record })
   })
 

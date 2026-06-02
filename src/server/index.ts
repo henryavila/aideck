@@ -81,6 +81,7 @@ export function buildApp(opts: ServerOptions): BuiltApp {
   // v2 API router mounted FIRST — gets priority on shared paths (/api/health, /api/consumers)
   app.route('/', createApiV2Router({
     consumers,
+    registry,
     version: opts.version ?? '0.0.1',
     startedAt,
     demo: opts.demo ?? false,
