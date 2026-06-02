@@ -21,10 +21,18 @@ function jsonSchemaToZod(input: {
   return z.object(shape).passthrough()
 }
 
-async function loadConsumerData(consumer: RegisteredConsumer): Promise<Map<string, unknown[]>> {
+/** A dataSource's read base: the registered repo for root:'project', else the consumer dir. */
+function baseDirFor(consumer: RegisteredConsumer, ds: { root?: string }, rootDir: string): string {
+  return ds.root === 'project' ? rootDir : consumer.dir
+}
+
+async function loadConsumerData(
+  consumer: RegisteredConsumer,
+  rootDir: string
+): Promise<Map<string, unknown[]>> {
   const dataMap = new Map<string, unknown[]>()
   for (const ds of consumer.manifest.dataSources) {
-    const result = await readDataSource(consumer.dir, ds)
+    const result = await readDataSource(baseDirFor(consumer, ds, rootDir), ds)
     if (result.ok) dataMap.set(ds.id, result.value.records)
   }
   return dataMap
@@ -33,24 +41,31 @@ async function loadConsumerData(consumer: RegisteredConsumer): Promise<Map<strin
 async function dispatchHandler(
   consumer: RegisteredConsumer,
   handler: HandlerDecl,
-  args: Record<string, unknown>
+  args: Record<string, unknown>,
+  rootDir: string
 ): Promise<McpResult<unknown>> {
+  // Model A (per-launch-repo): when the consumer reads a registered repo in
+  // place, handler data and intent writes target that repo (rootDir), while the
+  // handler module is still loaded from the consumer dir.
+  const projectScoped = consumer.manifest.dataSources.some((ds) => ds.root === 'project')
+  const writeBaseDir = projectScoped ? rootDir : consumer.dir
   const sandbox: ScriptSandboxOptions = {
     dataSources: consumer.manifest.dataSources,
+    writeBaseDir,
   }
 
   if (handler.type === 'file-mutation') {
-    return executeFileMutation(consumer.dir, handler, args)
+    return executeFileMutation(writeBaseDir, handler, args)
   }
   if (handler.type === 'shell-exec') {
-    return executeShellExec(consumer.dir, handler, args)
+    return executeShellExec(writeBaseDir, handler, args)
   }
   if (handler.type === 'script') {
-    const dataMap = await loadConsumerData(consumer)
+    const dataMap = await loadConsumerData(consumer, rootDir)
     return executeScript(consumer.dir, handler, args, dataMap, sandbox)
   }
   if (handler.type === 'composite') {
-    const dataMap = await loadConsumerData(consumer)
+    const dataMap = await loadConsumerData(consumer, rootDir)
     return executeComposite(consumer.dir, handler, args, dataMap, sandbox)
   }
   // TypeScript exhaustiveness — handler.type is never at this point
@@ -68,8 +83,8 @@ function registerTool(
     name,
     description: tool.description,
     inputSchema: jsonSchemaToZod(tool.input),
-    async handler(input: unknown, _ctx: McpToolContext): Promise<McpResult<unknown>> {
-      return dispatchHandler(consumer, tool.handler, input as Record<string, unknown>)
+    async handler(input: unknown, ctx: McpToolContext): Promise<McpResult<unknown>> {
+      return dispatchHandler(consumer, tool.handler, input as Record<string, unknown>, ctx.rootDir)
     }
   })
 }

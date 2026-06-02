@@ -32,6 +32,15 @@ describe('computeWritablePaths', () => {
     expect(paths).not.toContain(resolve('/consumer', 'data/items.yaml'))
   })
 
+  it('resolves root:project jsonl sources under the write base (the repo), not the consumer dir', () => {
+    const dataSources: DataSourceDecl[] = [
+      { id: 'inbox', path: '.atomic-skills/bootstrap-drafts/inbox/*.jsonl', format: 'jsonl', root: 'project' },
+    ]
+    const paths = computeWritablePaths('/consumer', dataSources, '/repo')
+    expect(paths).toContain(resolve('/repo', '.atomic-skills/bootstrap-drafts/inbox'))
+    expect(paths).not.toContain(resolve('/consumer', '.atomic-skills/bootstrap-drafts/inbox'))
+  })
+
   it('does not include yaml/json/frontmatter dataSources', () => {
     const dataSources: DataSourceDecl[] = [
       { id: 'a', path: 'data/a.yaml', format: 'yaml' },
@@ -66,13 +75,13 @@ describe('validateWritePath', () => {
   it('rejects writes outside consumer directory', () => {
     const target = resolve('/app/consumers/other-consumer/data/inbox/evil.jsonl')
     const result = validateWritePath(target, consumerDir, writablePaths)
-    expect(result).toContain('outside consumer directory')
+    expect(result).toContain('outside the write base directory')
   })
 
   it('rejects path traversal attacks', () => {
     const target = resolve(consumerDir, '../../etc/passwd')
     const result = validateWritePath(target, consumerDir, writablePaths)
-    expect(result).toContain('outside consumer directory')
+    expect(result).toContain('outside the write base directory')
   })
 
   it('rejects writes to non-writable paths within consumer directory', () => {

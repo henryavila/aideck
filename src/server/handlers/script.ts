@@ -18,19 +18,31 @@ const DEFAULT_WRITABLE_DIRS = ['data/inbox', 'data/annotations', 'data/highlight
  */
 export function computeWritablePaths(
   consumerDir: string,
-  dataSources: DataSourceDecl[]
+  dataSources: DataSourceDecl[],
+  writeBaseDir?: string
 ): string[] {
+  const wb = writeBaseDir ?? consumerDir
   const paths: string[] = []
 
-  // Always allow the default writable directories
+  // Always allow the default writable directories (consumer-relative, back-compat)
   for (const dir of DEFAULT_WRITABLE_DIRS) {
     paths.push(resolve(consumerDir, dir))
   }
 
-  // Add paths from dataSources with jsonl format (implies append)
+  // Each jsonl dataSource implies an appendable directory. root:'project' sources
+  // resolve against the write base (the registered repo) so intents land in the
+  // repo's tree (e.g. .atomic-skills/bootstrap-drafts/inbox/), not the consumer dir.
   for (const ds of dataSources) {
-    if (ds.format === 'jsonl') {
-      paths.push(resolve(consumerDir, ds.path))
+    if (ds.format !== 'jsonl') continue
+    const base = ds.root === 'project' ? wb : consumerDir
+    const starIdx = ds.path.indexOf('*')
+    if (starIdx === -1) {
+      // Exact file → writable as that single file (unchanged behavior).
+      paths.push(resolve(base, ds.path))
+    } else {
+      // Globbed file (e.g. inbox/*.jsonl) → writable directory.
+      const dirPart = ds.path.slice(0, Math.max(0, ds.path.lastIndexOf('/', starIdx)))
+      paths.push(resolve(base, dirPart || '.'))
     }
   }
 
@@ -44,14 +56,15 @@ export function computeWritablePaths(
  */
 export function validateWritePath(
   resolvedTarget: string,
-  consumerDir: string,
+  containmentDir: string,
   writablePaths: string[]
 ): string | null {
-  const resolvedConsumerDir = resolve(consumerDir)
+  const resolvedContainmentDir = resolve(containmentDir)
 
-  // Must be within the consumer directory (prevents path traversal)
-  if (!resolvedTarget.startsWith(resolvedConsumerDir + '/') && resolvedTarget !== resolvedConsumerDir) {
-    return `Script handler write rejected: target resolves outside consumer directory`
+  // Must be within the containment directory (consumer dir, or the registered
+  // repo root for project-scoped consumers) — prevents path traversal.
+  if (!resolvedTarget.startsWith(resolvedContainmentDir + '/') && resolvedTarget !== resolvedContainmentDir) {
+    return `Script handler write rejected: target resolves outside the write base directory`
   }
 
   // Must be within a declared writable path
@@ -67,6 +80,14 @@ export function validateWritePath(
 
 export interface ScriptSandboxOptions {
   dataSources?: DataSourceDecl[]
+  /**
+   * Base directory for handler writes (files.append). Defaults to the consumer
+   * dir. For project-scoped consumers (model A) this is the registered repo
+   * root, so intents are appended to the repo's tree (e.g.
+   * .atomic-skills/bootstrap-drafts/inbox/) where the consumer skill reads them.
+   * The handler MODULE is always loaded from the consumer dir regardless.
+   */
+  writeBaseDir?: string
 }
 
 export async function executeScript(
@@ -86,7 +107,8 @@ export async function executeScript(
   }
   const moduleUrl = pathToFileURL(modulePath).href
 
-  const writablePaths = computeWritablePaths(consumerDir, sandbox?.dataSources ?? [])
+  const writeBase = sandbox?.writeBaseDir ?? consumerDir
+  const writablePaths = computeWritablePaths(consumerDir, sandbox?.dataSources ?? [], writeBase)
 
   let mod: unknown
   try {
@@ -114,8 +136,8 @@ export async function executeScript(
     data: dataMap,
     files: {
       append: (target: string, record: Record<string, unknown>) => {
-        const resolvedTarget = resolve(consumerDir, target)
-        const rejection = validateWritePath(resolvedTarget, consumerDir, writablePaths)
+        const resolvedTarget = resolve(writeBase, target)
+        const rejection = validateWritePath(resolvedTarget, writeBase, writablePaths)
         if (rejection) {
           throw new Error(rejection)
         }
