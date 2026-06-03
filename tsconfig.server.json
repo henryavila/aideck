@@ -9,6 +9,7 @@
     "sourceMap": true
   },
   "include": [
+    "src/index.ts",
     "src/server/**/*",
     "src/mcp/**/*",
     "src/schemas/**/*",
