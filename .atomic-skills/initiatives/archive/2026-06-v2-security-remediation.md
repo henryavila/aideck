@@ -3,11 +3,12 @@ schemaVersion: '0.1'
 slug: v2-security-remediation
 title: 'Remediar blocker+critical da review híbrida v2'
 goal: 'Fechar todos os findings blocker e critical da review híbrida (workflow same-model + codex cross-model) de 2026-05-28: família de path-traversal, DoS, XSS, packaging e dead-code do router.'
-status: active
+status: archived
 branch: feat/aideck-v2-generic-runtime
 started: '2026-05-29T02:16:35Z'
-lastUpdated: '2026-05-29T02:29:15Z'
-nextAction: 'Fixes aplicados e verificados (typecheck + 582 testes verdes). Commit + PR aguardam OK do usuário.'
+lastUpdated: '2026-06-02T14:09:48Z'
+archivedAt: '2026-06-02T14:09:48Z'
+nextAction: null
 
 exitGates:
   - id: GG-1

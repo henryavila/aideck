@@ -1,9 +1,9 @@
 ---
-lastUpdated: '2026-05-29T02:16:35Z'
+lastUpdated: '2026-06-02T14:09:48Z'
 schemaVersion: '0.1'
 activePlans: 0
-activeInitiatives: 1
-archivedCount: 6
+activeInitiatives: 0
+archivedCount: 7
 ---
 
 # Project Status Index
@@ -41,14 +41,13 @@ _(none)_
 
 ## Active Initiatives (standalone)
 
-| Slug | Status | Branch | Started | Next Action |
-|------|--------|--------|---------|-------------|
-| [v2-security-remediation](initiatives/v2-security-remediation.md) | active | feat/aideck-v2-generic-runtime | 2026-05-29 | Fixes done + verificados; commit + PR aguardam OK |
+_(none)_
 
 ## Recently Archived (last 10)
 
 | Slug | Kind | Archived | Reason |
 |------|------|----------|--------|
+| v2-security-remediation | initiative | 2026-06-02 | Concluída — 7/7 tasks done, 3/3 exit gates met (typecheck + 582 testes), fixes commitados |
 | v2-spec-gaps | initiative | 2026-05-29 | Concluída — 19/19 tasks done, design v2 portado e validado no browser |
 | aideck-v02-roadmap | plan | 2026-05-26 | Superseded by aideck-v2-generic-runtime |
 | aideck-v02-roadmap-f0-cross-project-search | initiative | 2026-05-26 | Parent plan archived |
