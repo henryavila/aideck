@@ -388,4 +388,146 @@ describe('WidgetRenderer', () => {
     const container = wrapper.find('.repeat-container')
     expect(container.element.style.gridTemplateColumns).toBe('repeat(3, 1fr)')
   })
+
+  // ─── §2c composite param + §2b composition ──────────────────────────────
+
+  it('filters by a composite { match: [projectId, slug] } param (projectId-scoped)', async () => {
+    const { fetchDataSource } = await import('../../../src/client/api.js')
+    vi.mocked(fetchDataSource).mockResolvedValue([
+      { projectId: 'proj-a', slug: 'my-plan', title: 'A/my-plan' },
+      { projectId: 'proj-b', slug: 'my-plan', title: 'B/my-plan' }, // same slug, other project
+      { projectId: 'proj-a', slug: 'other', title: 'A/other' },
+    ])
+
+    const router = createRouter({
+      history: createWebHashHistory(),
+      routes: [{ path: '/:consumerId/:pageSlug/:projectId/:slug', component: { template: '<div />' } }],
+    })
+    router.push('/alpha/plan/proj-a/my-plan')
+    await router.isReady()
+
+    const wrapper = mount(WidgetRenderer, {
+      props: {
+        binding: { widget: 'table', source: { ref: 'plans', param: { match: ['projectId', 'slug'] } } },
+        consumerId: 'alpha',
+      },
+      global: { plugins: [router] },
+    })
+    await flushPromises()
+
+    const data = (wrapper.vm as unknown as { sourceData: Record<string, unknown>[] }).sourceData
+    expect(data).toHaveLength(1)
+    expect(data[0]).toMatchObject({ projectId: 'proj-a', slug: 'my-plan' })
+  })
+
+  it('matches a { field, param } entry mapping a record field to a differently-named route param', async () => {
+    const { fetchDataSource } = await import('../../../src/client/api.js')
+    vi.mocked(fetchDataSource).mockResolvedValue([
+      { slug: 'f0-setup', planSlug: 'my-plan', projectId: 'proj-a' },
+      { slug: 'f1-build', planSlug: 'my-plan', projectId: 'proj-a' },
+      { slug: 'f0-other', planSlug: 'other-plan', projectId: 'proj-a' }, // different plan
+    ])
+
+    const router = createRouter({
+      history: createWebHashHistory(),
+      routes: [{ path: '/:consumerId/:pageSlug/:projectId/:slug', component: { template: '<div />' } }],
+    })
+    router.push('/alpha/plan/proj-a/my-plan') // :slug = the PLAN slug
+    await router.isReady()
+
+    const wrapper = mount(WidgetRenderer, {
+      props: {
+        binding: {
+          widget: 'table',
+          // filter initiatives to this plan: record.planSlug === route.slug
+          source: { ref: 'initiatives', param: { match: [{ field: 'projectId', param: 'projectId' }, { field: 'planSlug', param: 'slug' }] } },
+        },
+        consumerId: 'alpha',
+      },
+      global: { plugins: [router] },
+    })
+    await flushPromises()
+
+    const data = (wrapper.vm as unknown as { sourceData: Record<string, unknown>[] }).sourceData
+    expect(data).toHaveLength(2)
+    expect(data.every(r => r.planSlug === 'my-plan')).toBe(true)
+  })
+
+  it('re-filters when a sibling drill-down route param changes on the same instance', async () => {
+    const { fetchDataSource } = await import('../../../src/client/api.js')
+    vi.mocked(fetchDataSource).mockResolvedValue([
+      { id: 'plan-1', slug: 'my-plan', title: 'My Plan' },
+      { id: 'plan-2', slug: 'other-plan', title: 'Other Plan' },
+    ])
+
+    const router = makeRouter('/alpha/detail/my-plan')
+    await router.isReady()
+
+    const wrapper = mount(WidgetRenderer, {
+      props: {
+        binding: { widget: 'table', source: { ref: 'plans', param: 'routeParam' } },
+        consumerId: 'alpha',
+      },
+      global: { plugins: [router] },
+    })
+    await flushPromises()
+
+    const vm = wrapper.vm as unknown as { sourceData: Record<string, unknown>[] }
+    expect(vm.sourceData).toHaveLength(1)
+    expect(vm.sourceData[0].slug).toBe('my-plan')
+
+    // Sibling drill-down: same component instance, only :routeParam changes. The
+    // route param is read after the fetch await, so it must still be a tracked
+    // watchEffect dependency for the widget to re-filter.
+    await router.push('/alpha/detail/other-plan')
+    await flushPromises()
+
+    expect(vm.sourceData).toHaveLength(1)
+    expect(vm.sourceData[0].slug).toBe('other-plan')
+  })
+
+  it('renders a source-less child against the parent record (composition mode 1)', async () => {
+    const { fetchDataSource } = await import('../../../src/client/api.js')
+    const router = makeRouter('/alpha/overview')
+    await router.isReady()
+
+    const wrapper = mount(WidgetRenderer, {
+      props: {
+        binding: { widget: 'table' }, // no source.ref
+        consumerId: 'alpha',
+        parentRecord: { id: 'p1', title: 'Parent' },
+      },
+      global: { plugins: [router] },
+    })
+    await flushPromises()
+
+    expect(fetchDataSource).not.toHaveBeenCalled()
+    const data = (wrapper.vm as unknown as { sourceData: Record<string, unknown>[] }).sourceData
+    expect(data).toEqual([{ id: 'p1', title: 'Parent' }])
+  })
+
+  it('resolves $parent.<field> tokens in source.filter against the parent record (mode 2)', async () => {
+    const { fetchDataSource } = await import('../../../src/client/api.js')
+    vi.mocked(fetchDataSource).mockResolvedValue([
+      { taskId: 'T-1', date: 'd1' },
+      { taskId: 'T-2', date: 'd2' },
+    ])
+
+    const router = makeRouter('/alpha/overview')
+    await router.isReady()
+
+    const wrapper = mount(WidgetRenderer, {
+      props: {
+        binding: { widget: 'table', source: { ref: 'activity', filter: { taskId: '$parent.id' } } },
+        consumerId: 'alpha',
+        parentRecord: { id: 'T-1' },
+      },
+      global: { plugins: [router] },
+    })
+    await flushPromises()
+
+    const data = (wrapper.vm as unknown as { sourceData: Record<string, unknown>[] }).sourceData
+    expect(data).toHaveLength(1)
+    expect(data[0].taskId).toBe('T-1')
+  })
 })

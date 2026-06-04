@@ -574,3 +574,95 @@ describe('parseManifest', () => {
     }
   })
 })
+
+describe('parseManifest — §2a derived/exploded dataSources', () => {
+  it('accepts a derived source (derivesFrom + explode + carry, no path)', () => {
+    const raw = {
+      ...minimalManifest,
+      dataSources: [
+        { id: 'plans', path: 'p/*.md', format: 'frontmatter' },
+        { id: 'phases', derivesFrom: 'plans', explode: 'phases', carry: ['projectId', 'planSlug'] }
+      ]
+    }
+    expect(parseManifest(raw).ok).toBe(true)
+  })
+
+  it('rejects a source declaring BOTH path and derivesFrom', () => {
+    const raw = {
+      ...minimalManifest,
+      dataSources: [{ id: 'x', path: 'a.md', format: 'json', derivesFrom: 'y', explode: 'z' }]
+    }
+    expect(parseManifest(raw).ok).toBe(false)
+  })
+
+  it('rejects a derived source without explode', () => {
+    const raw = { ...minimalManifest, dataSources: [{ id: 'x', derivesFrom: 'y' }] }
+    expect(parseManifest(raw).ok).toBe(false)
+  })
+
+  it('rejects a file source without format', () => {
+    const raw = { ...minimalManifest, dataSources: [{ id: 'x', path: 'a.md' }] }
+    expect(parseManifest(raw).ok).toBe(false)
+  })
+
+  it('still accepts a plain file source (backward compat)', () => {
+    const raw = {
+      ...minimalManifest,
+      dataSources: [{ id: 'x', path: 'a/*.md', format: 'frontmatter', root: 'project', captures: ['projectId'] }]
+    }
+    expect(parseManifest(raw).ok).toBe(true)
+  })
+})
+
+describe('parseManifest — §2b slots & §2c composite param', () => {
+  const pageWith = (widget: Record<string, unknown>) => ({
+    ...minimalManifest,
+    pages: [{ slug: 'p', title: 'P', layout: 'sections', sections: [{ widgets: [widget] }] }]
+  })
+
+  it('accepts a widget binding with recursive slots', () => {
+    const raw = pageWith({
+      widget: 'card',
+      source: { ref: 'plans' },
+      slots: {
+        footer: [{ widget: 'progress-bar', config: { valueField: 'tasksDone', maxField: 'tasksTotal' } }],
+        header: [{ widget: 'stat', config: { value: 'field(currentPhase)' } }]
+      }
+    })
+    expect(parseManifest(raw).ok).toBe(true)
+  })
+
+  it('accepts a nested slot two levels deep', () => {
+    const raw = pageWith({
+      widget: 'card',
+      slots: { body: [{ widget: 'card', slots: { footer: [{ widget: 'badge' }] } }] }
+    })
+    expect(parseManifest(raw).ok).toBe(true)
+  })
+
+  it('accepts a composite { match: [...] } source param', () => {
+    const raw = pageWith({
+      widget: 'table',
+      source: { ref: 'plans', param: { match: ['projectId', 'slug'] } }
+    })
+    expect(parseManifest(raw).ok).toBe(true)
+  })
+
+  it('still accepts a plain string source param (backward compat)', () => {
+    const raw = pageWith({ widget: 'table', source: { ref: 'plans', param: 'routeParam' } })
+    expect(parseManifest(raw).ok).toBe(true)
+  })
+
+  it('accepts a composite param with { field, param } mapping entries', () => {
+    const raw = pageWith({
+      widget: 'phase-timeline',
+      source: { ref: 'initiatives', param: { match: ['projectId', { field: 'planSlug', param: 'slug' }] } }
+    })
+    expect(parseManifest(raw).ok).toBe(true)
+  })
+
+  it('rejects a composite param with an empty match array', () => {
+    const raw = pageWith({ widget: 'table', source: { ref: 'plans', param: { match: [] } } })
+    expect(parseManifest(raw).ok).toBe(false)
+  })
+})

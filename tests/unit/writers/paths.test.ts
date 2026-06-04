@@ -175,3 +175,44 @@ describe('consumerRoot — unchanged contract', () => {
     expect(() => consumerRoot(ROOT, '../escape')).toThrow()
   })
 })
+
+describe('classifyFile — nested project layout (§2d SSE)', () => {
+  it('classifies projects/<id>/<slug>/plan.md as a plan under DEFAULT_CONSUMER', () => {
+    expect(
+      classifyFile(join(ROOT, '.atomic-skills/projects/atomic-skills/my-plan/plan.md'), ROOT)
+    ).toEqual({ consumer: DEFAULT_CONSUMER, kind: 'plan', slug: 'my-plan' })
+  })
+
+  it('classifies projects/<id>/<slug>/phases/<file>.md as an initiative (slug = bare phaseFile)', () => {
+    expect(
+      classifyFile(
+        join(ROOT, '.atomic-skills/projects/atomic-skills/my-plan/phases/f5-inc7.md'),
+        ROOT
+      )
+    ).toEqual({ consumer: DEFAULT_CONSUMER, kind: 'initiative', slug: 'f5-inc7' })
+  })
+
+  it('classifies a nested archived phase as an initiative (basename slug)', () => {
+    expect(
+      classifyFile(
+        join(ROOT, '.atomic-skills/projects/atomic-skills/my-plan/phases/archive/old.md'),
+        ROOT
+      )
+    ).toEqual({ consumer: DEFAULT_CONSUMER, kind: 'initiative', slug: 'old' })
+  })
+
+  it('does not crash on a too-short projects path (returns other)', () => {
+    expect(
+      classifyFile(join(ROOT, '.atomic-skills/projects/atomic-skills'), ROOT)
+    ).toEqual({ consumer: DEFAULT_CONSUMER, kind: 'other' })
+  })
+
+  it('extractConsumerId maps a nested projects path to DEFAULT_CONSUMER', () => {
+    expect(
+      extractConsumerId(
+        join(ROOT, '.atomic-skills/projects/atomic-skills/my-plan/plan.md'),
+        ROOT
+      )
+    ).toBe(DEFAULT_CONSUMER)
+  })
+})
