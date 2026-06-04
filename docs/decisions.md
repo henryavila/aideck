@@ -369,3 +369,60 @@ The `aiDesk Dashboard` handoff (from Claude Design) was ported into `src/client/
 - **`aideck demo` now serves the built client** (`dist/client` via `staticDir`) so it launches the full dashboard in one command (run `npx vite build` first). Previously demo was API-only; the client was served separately by `vite`.
 - **No new heavy deps.** Markdown keeps its custom regex parser (no `marked`); Graph-DAG renders the diagram source as a styled code-block fallback (no `mermaid`). Both can be revisited later.
 - **Command Palette + live data are in scope** (user opted in): `CommandPalette.vue` + `usePalette.ts` (client-side index over consumers/pages/files, fuzzy match, global ⌘K) and `useLiveBus.ts` (one shared SSE → `WidgetRenderer` re-fetches on events).
+
+---
+
+## 2026-06-03 — Agnostic de-leak + composition-host pass (HTML h1/h2/h3 reframe)
+
+### Context
+Reviewing the dashboard-port spec (`docs/component-spec-atomic-skills-dashboard.md`) under the principle that aiDeck core must stay domain-agnostic. The governing rule (the "HTML h1/h2/h3 reframe"): a primitive may encode structure/levels, but must address slots/levels by **neutral position / ordinal / consumer-supplied key**, hardcode **no fixed domain count or nested-object-field read**, and stand alone — never contain a domain word, a value→meaning dictionary, or a fixed twin-shape. Three tests: addressing, arity+shape, standalone coherence. (Full reasoning + the per-component accept/reject ledger were handed to the consumer in atomic-skills `docs/design/project-orchestrator/17-aideck-capability-decisions.md`.)
+
+### Fixes applied to the uncommitted v2 widget work
+- **`statusInfo(value, statuses?)`** — was a hardcoded 14-key PM/CI dictionary with no override. Now consumer-keyed: a `config.statuses` map merges over the built-in seed (kept as a convenience default) over a neutral fallback. Back-compatible (single-arg calls unchanged). Threaded through all 10 status-rendering widgets (Badge, TreeView, KeyValue, List, Kanban, Timeline, Table, Accordion, PhaseTimeline, **Card** — Card was initially missed and caught by code-review). Callout legitimately omits it (resolves only an internal neutral `variant` enum, not consumer data).
+- **Accordion + Tabs became composition hosts** — Accordion gained a `panel` slot (mounts child widgets per open section, scope = the section record; string-content fallback); Tabs gained a `panel:<tabId>` slot (keyed only — a generic `panel` fallback was rejected because it renders identical content on every tab and silently drops `tab.filter`). Card/Stat/List/Kanban/Table were already hosts.
+- **Sparkline** — hardcoded `0.6/0.4/0.2` "confidence" bands → consumer `thresholds:[{at,tone}]` (default reproduces old rendering) + optional `domain:[lo,hi]`; `valueField` default `'confidence'` → neutral `'value'`; tone validated against the 5-tone set (unknown → neutral), `error` tone + CSS added, and tone defaults to `neutral` when a value is below every band (was leaking the lowest band's tone).
+- **PhaseTimeline → generic `stepper`** — the hardcoded twin "tasks"/"gates" meters became a consumer-declared `meters:[{label,valueField,maxField?,style?}]` array (bar | pips); `active: status==='active'` → configurable `currentField`/`activeStatus`; slot `phase-extra` → `item-extra` (length-checked fallback, not `??`, so an empty `item-extra` array doesn't swallow a legacy `phase-extra`); registered a neutral `stepper` alias in `widgetMap` (keep `phase-timeline`).
+- **`explodeRecords`** — `_parentId` no longer assumes `slug`: added optional `parentKey` config (defaults to the back-compatible `slug ?? id` convenience).
+- **Timeline** — stopped mutating consumer titles (`.replace('Task ','').replace('Project ','')` → strip only the consumer's own `refId` prefix).
+
+### Verification
+`tsc --noEmit` + `vite build` clean; **618/618 tests pass**. Note: `npm test` is `vitest` (**watch mode**, never exits) — use `npx vitest run` for one-shot. The chokidar-based watcher tests (`consumer-watcher`, `event-throttle`, `file-count-cap`, `fake-consumer`) are timing-flaky under concurrent CPU load (real FS watching with ~2 s timeouts); they pass reliably in isolation. Not caused by this pass (it touches no watcher/event code).
+
+### Deferred / handed to the §2a/§2c/Kanban implementer (code-review findings, not in this pass's scope)
+- **`paths.ts` SSE classify** still hardcodes `projects/<id>/<slug>/plan.md|phases` — the generic fix (emit by declared dataSource glob) needs a manifest-glob resolution layer in the watcher; left working as-is rather than shipping a risky half-rewrite (internal-only, no consumer codes against it).
+- **`readDataSource` derivation has no cycle guard** — a cyclic `derivesFrom` overflows the stack instead of returning a typed `validation_error`.
+- **Consumer (non-project) data endpoint reads project-rooted derived sources against the wrong `baseDir`** — `phases` derived from a `root:'project'` `plans` resolves the parent glob against `consumer.dir` on the consumer endpoint → 0 rows; the `rootAncestor` baseDir logic lives only in `resolveProjectDataSource`.
+- **Kanban `card` slot double-mounts** (desktop + mobile subtrees toggled by CSS `display`, not `v-if`) → own-source slot children fetch 2× and re-fire on every SSE event. Needs viewport `v-if` gating.
+- **`WidgetRenderer` `watchEffect(loadData)` reads route params after the first `await`** → navigating between sibling detail pages (same page, differing route param) doesn't re-fetch.
+- **CardWidget nested-anchor** — slot children with their own `linkTo` render an `<a>` inside the card's `<a>`.
+- **`$parent.<field>`** is single-hop only (`pr[v.slice(8)]`; dotted paths become a literal key) and unescaped — document as a bounded grammar.
+- **Recommended refactors:** a shared `useStatuses(props)` composable (the `statuses` computed is copy-pasted into 10 widgets — the lockstep risk already bit CardWidget) and a shared `toneForValue(value, bands)` util (Sparkline/ProgressBar/PhaseTimeline each hand-roll the threshold loop with divergent cutoffs).
+
+---
+
+## 2026-06-03 — Resolve 4 deferred §2a/§2c code-review findings (cycle guard, project baseDir, slot double-mount, route-param tracking)
+
+### Context
+The "Deferred / handed to the implementer" list from the agnostic de-leak pass (above) was re-surfaced for fix. Validated each against the code, then fixed the 4 correctness bugs (the 5th item is a recommendation, not a bug). An adversarial multi-agent review of the fixes found a sibling occurrence of finding #3 in TableWidget and refuted a spurious TimelineWidget claim.
+
+### Fixes
+- **`readDataSource` cycle guard** (`data-source-reader.ts`) — the `derivesFrom` recursion now threads a `seen: ReadonlySet<string>` and returns a typed `validation_error` (`"... forms a derivesFrom cycle"`) on a cyclic chain (A→B→A or self A→A) instead of recursing to a stack overflow. External callers unchanged (4th param defaults to empty).
+- **Consumer (non-project) endpoint rejects project-rooted sources** (`routes/api-v2.ts`) — both `/api/consumers/:id/data/:dsId` and `.../:slug` now share `resolveConsumerDataSource`, which walks `rootAncestor` and returns a `400 validation_error` (pointing at the project-scoped endpoint) when the source resolves to `root:'project'` — instead of silently reading `consumer.dir` and returning 0 rows. Honors the "no silent failures" iron law. Consumer-rooted sources are unaffected.
+- **Kanban + Table responsive slot gating** — new `composables/useMediaQuery.ts` (reactive, synchronously seeded, jsdom/SSR-safe). `KanbanBoardWidget` and `TableWidget` now render the desktop vs mobile layout via `v-if`/`v-else` keyed on `useMediaQuery('(max-width: 720px)')` (mirrors the `.kb-desktop`/`.kb-mobile` and `.tab-desktop`/`.tab-cards` CSS toggles) so only ONE layout mounts. Previously both subtrees were always in the DOM (CSS `display` toggle), so Kanban's `card` slot fetched 2× per card (and re-fired on every SSE event) and Table's desktop-only `cell:` slot fetched even while hidden on mobile.
+- **`WidgetRenderer` route-param tracking** (`WidgetRenderer.vue`) — `loadData()` now snapshots `route.params` and the injected `projectId` *synchronously before* the first `await` (the §2c param filter previously read them after the `fetchDataSource` await, so `watchEffect` never tracked them). Sibling drill-down navigation (same component instance, only a route param changes) now re-filters. Behavior for the string-param and `{ match }`/`{ field, param }` composite cases is preserved.
+
+### Adversarial review outcome
+- **TableWidget** (above) was caught by the review as the same anti-pattern as Kanban — single `WidgetSlot`, so not a double-fetch but a *hidden-layout* fetch; fixed with the same `v-if` gating.
+- **TimelineWidget** `eventTone()` (`statuses.value?.[kind]?.tone ?? EVENT_TONE[kind] ?? statusInfo(kind).tone`) was flagged as ignoring overrides in the fallback, but the override is the first `??` operand — passing `statuses` to the final `statusInfo` is a no-op, so it was left unchanged.
+
+### Verification
+`tsc --noEmit` clean; **628/628 `npx vitest run` pass**. New regression tests: cycle guard (×2), consumer-endpoint project-source rejection (×3), sibling drill-down re-filter, Kanban single-slot (×2), Table hidden-layout slot (×2). The chokidar `watcher.test.ts` remains timing-flaky under concurrent load (passes in isolation) — untouched by this pass.
+
+### Still deferred (not in this pass)
+`paths.ts` SSE classify hardcoding; CardWidget nested-anchor (`<a>` inside `<a>`); `$parent.<field>` single-hop grammar.
+
+### Follow-up (same day) — `useStatuses` / `toneForValue` DRY refactor applied
+The recommended refactor (deferred above) was then done, behavior-preserving:
+- **`useStatuses(props)`** (`composables/useStatuses.ts`) returns the `computed(() => props.config.statuses)` that had been copy-pasted into 10 widgets (Accordion, Badge, Card, Kanban, KeyValue, List, PhaseTimeline, Table, Timeline, TreeView). Each now calls it; `StatusOverrides` imports dropped where newly unused. CalloutWidget still legitimately omits it (resolves an internal `variant` enum, not consumer data).
+- **`toneForValue(value, bands, fallback='neutral')`** + `ToneBand` (`utils/status.ts`) replaces the hand-rolled "highest ascending band ≤ value" loop in Sparkline (fallback `neutral`), ProgressBar (`[30→warning,50→info,90→success]`, fallback `error`), and PhaseTimeline (`[1→warning,50→info,100→success]`, fallback `neutral`). Divergent cutoffs stay as per-widget band consts; only the loop is shared. Unit tests assert it reproduces each widget's prior thresholds exactly.
+- **Client has no typecheck** (both tsconfigs exclude `src/client`); the safety net was `vite build` (compile + import resolution) + new `status-util` unit tests + a `widget-smoke` test that mounts all 12 refactored widgets. `npx vitest run` passes apart from the documented flaky chokidar watcher/throttle suite (untouched here).
