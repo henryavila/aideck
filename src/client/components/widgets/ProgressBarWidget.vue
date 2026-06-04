@@ -37,6 +37,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import WidgetFrame from '../WidgetFrame.vue'
+import { toneForValue, type ToneBand } from '../../utils/status.js'
 
 interface PBarRow {
   name: string
@@ -63,12 +64,11 @@ const valueField = computed(() => String(props.config.valueField ?? 'value'))
 const maxField = computed(() => String(props.config.maxField ?? 'max'))
 const colorField = computed(() => String(props.config.colorField ?? 'color'))
 
-const TONE_FOR_PCT = (pct: number): string => {
-  if (pct >= 90) return 'success'
-  if (pct >= 50) return 'info'
-  if (pct >= 30) return 'warning'
-  return 'error'
-}
+const PBAR_BANDS: ToneBand[] = [
+  { at: 30, tone: 'warning' },
+  { at: 50, tone: 'info' },
+  { at: 90, tone: 'success' },
+]
 
 const rows = computed<PBarRow[]>(() => {
   const fallbackName = String(props.config.label ?? 'Progress')
@@ -77,7 +77,7 @@ const rows = computed<PBarRow[]>(() => {
     const max = Number(r[maxField.value] ?? props.config.max ?? 100)
     const pct = max ? Math.min(100, Math.round((value / max) * 100)) : 0
     const name = r[labelField.value] != null ? String(r[labelField.value]) : i === 0 ? fallbackName : ''
-    const color = r[colorField.value] != null ? String(r[colorField.value]) : TONE_FOR_PCT(pct)
+    const color = r[colorField.value] != null ? String(r[colorField.value]) : toneForValue(pct, PBAR_BANDS, 'error')
     return { name, value, max, pct, color }
   })
 })

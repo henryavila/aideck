@@ -31,6 +31,7 @@
 import { computed } from 'vue'
 import WidgetFrame from '../WidgetFrame.vue'
 import { statusInfo } from '../../utils/status.js'
+import { useStatuses } from '../../composables/useStatuses.js'
 
 const props = defineProps<{
   source: Record<string, unknown>[]
@@ -42,6 +43,7 @@ const title = computed(() => props.config.title as string | undefined)
 const icon = computed(() => (props.config.icon as string | undefined) ?? '◇')
 const live = computed(() => props.config.live === true)
 const field = computed(() => String(props.config.field ?? 'status'))
+const statuses = useStatuses(props)
 
 const meta = computed(
   () => (props.config.meta as string | undefined) ?? `field · ${field.value}`,
@@ -52,7 +54,7 @@ function valueOf(record: Record<string, unknown>): string {
   return v !== undefined && v !== null ? String(v) : '—'
 }
 
-const singleInfo = computed(() => statusInfo(valueOf(props.source[0] ?? {})))
+const singleInfo = computed(() => statusInfo(valueOf(props.source[0] ?? {}), statuses.value))
 
 const valueCounts = computed<Record<string, number>>(() => {
   const counts: Record<string, number> = {}
@@ -67,7 +69,7 @@ const badges = computed(() => {
   const entries = Object.entries(valueCounts.value)
   const max = entries.reduce((m, [, c]) => Math.max(m, c), 0) || 1
   return entries.map(([value, count]) => {
-    const info = statusInfo(value)
+    const info = statusInfo(value, statuses.value)
     return {
       value,
       label: info.label,

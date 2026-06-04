@@ -13,17 +13,27 @@
           @click="activeIndex = i"
         >
           <span>{{ tab.label }}</span>
-          <span class="tw-ct">{{ tabCounts[i] }}</span>
+          <span v-if="tabCounts[i] !== undefined" class="tw-ct">{{ tabCounts[i] }}</span>
         </button>
       </div>
       <div class="tabw-body" role="tabpanel">
-        <div v-if="panelRows.length === 0" class="lst-empty">// nothing here</div>
-        <div v-else class="lst">
-          <div v-for="(row, i) in panelRows" :key="i" class="lst-row">
-            <span class="l-title">{{ row.title }}</span>
-            <span v-if="row.tail" class="l-tail">{{ row.tail }}</span>
+        <!-- §2b composition: a `panel:<tabId>` slot mounts child widgets for the
+             active tab; falls back to the filtered row list when absent. -->
+        <WidgetSlot
+          v-if="panelBindings.length"
+          :bindings="panelBindings"
+          :depth="depth ?? 0"
+          :consumer-id="consumerId ?? ''"
+        />
+        <template v-else>
+          <div v-if="panelRows.length === 0" class="lst-empty">// nothing here</div>
+          <div v-else class="lst">
+            <div v-for="(row, i) in panelRows" :key="i" class="lst-row">
+              <span class="l-title">{{ row.title }}</span>
+              <span v-if="row.tail" class="l-tail">{{ row.tail }}</span>
+            </div>
           </div>
-        </div>
+        </template>
       </div>
     </div>
   </WidgetFrame>
@@ -32,15 +42,20 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import WidgetFrame from '../WidgetFrame.vue'
+import WidgetSlot from '../WidgetSlot.vue'
 
 const props = defineProps<{
   source: Record<string, unknown>[]
   config: Record<string, unknown>
   consumerId?: string
+  // §2b composition: a `panel:<tabId>` slot of child widgets, per tab.
+  slots?: Record<string, unknown[]>
+  depth?: number
 }>()
 
 interface TabDef {
   label: string
+  id?: string
   count?: number
   filter?: Record<string, unknown>
   widgets?: unknown[]
@@ -79,8 +94,26 @@ function rowsForTab(tab: TabDef): PanelRow[] {
 
 const activeIndex = ref(0)
 const activeTab = computed(() => tabs.value[activeIndex.value])
+
+// Child widgets for the active tab: `panel:<tab.id>` if the tab carries an id,
+// else `panel:<index>`. No generic `panel` fallback — that would render the same
+// widgets on every tab and silently drop the tab's `filter`.
+const panelBindings = computed<unknown[]>(() => {
+  const tab = activeTab.value
+  if (!tab) return []
+  const raw = props.slots?.[`panel:${tab.id ?? activeIndex.value}`] ?? []
+  return Array.isArray(raw) ? raw : []
+})
+
 const panelRows = computed<PanelRow[]>(() => (activeTab.value ? rowsForTab(activeTab.value) : []))
-const tabCounts = computed(() => tabs.value.map((t) => t.count ?? rowsForTab(t).length))
+function tabHasPanel(i: number): boolean {
+  const t = tabs.value[i]
+  return ((props.slots?.[`panel:${t?.id ?? i}`] as unknown[] | undefined)?.length ?? 0) > 0
+}
+// A tab rendering a composed panel has no meaningful row count → omit the badge.
+const tabCounts = computed<(number | undefined)[]>(() =>
+  tabs.value.map((t, i) => t.count ?? (tabHasPanel(i) ? undefined : rowsForTab(t).length)),
+)
 
 const meta = computed(() => {
   const m = props.config.meta

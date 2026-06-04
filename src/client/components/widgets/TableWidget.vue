@@ -9,7 +9,7 @@
     :empty-note="emptyNote"
   >
     <!-- DESKTOP — wide table -->
-    <table class="tab tab-desktop">
+    <table v-if="!isNarrow" class="tab tab-desktop">
       <thead>
         <tr>
           <th v-for="col in columns" :key="col">{{ col }}</th>
@@ -21,13 +21,20 @@
           :key="i"
           :role="linkTo ? 'link' : undefined"
           :tabindex="linkTo ? 0 : undefined"
-          @click="linkTo && navigate()"
-          @keydown.enter="linkTo && navigate()"
+          @click="linkTo && navigate(row)"
+          @keydown.enter="linkTo && navigate(row)"
         >
           <td v-for="col in columns" :key="col" :class="cellClass(col, row[col])">
-            <span v-if="isStatusCol(col)" :class="'schip ' + statusInfo(String(row[col])).tone">
+            <WidgetSlot
+              v-if="slots?.['cell:' + col]?.length"
+              :bindings="slots['cell:' + col]"
+              :parent-record="row"
+              :depth="depth ?? 0"
+              :consumer-id="consumerId ?? ''"
+            />
+            <span v-else-if="isStatusCol(col)" :class="'schip ' + statusInfo(String(row[col]), statuses).tone">
               <span class="dot" />
-              <span>{{ statusInfo(String(row[col])).label }}</span>
+              <span>{{ statusInfo(String(row[col]), statuses).label }}</span>
             </span>
             <span v-else-if="isProgressCol(col)" class="row-pct">
               <span class="bar"><i :style="barStyle(row)" /></span>
@@ -40,21 +47,21 @@
     </table>
 
     <!-- MOBILE — same data, card-list shape -->
-    <ul class="tab-cards" role="list">
+    <ul v-else class="tab-cards" role="list">
       <li
         v-for="(row, i) in source"
         :key="i"
         :class="'tc-row is-' + rowTone(row)"
         :role="linkTo ? 'link' : undefined"
         :tabindex="linkTo ? 0 : undefined"
-        @click="linkTo && navigate()"
-        @keydown.enter="linkTo && navigate()"
+        @click="linkTo && navigate(row)"
+        @keydown.enter="linkTo && navigate(row)"
       >
         <div class="tc-top">
           <span class="tc-id">{{ cardId(row) }}</span>
-          <span v-if="statusCol" :class="'schip ' + statusInfo(String(row[statusCol])).tone">
+          <span v-if="statusCol" :class="'schip ' + statusInfo(String(row[statusCol]), statuses).tone">
             <span class="dot" />
-            <span>{{ statusInfo(String(row[statusCol])).label }}</span>
+            <span>{{ statusInfo(String(row[statusCol]), statuses).label }}</span>
           </span>
         </div>
         <div class="tc-title">{{ cardTitle(row) }}</div>
@@ -81,20 +88,35 @@
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import WidgetFrame from '../WidgetFrame.vue'
+import WidgetSlot from '../WidgetSlot.vue'
+import { useMediaQuery } from '../../composables/useMediaQuery.js'
+import { resolveRowLink } from '../../utils/link.js'
 import { statusInfo, type Tone } from '../../utils/status.js'
+import { useStatuses } from '../../composables/useStatuses.js'
 
 const props = defineProps<{
   source: Record<string, unknown>[]
   config: Record<string, unknown>
   consumerId?: string
+  // §2b composition: `cell:<columnId>` slots render a custom cell per row.
+  slots?: Record<string, unknown[]>
+  depth?: number
 }>()
 
 const router = useRouter()
 const linkTo = computed(() => props.config.linkTo as string | undefined)
+const statuses = useStatuses(props)
 
-function navigate(): void {
+// Render only ONE of the desktop/mobile layouts (v-if, not CSS display). Mirrors
+// the .tab-desktop/.tab-cards toggle in styles/responsive.css (@media max-width:
+// 720px). With CSS display both stay mounted, so the desktop table's `cell:`
+// slots would fetch even while hidden on mobile.
+const isNarrow = useMediaQuery('(max-width: 720px)')
+
+// §2c: interpolate :tokens from the clicked row (static slug passes through).
+function navigate(row: Record<string, unknown>): void {
   if (linkTo.value && props.consumerId) {
-    router.push('/' + props.consumerId + '/' + linkTo.value)
+    router.push(resolveRowLink(linkTo.value, row, props.consumerId))
   }
 }
 
@@ -164,7 +186,7 @@ function cardMeta(row: Record<string, unknown>): string[] {
 
 function rowTone(row: Record<string, unknown>): Tone {
   if (!statusCol.value) return 'neutral'
-  return statusInfo(String(row[statusCol.value])).tone
+  return statusInfo(String(row[statusCol.value]), statuses.value).tone
 }
 
 function barColor(row: Record<string, unknown>): string {

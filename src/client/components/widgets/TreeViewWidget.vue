@@ -24,12 +24,15 @@
 import { computed, defineComponent, ref, h } from 'vue'
 import WidgetFrame from '../WidgetFrame.vue'
 import { statusInfo } from '../../utils/status.js'
+import { useStatuses } from '../../composables/useStatuses.js'
 
 const props = defineProps<{
   source: Record<string, unknown>[]
   config: Record<string, unknown>
   consumerId?: string
 }>()
+
+const statuses = useStatuses(props)
 
 const title = computed(() => props.config.title as string | undefined)
 const icon = computed(() => (props.config.icon as string | undefined) ?? '⊟')
@@ -89,7 +92,7 @@ const TreeNode = defineComponent({
 
     return () => {
       const node = nodeProps.node
-      const info = node.status ? statusInfo(node.status) : null
+      const info = node.status ? statusInfo(node.status, statuses.value) : null
 
       const rowChildren = [
         h(

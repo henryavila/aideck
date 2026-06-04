@@ -9,7 +9,7 @@
     empty-note="no columns configured"
   >
     <!-- DESKTOP — tonal column grid -->
-    <div class="kb kb-desktop" :style="{ gridTemplateColumns: `repeat(${columns.length}, 1fr)` }">
+    <div v-if="!isNarrow" class="kb kb-desktop" :style="{ gridTemplateColumns: `repeat(${columns.length}, 1fr)` }">
       <div v-for="col in columns" :key="col.id" class="kb-col" :data-col="col.id">
         <div class="kb-col-h">
           <span class="accent" :class="`tone-${columnTone(col.id)}`" />
@@ -38,13 +38,20 @@
             <div v-if="card.tags.length" class="tags">
               <span v-for="(t, ti) in card.tags" :key="t" class="tk" :class="`t-${tagIndex(ti)}`">{{ t }}</span>
             </div>
+            <WidgetSlot
+              v-if="slots?.card?.length"
+              :bindings="slots.card"
+              :parent-record="card"
+              :depth="depth ?? 0"
+              :consumer-id="consumerId ?? ''"
+            />
           </div>
         </div>
       </div>
     </div>
 
     <!-- MOBILE — segmented control + single column -->
-    <div class="kb-mobile">
+    <div v-else class="kb-mobile">
       <div class="kb-seg" role="tablist">
         <button
           v-for="(col, i) in columns"
@@ -87,6 +94,13 @@
             <div v-if="card.tags.length" class="tags">
               <span v-for="(t, ti) in card.tags" :key="t" class="tk" :class="`t-${tagIndex(ti)}`">{{ t }}</span>
             </div>
+            <WidgetSlot
+              v-if="slots?.card?.length"
+              :bindings="slots.card"
+              :parent-record="card"
+              :depth="depth ?? 0"
+              :consumer-id="consumerId ?? ''"
+            />
           </div>
         </div>
       </div>
@@ -97,7 +111,10 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import WidgetFrame from '../WidgetFrame.vue'
+import WidgetSlot from '../WidgetSlot.vue'
+import { useMediaQuery } from '../../composables/useMediaQuery.js'
 import { statusInfo } from '../../utils/status.js'
+import { useStatuses } from '../../composables/useStatuses.js'
 
 interface KanbanCard {
   id: string
@@ -116,10 +133,20 @@ const props = defineProps<{
   source: Record<string, unknown>[]
   config: Record<string, unknown>
   consumerId?: string
+  // §2b composition: a `card` slot overlays each kanban card (the card record,
+  // which spreads the full row incl. rollup fields, is the slot scope).
+  slots?: Record<string, unknown[]>
+  depth?: number
 }>()
 
 const title = computed(() => (props.config.title as string | undefined) ?? 'issues')
 const live = computed(() => props.config.live === true)
+
+// Render only ONE of the desktop/mobile layouts (v-if, not CSS display). The
+// breakpoint mirrors the `.kb-desktop`/`.kb-mobile` toggle in
+// styles/responsive.css (@media max-width: 720px). With CSS display both
+// subtrees stay mounted, so each card's `card` slot would fetch twice.
+const isNarrow = useMediaQuery('(max-width: 720px)')
 
 const statusField = computed(() => String(props.config.statusField ?? 'status'))
 const titleField = computed(() => String(props.config.titleField ?? 'title'))
@@ -146,12 +173,14 @@ const columns = computed<KanbanColumn[]>(() => {
   return DEFAULT_COLUMNS
 })
 
+const statuses = useStatuses(props)
+
 function columnTone(id: string): string {
-  return statusInfo(id).tone
+  return statusInfo(id, statuses.value).tone
 }
 
 function columnAccent(id: string): string {
-  const tone = statusInfo(id).tone
+  const tone = statusInfo(id, statuses.value).tone
   if (tone === 'info') return 'accent-info'
   if (tone === 'success') return 'accent-success'
   if (tone === 'warning') return 'accent-warning'

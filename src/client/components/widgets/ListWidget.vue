@@ -9,12 +9,15 @@
   >
     <div class="lst">
       <div v-for="(item, i) in source" :key="i" class="lst-row">
-        <span v-if="leadOf(item)" class="l-lead">{{ leadOf(item) }}</span>
-        <span class="l-title">{{ itemTitle(item) }}</span>
-        <span v-if="tailOf(item)" class="l-tail">
-          <span v-if="isStatusTail(item)" :class="'schip ' + statusInfo(tailOf(item)).tone">
+        <WidgetSlot v-if="slots?.lead?.length" :bindings="slots.lead" :parent-record="item" :depth="depth ?? 0" :consumer-id="consumerId ?? ''" />
+        <span v-else-if="leadOf(item)" class="l-lead">{{ leadOf(item) }}</span>
+        <WidgetSlot v-if="slots?.item?.length" :bindings="slots.item" :parent-record="item" :depth="depth ?? 0" :consumer-id="consumerId ?? ''" />
+        <span v-else class="l-title">{{ itemTitle(item) }}</span>
+        <WidgetSlot v-if="slots?.tail?.length" :bindings="slots.tail" :parent-record="item" :depth="depth ?? 0" :consumer-id="consumerId ?? ''" />
+        <span v-else-if="tailOf(item)" class="l-tail">
+          <span v-if="isStatusTail(item)" :class="'schip ' + statusInfo(tailOf(item), statuses).tone">
             <span class="dot" />
-            <span>{{ statusInfo(tailOf(item)).label }}</span>
+            <span>{{ statusInfo(tailOf(item), statuses).label }}</span>
           </span>
           <span v-else class="l-sub">{{ tailOf(item) }}</span>
         </span>
@@ -26,14 +29,20 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import WidgetFrame from '../WidgetFrame.vue'
+import WidgetSlot from '../WidgetSlot.vue'
 import { statusInfo } from '../../utils/status.js'
+import { useStatuses } from '../../composables/useStatuses.js'
 
 const props = defineProps<{
   source: Record<string, unknown>[]
   config: Record<string, unknown>
   consumerId?: string
+  // §2b composition: `lead` / `item` / `tail` slots render per-row with the item in scope.
+  slots?: Record<string, unknown[]>
+  depth?: number
 }>()
 
+const statuses = useStatuses(props)
 const title = computed(() => props.config.title as string | undefined)
 const live = computed(() => props.config.live === true)
 const meta = computed(() => props.config.meta as string | undefined)

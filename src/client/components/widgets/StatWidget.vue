@@ -9,6 +9,14 @@
           <span>{{ delta }}</span>
         </span>
       </span>
+      <div v-if="slots?.trend?.length" class="stat-trend">
+        <WidgetSlot
+          :bindings="slots.trend"
+          :parent-record="source[0]"
+          :depth="depth ?? 0"
+          :consumer-id="consumerId ?? ''"
+        />
+      </div>
     </div>
   </WidgetFrame>
 </template>
@@ -16,11 +24,15 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import WidgetFrame from '../WidgetFrame.vue'
+import WidgetSlot from '../WidgetSlot.vue'
 
 const props = defineProps<{
   source: Record<string, unknown>[]
   config: Record<string, unknown>
   consumerId?: string
+  // §2b composition: a `trend` slot (e.g. a sparkline) under the number.
+  slots?: Record<string, unknown[]>
+  depth?: number
 }>()
 
 const title = computed(() => props.config.title as string | undefined)
@@ -37,6 +49,13 @@ const computedValue = computed(() => {
     return props.source.filter((r) => String(r[key]) === val).length
   }
   if (expr === 'count()') return props.source.length
+  // §2b: `field(<name>)` reads a field off the first record — used by a
+  // source-less stat slot bound to its parent (e.g. value: field(currentPhase)).
+  const fieldMatch = expr.match(/^field\((\w+)\)$/)
+  if (fieldMatch) {
+    const v = props.source[0]?.[fieldMatch[1]]
+    return v === undefined || v === null ? '—' : String(v)
+  }
   return expr
 })
 

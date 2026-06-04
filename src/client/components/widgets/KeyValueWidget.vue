@@ -12,9 +12,9 @@
         <template v-for="field in visibleFields(row)" :key="field">
           <span class="k">{{ field }}</span>
           <span v-if="field === 'status'" class="v">
-            <span class="schip" :class="statusInfo(String(row[field])).tone">
+            <span class="schip" :class="statusInfo(String(row[field]), statuses).tone">
               <span class="dot" />
-              <span>{{ statusInfo(String(row[field])).label }}</span>
+              <span>{{ statusInfo(String(row[field]), statuses).label }}</span>
             </span>
           </span>
           <span
@@ -32,6 +32,7 @@
 import { computed } from 'vue'
 import WidgetFrame from '../WidgetFrame.vue'
 import { statusInfo } from '../../utils/status.js'
+import { useStatuses } from '../../composables/useStatuses.js'
 
 const props = defineProps<{
   source: Record<string, unknown>[]
@@ -40,6 +41,7 @@ const props = defineProps<{
 }>()
 
 const rows = computed(() => props.source)
+const statuses = useStatuses(props)
 
 const title = computed(() => props.config.title as string | undefined)
 const icon = computed(() => props.config.icon as string | undefined)

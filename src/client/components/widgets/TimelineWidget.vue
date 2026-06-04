@@ -33,12 +33,15 @@
 import { computed } from 'vue'
 import WidgetFrame from '../WidgetFrame.vue'
 import { statusInfo, shortTime, relTime, type Tone } from '../../utils/status.js'
+import { useStatuses } from '../../composables/useStatuses.js'
 
 const props = defineProps<{
   source: Record<string, unknown>[]
   config: Record<string, unknown>
   consumerId?: string
 }>()
+
+const statuses = useStatuses(props)
 
 const title = computed(() => (props.config.title as string | undefined) ?? 'Recent Activity')
 const live = computed(() => props.config.live === true)
@@ -56,7 +59,8 @@ const EVENT_TONE: Record<string, Tone> = {
 }
 
 function eventTone(kind: string): Tone {
-  return EVENT_TONE[kind] ?? statusInfo(kind).tone
+  // consumer `statuses` override wins, then the built-in event seed, then the map
+  return statuses.value?.[kind]?.tone ?? EVENT_TONE[kind] ?? statusInfo(kind).tone
 }
 
 const events = computed(() =>
@@ -65,9 +69,9 @@ const events = computed(() =>
     const kind = String(r[kindField.value] ?? '')
     const refId = String(r[refField.value] ?? '')
     const rawTitle = String(r[titleField.value] ?? '')
-    const title = refId
-      ? rawTitle.replace(`${refId} `, '').replace('Task ', '').replace('Project ', '')
-      : rawTitle
+    // Strip only the consumer's own refId prefix — never domain words (was
+    // mutating any title starting with "Task "/"Project ").
+    const title = refId ? rawTitle.replace(`${refId} `, '') : rawTitle
     return {
       ts,
       short: shortTime(ts),
