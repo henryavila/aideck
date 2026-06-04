@@ -7,7 +7,7 @@ import { executeScript, type ScriptSandboxOptions } from '../../server/handlers/
 import { executeComposite } from '../../server/handlers/composite.js'
 import type { ToolRegistry } from '../registry.js'
 import type { ConsumerRegistry, RegisteredConsumer } from '../../server/consumer-registry.js'
-import type { HandlerDecl, ToolDeclaration } from '../../server/manifest-schema.js'
+import type { DataSourceDecl, HandlerDecl, ToolDeclaration } from '../../server/manifest-schema.js'
 import type { McpToolContext, McpResult } from '../types.js'
 
 function jsonSchemaToZod(input: {
@@ -21,9 +21,21 @@ function jsonSchemaToZod(input: {
   return z.object(shape).passthrough()
 }
 
-/** A dataSource's read base: the registered repo for root:'project', else the consumer dir. */
-function baseDirFor(consumer: RegisteredConsumer, ds: { root?: string }, rootDir: string): string {
-  return ds.root === 'project' ? rootDir : consumer.dir
+/**
+ * A dataSource's read base: the registered repo for root:'project', else the
+ * consumer dir. A derived source (§2a) has no `root` of its own — follow the
+ * derivesFrom chain to the root ancestor it ultimately reads from.
+ */
+function baseDirFor(consumer: RegisteredConsumer, ds: DataSourceDecl, rootDir: string): string {
+  let cur = ds
+  const seen = new Set<string>()
+  while (cur.derivesFrom && !seen.has(cur.id)) {
+    seen.add(cur.id)
+    const parent = consumer.manifest.dataSources.find((s) => s.id === cur.derivesFrom)
+    if (!parent) break
+    cur = parent
+  }
+  return cur.root === 'project' ? rootDir : consumer.dir
 }
 
 async function loadConsumerData(
@@ -32,7 +44,7 @@ async function loadConsumerData(
 ): Promise<Map<string, unknown[]>> {
   const dataMap = new Map<string, unknown[]>()
   for (const ds of consumer.manifest.dataSources) {
-    const result = await readDataSource(baseDirFor(consumer, ds, rootDir), ds)
+    const result = await readDataSource(baseDirFor(consumer, ds, rootDir), ds, consumer.manifest.dataSources)
     if (result.ok) dataMap.set(ds.id, result.value.records)
   }
   return dataMap

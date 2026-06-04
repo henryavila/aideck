@@ -66,7 +66,7 @@ export function registerGenericTools(
         })
       }
 
-      const result = await readDataSource(consumer.dir, decl)
+      const result = await readDataSource(consumer.dir, decl, consumer.manifest.dataSources)
       if (!result.ok) return result
 
       let records = result.value.records
@@ -111,7 +111,7 @@ export function registerGenericTools(
         })
       }
 
-      const result = await readDataSource(consumer.dir, decl)
+      const result = await readDataSource(consumer.dir, decl, consumer.manifest.dataSources)
       if (!result.ok) return result
 
       if (!input.slug) {

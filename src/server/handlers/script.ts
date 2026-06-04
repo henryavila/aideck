@@ -34,6 +34,7 @@ export function computeWritablePaths(
   // repo's tree (e.g. .atomic-skills/bootstrap-drafts/inbox/), not the consumer dir.
   for (const ds of dataSources) {
     if (ds.format !== 'jsonl') continue
+    if (!ds.path) continue
     const base = ds.root === 'project' ? wb : consumerDir
     const starIdx = ds.path.indexOf('*')
     if (starIdx === -1) {

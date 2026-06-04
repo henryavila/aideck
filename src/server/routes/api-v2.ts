@@ -35,6 +35,42 @@ function errResp(
 export function createApiV2Router(deps: ApiV2Deps): Hono {
   const app = new Hono()
 
+  // Resolve a consumer-dir data source for the non-project endpoints. A source
+  // whose root ancestor is `root: 'project'` has no project context here, so
+  // reading it from consumer.dir would silently yield 0 rows — reject it and
+  // point at the project-scoped endpoint (no silent failures).
+  function resolveConsumerDataSource(
+    c: Context
+  ): { baseDir: string; decl: DataSourceDecl; allSources: DataSourceDecl[] } | Response {
+    const id = c.req.param('id') ?? ''
+    const dataSourceId = c.req.param('dataSourceId') ?? ''
+    const consumer = deps.consumers.get(id)
+    if (!consumer) return errResp(c, 'consumer_not_found', `consumer "${id}" not found`, 404)
+    const allSources = consumer.manifest.dataSources
+    const decl = allSources.find((ds) => ds.id === dataSourceId)
+    if (!decl) {
+      return errResp(
+        c,
+        'data_source_not_found',
+        `data source "${dataSourceId}" not found in consumer "${id}"`,
+        404
+      )
+    }
+    if (rootAncestor(decl, allSources).root === 'project') {
+      return errResp(
+        c,
+        'validation_error',
+        `data source "${dataSourceId}" is project-scoped; read it via /api/consumers/${id}/projects/:projectId/data/${dataSourceId}`,
+        400,
+        {
+          suggestion:
+            "This source resolves against a registered project root (root: 'project', directly or via derivesFrom) — select a project and use the project-scoped endpoint."
+        }
+      )
+    }
+    return { baseDir: consumer.dir, decl, allSources }
+  }
+
   app.get('/api/health', (c) => {
     const list = deps.consumers.list()
     return c.json({
@@ -73,25 +109,10 @@ export function createApiV2Router(deps: ApiV2Deps): Hono {
   })
 
   app.get('/api/consumers/:id/data/:dataSourceId', async (c) => {
-    const id = c.req.param('id')
-    const dataSourceId = c.req.param('dataSourceId')
+    const resolved = resolveConsumerDataSource(c)
+    if (resolved instanceof Response) return resolved
 
-    const consumer = deps.consumers.get(id)
-    if (!consumer) {
-      return errResp(c, 'consumer_not_found', `consumer "${id}" not found`, 404)
-    }
-
-    const decl = consumer.manifest.dataSources.find((ds) => ds.id === dataSourceId)
-    if (!decl) {
-      return errResp(
-        c,
-        'data_source_not_found',
-        `data source "${dataSourceId}" not found in consumer "${id}"`,
-        404
-      )
-    }
-
-    const result = await readDataSource(consumer.dir, decl)
+    const result = await readDataSource(resolved.baseDir, resolved.decl, resolved.allSources)
     if (!result.ok) {
       return errResp(c, result.error.code, result.error.message, 500, {
         suggestion: result.error.suggestion,
@@ -103,26 +124,12 @@ export function createApiV2Router(deps: ApiV2Deps): Hono {
   })
 
   app.get('/api/consumers/:id/data/:dataSourceId/:slug', async (c) => {
-    const id = c.req.param('id')
-    const dataSourceId = c.req.param('dataSourceId')
+    const resolved = resolveConsumerDataSource(c)
+    if (resolved instanceof Response) return resolved
+    const dataSourceId = resolved.decl.id
     const slug = c.req.param('slug')
 
-    const consumer = deps.consumers.get(id)
-    if (!consumer) {
-      return errResp(c, 'consumer_not_found', `consumer "${id}" not found`, 404)
-    }
-
-    const decl = consumer.manifest.dataSources.find((ds) => ds.id === dataSourceId)
-    if (!decl) {
-      return errResp(
-        c,
-        'data_source_not_found',
-        `data source "${dataSourceId}" not found in consumer "${id}"`,
-        404
-      )
-    }
-
-    const result = await readDataSource(consumer.dir, decl)
+    const result = await readDataSource(resolved.baseDir, resolved.decl, resolved.allSources)
     if (!result.ok) {
       return errResp(c, result.error.code, result.error.message, 500, {
         suggestion: result.error.suggestion,
@@ -154,9 +161,24 @@ export function createApiV2Router(deps: ApiV2Deps): Hono {
   // project's rootDir (the repo's git-tracked .atomic-skills/ tree, read in
   // place). `root: 'consumer'` sources still read from the consumer dir.
 
+  // A derived source (§2a) has no `root` of its own — its baseDir must follow
+  // the root *ancestor* it ultimately derives from (e.g. `phases` → `plans`,
+  // root: 'project'). Walk the derivesFrom chain (cycle-guarded) to that source.
+  function rootAncestor(decl: DataSourceDecl, all: DataSourceDecl[]): DataSourceDecl {
+    let cur = decl
+    const seen = new Set<string>()
+    while (cur.derivesFrom && !seen.has(cur.id)) {
+      seen.add(cur.id)
+      const parent = all.find((ds) => ds.id === cur.derivesFrom)
+      if (!parent) break
+      cur = parent
+    }
+    return cur
+  }
+
   function resolveProjectDataSource(
     c: Context
-  ): { decl: DataSourceDecl; baseDir: string } | Response {
+  ): { decl: DataSourceDecl; baseDir: string; allSources: DataSourceDecl[] } | Response {
     const id = c.req.param('id') ?? ''
     const projectId = c.req.param('projectId') ?? ''
     const dataSourceId = c.req.param('dataSourceId') ?? ''
@@ -166,7 +188,8 @@ export function createApiV2Router(deps: ApiV2Deps): Hono {
     if (!project) {
       return errResp(c, 'path_not_found', `project "${projectId}" not registered`, 404)
     }
-    const decl = consumer.manifest.dataSources.find((ds) => ds.id === dataSourceId)
+    const allSources = consumer.manifest.dataSources
+    const decl = allSources.find((ds) => ds.id === dataSourceId)
     if (!decl) {
       return errResp(
         c,
@@ -175,8 +198,9 @@ export function createApiV2Router(deps: ApiV2Deps): Hono {
         404
       )
     }
-    const baseDir = decl.root === 'project' ? project.rootDir : consumer.dir
-    return { decl, baseDir }
+    const baseSource = rootAncestor(decl, allSources)
+    const baseDir = baseSource.root === 'project' ? project.rootDir : consumer.dir
+    return { decl, baseDir, allSources }
   }
 
   app.get('/api/consumers/:id/projects', (c) => {
@@ -191,7 +215,7 @@ export function createApiV2Router(deps: ApiV2Deps): Hono {
   app.get('/api/consumers/:id/projects/:projectId/data/:dataSourceId', async (c) => {
     const resolved = resolveProjectDataSource(c)
     if (resolved instanceof Response) return resolved
-    const result = await readDataSource(resolved.baseDir, resolved.decl)
+    const result = await readDataSource(resolved.baseDir, resolved.decl, resolved.allSources)
     if (!result.ok) {
       return errResp(c, result.error.code, result.error.message, 500, {
         suggestion: result.error.suggestion,
@@ -205,7 +229,7 @@ export function createApiV2Router(deps: ApiV2Deps): Hono {
     const resolved = resolveProjectDataSource(c)
     if (resolved instanceof Response) return resolved
     const slug = c.req.param('slug')
-    const result = await readDataSource(resolved.baseDir, resolved.decl)
+    const result = await readDataSource(resolved.baseDir, resolved.decl, resolved.allSources)
     if (!result.ok) {
       return errResp(c, result.error.code, result.error.message, 500, {
         suggestion: result.error.suggestion,

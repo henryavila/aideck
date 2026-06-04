@@ -8,31 +8,63 @@ const mcpNamespaceSchema = z
   .string()
   .regex(/^[a-z][a-z0-9_]{0,31}$/, 'mcpNamespace must match [a-z][a-z0-9_]{0,31}')
 
-const dataSourceSchema = z.object({
-  id: z.string().min(1),
-  path: z.string().min(1),
-  format: z.enum(['yaml', 'frontmatter', 'json', 'jsonl']),
-  schema: z.record(z.unknown()).optional(),
-  /**
-   * Resolution root for `path`:
-   *   - 'consumer' (default): relative to the consumer dir (~/.aideck/consumers/<id>/).
-   *   - 'project': relative to a registered project's rootDir. The path then
-   *     typically begins with `.atomic-skills/...` and is served by the
-   *     project-scoped endpoint `/api/consumers/:id/projects/:projectId/data/:ds`.
-   *     Lets a consumer read a repo's git-tracked tree in place — no copy into
-   *     the consumer dir.
-   */
-  root: z.enum(['consumer', 'project']).optional(),
-  /**
-   * Names for the glob wildcards in `path`, left-to-right. Each `*` / `**`
-   * segment captures the matched path segment(s); the captured value is
-   * injected onto every record read from that file under the corresponding
-   * name. Example: path `.atomic-skills/projects/<star>/<star>/plan.md` with
-   * captures `[projectId, planSlug]` tags each plan record with its projectId
-   * and planSlug — the "flatten + projectId" grouping.
-   */
-  captures: z.array(z.string().min(1)).optional()
-})
+const dataSourceSchema = z
+  .object({
+    id: z.string().min(1),
+    // Optional because a *derived* source (`derivesFrom`) has no file path.
+    path: z.string().min(1).optional(),
+    // Optional for the same reason; a file source must still declare it (refined below).
+    format: z.enum(['yaml', 'frontmatter', 'json', 'jsonl']).optional(),
+    schema: z.record(z.unknown()).optional(),
+    /**
+     * Resolution root for `path`:
+     *   - 'consumer' (default): relative to the consumer dir (~/.aideck/consumers/<id>/).
+     *   - 'project': relative to a registered project's rootDir. The path then
+     *     typically begins with `.atomic-skills/...` and is served by the
+     *     project-scoped endpoint `/api/consumers/:id/projects/:projectId/data/:ds`.
+     *     Lets a consumer read a repo's git-tracked tree in place — no copy into
+     *     the consumer dir.
+     */
+    root: z.enum(['consumer', 'project']).optional(),
+    /**
+     * Names for the glob wildcards in `path`, left-to-right. Each `*` / `**`
+     * segment captures the matched path segment(s); the captured value is
+     * injected onto every record read from that file under the corresponding
+     * name. Example: path `.atomic-skills/projects/<star>/<star>/plan.md` with
+     * captures `[projectId, planSlug]` tags each plan record with its projectId
+     * and planSlug — the "flatten + projectId" grouping.
+     */
+    captures: z.array(z.string().min(1)).optional(),
+    /**
+     * Array-explode projection (§2a). A *derived* dataSource flattens a nested
+     * array field of a parent source into one record per element. The parent's
+     * scalars listed in `carry` (plus any glob captures already injected on the
+     * parent, e.g. projectId/planSlug) are copied onto each child record, which
+     * also gets `_parentId` and `_index` (stable order).
+     *   - `derivesFrom`: the parent dataSource `id`.
+     *   - `explode`: the nested array field on each parent record to flatten.
+     *   - `carry`: parent scalar field names copied onto each child record.
+     *   - `parentKey`: which parent field identifies it on `_parentId`. When
+     *     omitted, falls back to the parent's `id`/`slug` (a convenience, not an
+     *     assumption — name your own identity field for non-conventional data).
+     */
+    derivesFrom: z.string().min(1).optional(),
+    explode: z.string().min(1).optional(),
+    carry: z.array(z.string().min(1)).optional(),
+    parentKey: z.string().min(1).optional()
+  })
+  // Exactly one of `path` (file source) or `derivesFrom` (derived source).
+  .refine((d) => (d.path !== undefined) !== (d.derivesFrom !== undefined), {
+    message:
+      'dataSource must declare exactly one of `path` (file source) or `derivesFrom` (derived/exploded source)'
+  })
+  // A file source must declare a format; a derived source must declare what to explode.
+  .refine((d) => d.path === undefined || d.format !== undefined, {
+    message: 'a file dataSource (`path`) must declare `format`'
+  })
+  .refine((d) => d.derivesFrom === undefined || d.explode !== undefined, {
+    message: 'a derived dataSource (`derivesFrom`) must also declare `explode`'
+  })
 
 export type DataSourceDecl = z.infer<typeof dataSourceSchema>
 
@@ -49,32 +81,79 @@ const responsiveOverrideSchema = z.object({
 const sourceBindingSchema = z.object({
   ref: z.string().min(1),
   filter: z.record(z.unknown()).optional(),
-  param: z.string().optional()
-})
-
-const widgetBindingSchema = z.object({
-  widget: z.string().min(1),
-  colSpan: colSpanSchema.optional(),
-  colStart: colStartSchema.optional(),
-  rowSpan: z.number().int().min(1).optional(),
-  minColSpan: colSpanSchema.optional(),
-  maxColSpan: colSpanSchema.optional(),
-  source: sourceBindingSchema.optional(),
-  config: z.record(z.unknown()).optional(),
-  repeat: z.string().optional(),
-  repeatDirection: z.enum(['horizontal', 'vertical']).optional(),
-  maxRepeatColumns: z.number().optional(),
-  responsive: z
-    .object({
-      sm: responsiveOverrideSchema.optional(),
-      md: responsiveOverrideSchema.optional(),
-      lg: responsiveOverrideSchema.optional(),
-      xl: responsiveOverrideSchema.optional()
-    })
+  // §2c drill-down. A string matches a single route param against r.id/r.slug.
+  // `{ match: [...] }` matches each entry against a route param: a bare string
+  // `"f"` means record[f] === route.params[f]; an object `{field, param}` maps a
+  // record field to a differently-named route param (e.g. filter children by
+  // `{field: planSlug, param: slug}` on a /plan/:projectId/:slug page).
+  param: z
+    .union([
+      z.string(),
+      z.object({
+        match: z
+          .array(
+            z.union([
+              z.string().min(1),
+              z.object({ field: z.string().min(1), param: z.string().min(1) })
+            ])
+          )
+          .min(1)
+      })
+    ])
     .optional()
 })
 
-export type WidgetBinding = z.infer<typeof widgetBindingSchema>
+/**
+ * Explicit recursive type for a widget binding. `slots` (§2b widget composition)
+ * makes the binding self-referential, so the schema is declared via `z.lazy()`
+ * with this hand-written type — the same pattern as `handlerDeclSchema` below.
+ */
+export interface WidgetBinding {
+  widget: string
+  colSpan?: number
+  colStart?: number
+  rowSpan?: number
+  minColSpan?: number
+  maxColSpan?: number
+  source?: z.infer<typeof sourceBindingSchema>
+  config?: Record<string, unknown>
+  repeat?: string
+  repeatDirection?: 'horizontal' | 'vertical'
+  maxRepeatColumns?: number
+  responsive?: {
+    sm?: z.infer<typeof responsiveOverrideSchema>
+    md?: z.infer<typeof responsiveOverrideSchema>
+    lg?: z.infer<typeof responsiveOverrideSchema>
+    xl?: z.infer<typeof responsiveOverrideSchema>
+  }
+  /** Named slot -> ordered child widget bindings (rendered inside this host widget). */
+  slots?: Record<string, WidgetBinding[]>
+}
+
+const widgetBindingSchema: z.ZodType<WidgetBinding> = z.lazy(() =>
+  z.object({
+    widget: z.string().min(1),
+    colSpan: colSpanSchema.optional(),
+    colStart: colStartSchema.optional(),
+    rowSpan: z.number().int().min(1).optional(),
+    minColSpan: colSpanSchema.optional(),
+    maxColSpan: colSpanSchema.optional(),
+    source: sourceBindingSchema.optional(),
+    config: z.record(z.unknown()).optional(),
+    repeat: z.string().optional(),
+    repeatDirection: z.enum(['horizontal', 'vertical']).optional(),
+    maxRepeatColumns: z.number().optional(),
+    responsive: z
+      .object({
+        sm: responsiveOverrideSchema.optional(),
+        md: responsiveOverrideSchema.optional(),
+        lg: responsiveOverrideSchema.optional(),
+        xl: responsiveOverrideSchema.optional()
+      })
+      .optional(),
+    slots: z.record(z.array(widgetBindingSchema)).optional()
+  })
+)
 
 const sectionSchema = z.object({
   title: z.string().optional(),

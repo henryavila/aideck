@@ -22,7 +22,9 @@ async function findConsumerDir(startDir: string): Promise<string | null> {
 }
 
 function pathMatchesDataSource(filePath: string, consumerDir: string, decl: DataSourceDecl): boolean {
+  // Derived sources (§2a) have no `path` — a data file never matches them.
   const pattern = decl.path
+  if (pattern === undefined) return false
   const relFile = relative(consumerDir, filePath)
 
   if (!pattern.includes('*')) {

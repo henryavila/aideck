@@ -100,10 +100,21 @@ const manifest = ref<Record<string, unknown> | null>(null)
 // the project-scoped endpoint for the selected project. The ref is provided to
 // WidgetRenderer (which injects it). Seeded from ?project= for deep-link/refresh.
 const projects = ref<ProjectSummary[]>([])
+// Seeded from the drill-down path param (/:consumerId/:pageSlug/:projectId/:slug)
+// first, else ?project= — for deep-link/refresh into a project-scoped detail page.
 const selectedProjectId = ref<string | undefined>(
-  typeof route.query.project === 'string' ? route.query.project : undefined
+  (typeof route.params.projectId === 'string' && route.params.projectId
+    ? route.params.projectId
+    : undefined) ?? (typeof route.query.project === 'string' ? route.query.project : undefined)
 )
 provide(PROJECT_ID_KEY, selectedProjectId)
+// Keep the scope in sync when navigating between detail pages client-side.
+watch(
+  () => route.params.projectId,
+  (pid) => {
+    if (typeof pid === 'string' && pid) selectedProjectId.value = pid
+  }
+)
 
 const consumerId = computed(() => String(route.params.consumerId))
 const pageSlug = computed(() => route.params.pageSlug as string | undefined)

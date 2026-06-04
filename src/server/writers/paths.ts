@@ -79,6 +79,9 @@ export function extractConsumerId(filePath: string, rootDir: string): string | n
   const head = rel.split(sep)[0]
   if (!head) return null
   if (ENTITY_DIRS.has(head)) return DEFAULT_CONSUMER
+  // Nested project layout `.atomic-skills/projects/<id>/<slug>/...` written by
+  // the project-status skill — attributed to DEFAULT_CONSUMER like the flat layout.
+  if (head === 'projects') return DEFAULT_CONSUMER
   return head
 }
 
@@ -99,6 +102,23 @@ export function classifyFile(filePath: string, rootDir: string): { consumer: str
   if (relFromAtomic.startsWith('..') || relFromAtomic === '') return null
   const parts = relFromAtomic.split(sep).filter((p) => p !== '')
   if (parts.length === 0) return null
+
+  // §2d — nested project layout: `projects/<projectId>/<slug>/plan.md` and
+  // `projects/<projectId>/<slug>/phases/<file>.md` (the layout the project-status
+  // skill actually writes). Without this branch these fall through to
+  // kind:'other' and the watcher emits no state-change → no live refresh.
+  // The returned slug matches the data-source captures (planSlug = <slug>,
+  // phaseFile = <file>) so it aligns with the project-scoped read path.
+  if (parts[0] === 'projects') {
+    if (parts.length === 4 && parts[3] === 'plan.md') {
+      return { consumer: DEFAULT_CONSUMER, kind: 'plan', slug: parts[2] }
+    }
+    const last = parts[parts.length - 1]
+    if (parts.length >= 5 && parts[3] === 'phases' && last.endsWith('.md')) {
+      return { consumer: DEFAULT_CONSUMER, kind: 'initiative', slug: last.slice(0, -3) }
+    }
+    return { consumer: DEFAULT_CONSUMER, kind: 'other' }
+  }
 
   const head = parts[0]
   let consumer: string

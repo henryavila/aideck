@@ -12,6 +12,8 @@
           :source="group.records"
           :config="binding.config ?? {}"
           :consumer-id="consumerId"
+          :slots="binding.slots"
+          :depth="depth ?? 0"
         />
       </div>
     </div>
@@ -23,6 +25,8 @@
       :source="sourceData"
       :config="binding.config ?? {}"
       :consumer-id="consumerId"
+      :slots="binding.slots"
+      :depth="depth ?? 0"
     />
     <div v-else class="unknown-widget">
       Unknown widget: {{ binding.widget }}
@@ -40,8 +44,11 @@ import AccordionWidget from './widgets/AccordionWidget.vue'
 import BadgeWidget from './widgets/BadgeWidget.vue'
 import BarChartWidget from './widgets/BarChartWidget.vue'
 import BreadcrumbWidget from './widgets/BreadcrumbWidget.vue'
+import CalloutWidget from './widgets/CalloutWidget.vue'
 import CardWidget from './widgets/CardWidget.vue'
 import CodeBlockWidget from './widgets/CodeBlockWidget.vue'
+import PhaseTimelineWidget from './widgets/PhaseTimelineWidget.vue'
+import SparklineWidget from './widgets/SparklineWidget.vue'
 import ContainerWidget from './widgets/ContainerWidget.vue'
 import DrawerWidget from './widgets/DrawerWidget.vue'
 import GaugeWidget from './widgets/GaugeWidget.vue'
@@ -68,8 +75,12 @@ const widgetMap: Record<string, Component> = {
   'badge': BadgeWidget,
   'bar-chart': BarChartWidget,
   'breadcrumb': BreadcrumbWidget,
+  'callout': CalloutWidget,
   'card': CardWidget,
   'card-grid': CardWidget,
+  'phase-timeline': PhaseTimelineWidget,
+  'stepper': PhaseTimelineWidget,
+  'sparkline': SparklineWidget,
   'code-block': CodeBlockWidget,
   'container': ContainerWidget,
   'drawer': DrawerWidget,
@@ -98,17 +109,32 @@ interface RepeatGroup {
   records: Record<string, unknown>[]
 }
 
-const props = defineProps<{
-  binding: {
-    widget: string
-    source?: { ref?: string; filter?: Record<string, unknown>; param?: string }
-    config?: Record<string, unknown>
-    colSpan?: number
-    repeat?: string
-    repeatDirection?: 'horizontal' | 'vertical'
-    maxRepeatColumns?: number
+interface Binding {
+  widget: string
+  source?: {
+    ref?: string
+    filter?: Record<string, unknown>
+    // §2c: a string matches one route param vs r.id/r.slug; { match } matches
+    // each entry vs a route param — a bare string is record[f]==route[f]; an
+    // object { field, param } maps a record field to a differently-named param.
+    param?: string | { match: Array<string | { field: string; param: string }> }
   }
+  config?: Record<string, unknown>
+  colSpan?: number
+  repeat?: string
+  repeatDirection?: 'horizontal' | 'vertical'
+  maxRepeatColumns?: number
+  // §2b widget composition: named slot -> ordered child widget bindings.
+  slots?: Record<string, Binding[]>
+}
+
+const props = defineProps<{
+  binding: Binding
   consumerId: string
+  // §2b: when rendered inside a slot, the host widget's per-record scope and
+  // the recursion depth (guarded in WidgetSlot).
+  parentRecord?: Record<string, unknown>
+  depth?: number
 }>()
 
 const route = useRoute()
@@ -148,41 +174,79 @@ function groupByField(records: Record<string, unknown>[], field: string): Repeat
 }
 
 async function loadData(): Promise<void> {
-  if (props.binding.source?.ref) {
-    const records = await fetchDataSource(
-      props.consumerId,
-      props.binding.source.ref as string,
-      projectId.value
+  // Snapshot reactive deps (route params + injected projectId) synchronously
+  // BEFORE the first await — watchEffect only registers dependencies touched
+  // before it suspends. Reading route.params after the fetch would miss sibling
+  // drill-down navigations (same component instance, only a route param changes)
+  // and leave the widget showing stale data.
+  const params = { ...route.params }
+  const pid = projectId.value
+  const resolveParam = (field: string): string | undefined => {
+    const v = params[field]
+    if (typeof v === 'string' && v) return v
+    // projectId may come from the injected scope rather than a path param.
+    if (field === 'projectId' && pid) return pid
+    return undefined
+  }
+
+  // §2b mode 1: a source-less child renders against the parent record (the
+  // row / card / item it sits in). No fetch, no repeat.
+  if (!props.binding.source?.ref) {
+    sourceData.value = props.parentRecord ? [props.parentRecord] : []
+    repeatGroups.value = []
+    return
+  }
+
+  const records = await fetchDataSource(
+    props.consumerId,
+    props.binding.source.ref as string,
+    pid
+  )
+  let filtered = records
+
+  // §2b mode 2: resolve `$parent.<field>` tokens in the static filter against
+  // the parent record before applying it.
+  let filter = props.binding.source?.filter as Record<string, unknown> | undefined
+  if (filter && props.parentRecord) {
+    const pr = props.parentRecord
+    filter = Object.fromEntries(
+      Object.entries(filter).map(([k, v]) => [
+        k,
+        typeof v === 'string' && v.startsWith('$parent.') ? pr[v.slice(8)] : v
+      ])
     )
-    let filtered = records
+  }
+  if (filter) {
+    const f = filter
+    filtered = filtered.filter(r => Object.entries(f).every(([k, v]) => r[k] === v))
+  }
 
-    // Apply static filter if present
-    const filter = props.binding.source?.filter as Record<string, unknown> | undefined
-    if (filter) {
-      filtered = filtered.filter(r =>
-        Object.entries(filter).every(([k, v]) => r[k] === v)
-      )
+  // §2c: route-param filter. A string matches one param vs r.id/r.slug; a
+  // composite { match: [...] } matches each named field vs the route param of
+  // the same name (projectId-scoped detail pages).
+  const param = props.binding.source?.param
+  if (typeof param === 'string') {
+    const paramValue = params[param]
+    if (typeof paramValue === 'string' && paramValue) {
+      filtered = filtered.filter(r => r['id'] === paramValue || r['slug'] === paramValue)
     }
+  } else if (param && Array.isArray(param.match) && param.match.length > 0) {
+    filtered = filtered.filter(r =>
+      param.match.every(entry => {
+        const field = typeof entry === 'string' ? entry : entry.field
+        const routeKey = typeof entry === 'string' ? entry : entry.param
+        const rv = resolveParam(routeKey)
+        return rv !== undefined && String(r[field]) === rv
+      })
+    )
+  }
 
-    // Apply route param filter if source.param is declared
-    const paramName = props.binding.source?.param
-    if (paramName) {
-      const paramValue = route.params[paramName]
-      if (typeof paramValue === 'string' && paramValue) {
-        filtered = filtered.filter(r =>
-          r['id'] === paramValue || r['slug'] === paramValue
-        )
-      }
-    }
+  sourceData.value = filtered
 
-    sourceData.value = filtered
-
-    // Build repeat groups if repeat field is specified
-    if (props.binding.repeat) {
-      repeatGroups.value = groupByField(filtered, props.binding.repeat)
-    } else {
-      repeatGroups.value = []
-    }
+  if (props.binding.repeat) {
+    repeatGroups.value = groupByField(filtered, props.binding.repeat)
+  } else {
+    repeatGroups.value = []
   }
 }
 

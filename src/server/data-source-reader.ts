@@ -167,10 +167,89 @@ async function readFrontmatterFile(filePath: string): Promise<Record<string, unk
   return [record]
 }
 
+/**
+ * §2a array-explode. Flatten a nested array field of each parent record into
+ * one child record per element. The named `carry` scalars from the parent
+ * (including glob captures already injected on it, e.g. projectId/planSlug) are
+ * copied onto each child, which also gets `_parentId` (from `parentKey`, else
+ * the conventional `id`/`slug`) and a stable `_index`. Parent records whose
+ * `explodeField` is missing or not an array contribute zero children.
+ */
+export function explodeRecords(
+  parents: Record<string, unknown>[],
+  explodeField: string,
+  carry: string[] = [],
+  parentKey?: string
+): Record<string, unknown>[] {
+  const out: Record<string, unknown>[] = []
+  for (const parent of parents) {
+    const arr = parent[explodeField]
+    if (!Array.isArray(arr)) continue
+    const parentId = parentKey ? parent[parentKey] : (parent['slug'] ?? parent['id'])
+    const carried: Record<string, unknown> = {}
+    for (const field of carry) {
+      if (parent[field] !== undefined) carried[field] = parent[field]
+    }
+    arr.forEach((element, i) => {
+      const child: Record<string, unknown> =
+        element !== null && typeof element === 'object' && !Array.isArray(element)
+          ? { ...carried, ...(element as Record<string, unknown>) }
+          : { ...carried, value: element }
+      child['_parentId'] = parentId
+      child['_index'] = i
+      out.push(child)
+    })
+  }
+  return out
+}
+
 export async function readDataSource(
   baseDir: string,
-  decl: DataSourceDecl
+  decl: DataSourceDecl,
+  allSources?: DataSourceDecl[],
+  // Ids already visited on the current derivesFrom chain — guards against a
+  // cyclic manifest (e.g. A→B→A) that would otherwise recurse until the stack
+  // overflows. Threaded internally; external callers omit it.
+  seen: ReadonlySet<string> = new Set()
 ): Promise<Result<DataSourceResult, ErrorResponse>> {
+  // §2a: a derived source reads its parent's records, then explodes a nested
+  // array field. It has no own `path` — the parent is found in `allSources`.
+  if (decl.derivesFrom) {
+    if (seen.has(decl.id)) {
+      return err({
+        code: 'validation_error',
+        message: `Derived data source "${decl.id}" forms a derivesFrom cycle`,
+        details: { dataSourceId: decl.id, derivesFrom: decl.derivesFrom }
+      })
+    }
+    const parent = (allSources ?? []).find((s) => s.id === decl.derivesFrom)
+    if (!parent) {
+      return err({
+        code: 'validation_error',
+        message: `Derived data source "${decl.id}" references unknown parent source "${decl.derivesFrom}"`,
+        details: { dataSourceId: decl.id, derivesFrom: decl.derivesFrom }
+      })
+    }
+    const parentResult = await readDataSource(baseDir, parent, allSources, new Set([...seen, decl.id]))
+    if (!parentResult.ok) return parentResult
+    const records = explodeRecords(parentResult.value.records, decl.explode as string, decl.carry ?? [], decl.parentKey)
+    return ok({ dataSourceId: decl.id, records, files: parentResult.value.files })
+  }
+
+  if (!decl.path) {
+    return err({
+      code: 'validation_error',
+      message: `Data source "${decl.id}" has no path`,
+      details: { dataSourceId: decl.id }
+    })
+  }
+  if (!decl.format) {
+    return err({
+      code: 'validation_error',
+      message: `File data source "${decl.id}" has no format`,
+      details: { dataSourceId: decl.id }
+    })
+  }
   const matches = await expandGlob(baseDir, decl.path)
   // Stable order: matches come from readdir (unordered) — sort by path so the
   // record set is deterministic across runs/platforms.
