@@ -40,6 +40,10 @@
               <span class="bar"><i :style="barStyle(row)" /></span>
               <span>{{ pct(row[col]) }}%</span>
             </span>
+            <template v-else-if="isLinkCol(col) && rowHref(row)">
+              <RouterLink class="cell-link cell-primary" :to="rowHref(row)!" @click.stop>{{ formatCell(row[col]) }}</RouterLink>
+              <span v-if="subtitleFor(col, row)" class="cell-sub">{{ subtitleFor(col, row) }}</span>
+            </template>
             <template v-else-if="subtitleFor(col, row)">
               <span class="cell-primary">{{ formatCell(row[col]) }}</span>
               <span class="cell-sub">{{ subtitleFor(col, row) }}</span>
@@ -68,7 +72,10 @@
             <span>{{ statusInfo(String(row[statusCol]), statuses).label }}</span>
           </span>
         </div>
-        <div class="tc-title">{{ cardTitle(row) }}</div>
+        <div class="tc-title">
+          <RouterLink v-if="rowHref(row)" class="cell-link" :to="rowHref(row)!" @click.stop>{{ cardTitle(row) }}</RouterLink>
+          <template v-else>{{ cardTitle(row) }}</template>
+        </div>
         <div v-if="cardSub(row)" class="tc-sub">{{ cardSub(row) }}</div>
         <div v-if="progressCol" class="tc-progress">
           <span class="tc-bar"><i :style="barStyle(row)" /></span>
@@ -91,7 +98,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, RouterLink } from 'vue-router'
 import WidgetFrame from '../WidgetFrame.vue'
 import WidgetSlot from '../WidgetSlot.vue'
 import { useMediaQuery } from '../../composables/useMediaQuery.js'
@@ -123,6 +130,18 @@ function navigate(row: Record<string, unknown>): void {
   if (linkTo.value && props.consumerId) {
     router.push(resolveRowLink(linkTo.value, row, props.consumerId))
   }
+}
+
+// Optional VISIBLE link: `linkField` names the column whose value renders as a
+// real <a> (RouterLink) — a discoverable affordance on top of the whole-row
+// click. Without it, the row is still navigable but has no anchor. Generic: the
+// column name is consumer-supplied, no domain meaning here.
+const linkField = computed(() => props.config.linkField as string | undefined)
+function isLinkCol(col: string): boolean {
+  return !!linkField.value && col === linkField.value
+}
+function rowHref(row: Record<string, unknown>): string | undefined {
+  return linkTo.value && props.consumerId ? resolveRowLink(linkTo.value, row, props.consumerId) : undefined
 }
 
 const title = computed(() => props.config.title as string | undefined)
@@ -253,3 +272,15 @@ function formatCell(value: unknown): string {
   return String(value)
 }
 </script>
+
+<style scoped>
+/* Visible row link (config.linkField): a real anchor on the named column, so the
+   row's navigation is discoverable, not just a bare click target. */
+.cell-link {
+  color: var(--accent-link);
+  text-decoration: none;
+}
+.cell-link:hover {
+  text-decoration: underline;
+}
+</style>

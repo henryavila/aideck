@@ -3,11 +3,13 @@
     <!-- Empty state: neither title nor body resolved → muted note, no banner. -->
     <span v-if="!title && !body" class="callout-empty">// no callout</span>
 
-    <div
+    <component
+      :is="linkHref ? RouterLink : 'div'"
       v-else
       class="callout"
-      :class="[`c-${tone}`, { 'is-pulse': pulse }]"
-      role="status"
+      :class="[`c-${tone}`, { 'is-pulse': pulse, 'is-link': linkHref }]"
+      :to="linkHref || undefined"
+      :role="linkHref ? undefined : 'status'"
     >
       <span class="co-bar" aria-hidden="true" />
       <span class="co-glyph" aria-hidden="true">{{ glyph }}</span>
@@ -15,10 +17,11 @@
         <span v-if="title" class="co-title">{{ title }}</span>
         <span v-if="body" class="co-body">{{ body }}</span>
       </span>
-      <RouterLink v-if="linkHref" class="co-action" :to="linkHref">
-        {{ actionLabel }}<span class="co-arrow" aria-hidden="true">→</span>
-      </RouterLink>
-    </div>
+      <!-- Whole banner is the link; this is a visual cue only (not a nested anchor). -->
+      <span v-if="linkHref" class="co-action" aria-hidden="true">
+        {{ actionLabel }}<span class="co-arrow">→</span>
+      </span>
+    </component>
   </WidgetFrame>
 </template>
 
@@ -183,6 +186,18 @@ const linkHref = computed<string | undefined>(() => {
   white-space: nowrap;
 }
 .co-action:hover { color: var(--accent-focus); }
+
+/* Whole-banner link (config.linkTo): the entire callout is the anchor — reset
+   anchor chrome, signal clickability, lift the accent on hover. */
+.callout.is-link {
+  cursor: pointer;
+  text-decoration: none;
+  color: inherit;
+}
+.callout.is-link:hover {
+  border-color: var(--accent-primary);
+}
+.callout.is-link:hover .co-action { color: var(--accent-focus); }
 .co-arrow {
   font-family: var(--font-mono);
   font-feature-settings: 'calt' 0;

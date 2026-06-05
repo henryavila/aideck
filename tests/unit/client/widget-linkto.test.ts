@@ -6,6 +6,20 @@ import CalloutWidget from '../../../src/client/components/widgets/CalloutWidget.
 import PanelWidget from '../../../src/client/components/widgets/PanelWidget.vue'
 import PhaseTimelineWidget from '../../../src/client/components/widgets/PhaseTimelineWidget.vue'
 import KanbanBoardWidget from '../../../src/client/components/widgets/KanbanBoardWidget.vue'
+import TableWidget from '../../../src/client/components/widgets/TableWidget.vue'
+
+// TableWidget chooses desktop vs mobile via matchMedia; jsdom lacks it. Default to
+// the desktop (<table>) layout so the cell-link anchor renders.
+;(globalThis as { matchMedia?: unknown }).matchMedia = (query: string) => ({
+  matches: false,
+  media: query,
+  addEventListener: () => {},
+  removeEventListener: () => {},
+  addListener: () => {},
+  removeListener: () => {},
+  onchange: null,
+  dispatchEvent: () => false,
+})
 
 // §2c per-record drill-down for the framed/composed widgets (callout, panel,
 // phase-timeline, kanban). The link mechanism is the SAME generic resolveRowLink
@@ -28,27 +42,55 @@ function mountWith(component: unknown, props: Record<string, unknown>) {
 
 const PHASE_ROW = { projectId: 'acme', slug: 'acme-f0-bootstrap', title: 'Bootstrap', summary: 'set up', status: 'active' }
 
-describe('CalloutWidget — token-interpolated drill-down link', () => {
-  it('resolves :tokens from the bound record (was tokenless before)', () => {
+describe('CalloutWidget — whole-banner drill-down link', () => {
+  it('renders the entire callout as one anchor, :tokens from the bound record', () => {
     const w = mountWith(CalloutWidget, {
       source: [{ projectId: 'acme', planSlug: 'acme-api', planTitle: 'Acme API' }],
       config: { title: 'Plano em foco', bodyField: 'planTitle', linkTo: 'plan/:projectId/:planSlug' },
       consumerId: 'alpha',
       depth: 0,
     })
-    const a = w.find('.co-action')
+    const a = w.find('a.callout')
     expect(a.exists()).toBe(true)
     expect(a.attributes('href')).toContain('/alpha/plan/acme/acme-api')
+    // the action label is a visual cue inside the anchor, not a nested <a>
+    expect(w.findAll('a').length).toBe(1)
+    expect(w.find('.co-action').element.tagName).toBe('SPAN')
   })
 
-  it('renders no action link when linkTo is absent', () => {
+  it('renders a plain (non-anchor) callout when linkTo is absent', () => {
     const w = mountWith(CalloutWidget, {
       source: [{ projectId: 'acme', planTitle: 'Acme API' }],
       config: { title: 'Plano em foco', bodyField: 'planTitle' },
       consumerId: 'alpha',
       depth: 0,
     })
+    expect(w.find('a.callout').exists()).toBe(false)
+    expect(w.find('.callout').exists()).toBe(true)
     expect(w.find('.co-action').exists()).toBe(false)
+  })
+})
+
+describe('TableWidget — linkField renders a visible cell anchor', () => {
+  const TCONFIG = { columns: ['title', 'status'], linkTo: 'phase/:projectId/:slug', linkField: 'title' }
+
+  it('renders the linkField column value as a real <a>', () => {
+    const w = mountWith(TableWidget, { source: [PHASE_ROW], config: TCONFIG, consumerId: 'alpha', depth: 0 })
+    const a = w.find('a.cell-link')
+    expect(a.exists()).toBe(true)
+    expect(a.text()).toBe('Bootstrap')
+    expect(a.attributes('href')).toContain('/alpha/phase/acme/acme-f0-bootstrap')
+  })
+
+  it('without linkField the row is still navigable but has no cell anchor', () => {
+    const w = mountWith(TableWidget, {
+      source: [PHASE_ROW],
+      config: { columns: ['title', 'status'], linkTo: 'phase/:projectId/:slug' },
+      consumerId: 'alpha',
+      depth: 0,
+    })
+    expect(w.find('a.cell-link').exists()).toBe(false)
+    expect(w.find('[role="link"]').exists()).toBe(true)
   })
 })
 
