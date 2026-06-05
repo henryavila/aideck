@@ -61,6 +61,7 @@ import LineChartWidget from './widgets/LineChartWidget.vue'
 import ListWidget from './widgets/ListWidget.vue'
 import LogFeedWidget from './widgets/LogFeedWidget.vue'
 import MarkdownWidget from './widgets/MarkdownWidget.vue'
+import PanelWidget from './widgets/PanelWidget.vue'
 import ProgressBarWidget from './widgets/ProgressBarWidget.vue'
 import SearchFilterWidget from './widgets/SearchFilterWidget.vue'
 import StatWidget from './widgets/StatWidget.vue'
@@ -94,6 +95,7 @@ const widgetMap: Record<string, Component> = {
   'list': ListWidget,
   'log-feed': LogFeedWidget,
   'markdown': MarkdownWidget,
+  'panel': PanelWidget,
   'progress-bar': ProgressBarWidget,
   'search-filter': SearchFilterWidget,
   'stat': StatWidget,
