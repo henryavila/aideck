@@ -92,6 +92,20 @@ describe('TableWidget — linkField renders a visible cell anchor', () => {
     expect(w.find('a.cell-link').exists()).toBe(false)
     expect(w.find('[role="link"]').exists()).toBe(true)
   })
+
+  // The cursor/hover affordance is CSS-scoped to tr[role="link"], so a table with
+  // NO linkTo must expose NO role="link" rows — otherwise a plain table (e.g. a
+  // task list with no detail page) would look clickable.
+  it('a table without linkTo marks no row as a link (no false affordance)', () => {
+    const w = mountWith(TableWidget, {
+      source: [PHASE_ROW],
+      config: { columns: ['title', 'status'] },
+      consumerId: 'alpha',
+      depth: 0,
+    })
+    expect(w.find('[role="link"]').exists()).toBe(false)
+    expect(w.find('a.cell-link').exists()).toBe(false)
+  })
 })
 
 describe('PanelWidget — title-as-link drill-down', () => {

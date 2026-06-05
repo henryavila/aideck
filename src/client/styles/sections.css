@@ -280,8 +280,11 @@
   vertical-align: middle;
 }
 .tab tbody tr:last-child td { border-bottom: 0; }
-.tab tbody tr:hover td { background: var(--bg-elevated); }
-.tab tbody tr { cursor: pointer; }
+/* Clickability affordance (pointer + hover wash) only on navigable rows — a row
+   carries role="link" iff the widget has a linkTo. A plain table (no linkTo, e.g.
+   a task list with no detail page) must not look clickable. */
+.tab tbody tr[role="link"]:hover td { background: var(--bg-elevated); }
+.tab tbody tr[role="link"] { cursor: pointer; }
 .tab td.mono {
   font-family: var(--font-mono);
   font-size: 11px;
@@ -370,8 +373,9 @@
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-ambient);
   transition: background 120ms var(--ease-out), border-color 120ms var(--ease-out);
-  cursor: pointer;
 }
+/* Pointer + press affordance only on navigable cards (role="link" iff linkTo). */
+.tc-row[role="link"] { cursor: pointer; }
 .tc-row + .tc-row { margin-top: 8px; }
 .tc-row::before {
   content: "";
@@ -386,7 +390,7 @@
 .tc-row.is-info::before    { background: var(--status-info); }
 .tc-row.is-warning::before { background: var(--status-warning); }
 .tc-row.is-error::before   { background: var(--status-error); }
-.tc-row:active {
+.tc-row[role="link"]:active {
   background: var(--bg-elevated);
   border-color: var(--border-bright);
 }
