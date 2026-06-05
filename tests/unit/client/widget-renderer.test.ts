@@ -337,8 +337,9 @@ describe('WidgetRenderer', () => {
 
     const labels = wrapper.findAll('.repeat-label')
     expect(labels).toHaveLength(2)
+    // Raw grouping keys are humanized for display (§2c): 'open' -> 'Open'.
     const labelTexts = labels.map(l => l.text()).sort()
-    expect(labelTexts).toEqual(['closed', 'open'])
+    expect(labelTexts).toEqual(['Closed', 'Open'])
   })
 
   it('does not render repeat container when repeat is not set', async () => {

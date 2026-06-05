@@ -5,7 +5,7 @@
       :style="repeatContainerStyle"
     >
       <div v-for="group in repeatGroups" :key="group.key" class="repeat-item">
-        <div v-if="group.key !== ''" class="repeat-label">{{ group.key }}</div>
+        <div v-if="group.key !== '' && showRepeatLabel" class="repeat-label">{{ groupLabel(group) }}</div>
         <component
           v-if="resolvedComponent"
           :is="resolvedComponent"
@@ -124,6 +124,10 @@ interface Binding {
   repeat?: string
   repeatDirection?: 'horizontal' | 'vertical'
   maxRepeatColumns?: number
+  // §2a: sibling field supplying a human group label; falls back to the humanized key.
+  repeatLabelField?: string
+  // §2b: group-header visibility. 'auto' (default) hides the header for a single group.
+  repeatLabel?: 'auto' | 'always' | 'never'
   // §2b widget composition: named slot -> ordered child widget bindings.
   slots?: Record<string, Binding[]>
 }
@@ -158,6 +162,29 @@ const repeatContainerStyle = computed(() => {
     gap: '16px'
   }
 })
+
+// §2b: a single-group header is redundant, so 'auto' hides it; 'always'/'never' opt out.
+const showRepeatLabel = computed(() => {
+  const mode = props.binding.repeatLabel ?? 'auto'
+  if (mode === 'never') return false
+  if (mode === 'always') return true
+  return repeatGroups.value.length > 1
+})
+
+// §2c: turn a slug/key into a typographic display string. Used ONLY for the raw-key
+// fallback — a consumer-supplied repeatLabelField is rendered verbatim (it may be
+// human-cased already, e.g. "iOS", "API").
+function humanizeKey(value: string): string {
+  return value.replace(/[-_]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+}
+
+// §2a: every record in a group shares the grouping key, so the consumer guarantees they
+// also share the label value — read it off the first record. Empty/unset -> humanized key.
+function groupLabel(group: RepeatGroup): string {
+  const field = props.binding.repeatLabelField
+  const supplied = field ? group.records[0]?.[field] : undefined
+  return supplied ? String(supplied) : humanizeKey(group.key)
+}
 
 function groupByField(records: Record<string, unknown>[], field: string): RepeatGroup[] {
   const groups = new Map<string, Record<string, unknown>[]>()
@@ -285,6 +312,5 @@ watch(
   font-weight: 600;
   color: var(--fg-muted);
   margin-bottom: var(--space-2);
-  text-transform: capitalize;
 }
 </style>

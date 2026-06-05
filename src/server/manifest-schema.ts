@@ -120,6 +120,10 @@ export interface WidgetBinding {
   repeat?: string
   repeatDirection?: 'horizontal' | 'vertical'
   maxRepeatColumns?: number
+  /** Sibling field whose value labels each repeat group, instead of the raw grouping key. */
+  repeatLabelField?: string
+  /** Group-header visibility. `auto` (default) hides the header when there is a single group. */
+  repeatLabel?: 'auto' | 'always' | 'never'
   responsive?: {
     sm?: z.infer<typeof responsiveOverrideSchema>
     md?: z.infer<typeof responsiveOverrideSchema>
@@ -143,6 +147,8 @@ const widgetBindingSchema: z.ZodType<WidgetBinding> = z.lazy(() =>
     repeat: z.string().optional(),
     repeatDirection: z.enum(['horizontal', 'vertical']).optional(),
     maxRepeatColumns: z.number().optional(),
+    repeatLabelField: z.string().optional(),
+    repeatLabel: z.enum(['auto', 'always', 'never']).optional(),
     responsive: z
       .object({
         sm: responsiveOverrideSchema.optional(),
