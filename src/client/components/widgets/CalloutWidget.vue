@@ -15,16 +15,18 @@
         <span v-if="title" class="co-title">{{ title }}</span>
         <span v-if="body" class="co-body">{{ body }}</span>
       </span>
-      <router-link v-if="linkHref" class="co-action" :to="linkHref">
+      <RouterLink v-if="linkHref" class="co-action" :to="linkHref">
         {{ actionLabel }}<span class="co-arrow" aria-hidden="true">→</span>
-      </router-link>
+      </RouterLink>
     </div>
   </WidgetFrame>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { RouterLink } from 'vue-router'
 import WidgetFrame from '../WidgetFrame.vue'
+import { resolveRowLink } from '../../utils/link.js'
 import { statusInfo, type Tone } from '../../utils/status.js'
 
 type Variant = 'info' | 'success' | 'warning' | 'attention' | 'error'
@@ -89,11 +91,12 @@ const pulse = computed(() => props.config.pulse === true && variant.value === 'a
 
 const actionLabel = computed<string>(() => asText(props.config.actionLabel) ?? 'Open')
 
-// Simple, tokenless link: '/' + consumerId + '/' + linkTo. No :token interpolation.
+// §2c row-scoped link: interpolate any :tokens from the bound record (a tokenless
+// linkTo is returned unchanged), anchored under the consumer.
 const linkHref = computed<string | undefined>(() => {
   const linkTo = asText(props.config.linkTo)
   if (!linkTo) return undefined
-  return `/${props.consumerId ?? ''}/${linkTo}`
+  return resolveRowLink(linkTo, record.value, props.consumerId ?? '')
 })
 </script>
 

@@ -34,7 +34,10 @@
                 <span>p{{ card.priority }}</span>
               </span>
             </div>
-            <div class="ti">{{ card.title }}</div>
+            <div class="ti">
+              <RouterLink v-if="cardHref(card)" :to="cardHref(card)!" class="kb-title-link">{{ card.title }}</RouterLink>
+              <template v-else>{{ card.title }}</template>
+            </div>
             <div v-if="card.tags.length" class="tags">
               <span v-for="(t, ti) in card.tags" :key="t" class="tk" :class="`t-${tagIndex(ti)}`">{{ t }}</span>
             </div>
@@ -90,7 +93,10 @@
                 <span>p{{ card.priority }}</span>
               </span>
             </div>
-            <div class="ti">{{ card.title }}</div>
+            <div class="ti">
+              <RouterLink v-if="cardHref(card)" :to="cardHref(card)!" class="kb-title-link">{{ card.title }}</RouterLink>
+              <template v-else>{{ card.title }}</template>
+            </div>
             <div v-if="card.tags.length" class="tags">
               <span v-for="(t, ti) in card.tags" :key="t" class="tk" :class="`t-${tagIndex(ti)}`">{{ t }}</span>
             </div>
@@ -110,9 +116,11 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { RouterLink } from 'vue-router'
 import WidgetFrame from '../WidgetFrame.vue'
 import WidgetSlot from '../WidgetSlot.vue'
 import { useMediaQuery } from '../../composables/useMediaQuery.js'
+import { resolveRowLink } from '../../utils/link.js'
 import { statusInfo } from '../../utils/status.js'
 import { useStatuses } from '../../composables/useStatuses.js'
 
@@ -217,4 +225,24 @@ const meta = computed(() => {
 
 const activeIdx = ref(Math.max(0, columns.value.findIndex((c) => c.id === 'in-progress')))
 const activeColumn = computed<KanbanColumn | undefined>(() => columns.value[activeIdx.value])
+
+// §2c row-scoped card link: when `linkTo` is set, the card title links, :tokens
+// interpolated from that card's record (tokenless stays static). Generic — the
+// card record spreads the full source row, so any field token resolves.
+const linkTo = computed(() => props.config.linkTo as string | undefined)
+function cardHref(card: Record<string, unknown>): string | undefined {
+  return linkTo.value ? resolveRowLink(linkTo.value, card, props.consumerId ?? '') : undefined
+}
 </script>
+
+<style scoped>
+/* Title-as-link inside a kanban card: inherit the card title type, accent on hover. */
+.kb-title-link {
+  color: inherit;
+  text-decoration: none;
+}
+.kb-title-link:hover {
+  color: var(--accent-link);
+  text-decoration: underline;
+}
+</style>

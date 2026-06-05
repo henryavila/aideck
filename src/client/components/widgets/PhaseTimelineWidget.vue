@@ -24,7 +24,10 @@
         <div class="ptl-card">
           <div class="ptl-head">
             <span class="ptl-id">{{ phase.id }}</span>
-            <span class="ptl-title">{{ phase.title }}</span>
+            <span class="ptl-title">
+              <RouterLink v-if="phase.href" :to="phase.href" class="ptl-title-link">{{ phase.title }}</RouterLink>
+              <template v-else>{{ phase.title }}</template>
+            </span>
             <span class="ptl-status">{{ phase.label }}</span>
           </div>
 
@@ -72,8 +75,10 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { RouterLink } from 'vue-router'
 import WidgetFrame from '../WidgetFrame.vue'
 import WidgetSlot from '../WidgetSlot.vue'
+import { resolveRowLink } from '../../utils/link.js'
 import { statusInfo, toneForValue, type Tone, type ToneBand } from '../../utils/status.js'
 import { useStatuses } from '../../composables/useStatuses.js'
 
@@ -106,6 +111,7 @@ interface PhaseVM {
   active: boolean
   meters: MeterVM[]
   nextAction: string
+  href?: string
   row: Record<string, unknown>
 }
 
@@ -131,6 +137,9 @@ const idField = computed(() => String(props.config.idField ?? 'id'))
 const titleField = computed(() => String(props.config.titleField ?? 'title'))
 const statusField = computed(() => String(props.config.statusField ?? 'status'))
 const nextActionField = computed(() => String(props.config.nextActionField ?? 'nextAction'))
+// §2c row-scoped node link: when set, each step's title links, :tokens interpolated
+// from that step's row (tokenless stays static). No domain meaning baked in.
+const linkTo = computed(() => props.config.linkTo as string | undefined)
 const statuses = useStatuses(props)
 
 // Which step is emphasized ("you are here"): an explicit boolean field, or — as a
@@ -207,6 +216,7 @@ const phases = computed<PhaseVM[]>(() =>
       active: current,
       meters,
       nextAction: toStr(row[nextActionField.value]),
+      href: linkTo.value ? resolveRowLink(linkTo.value, row, props.consumerId ?? '') : undefined,
       row,
     }
   }),
@@ -359,6 +369,14 @@ const hasPhaseExtra = computed(() => phaseExtraBindings.value.length > 0)
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.ptl-title-link {
+  color: inherit;
+  text-decoration: none;
+}
+.ptl-title-link:hover {
+  color: var(--accent-link);
+  text-decoration: underline;
 }
 .ptl-status {
   font-family: var(--font-mono);

@@ -7,7 +7,10 @@
     empty-note="no content"
   >
     <div class="panel-body">
-      <span v-if="title" class="panel-title">{{ title }}</span>
+      <span v-if="title" class="panel-title">
+        <RouterLink v-if="linkHref" :to="linkHref" class="panel-link">{{ title }}</RouterLink>
+        <template v-else>{{ title }}</template>
+      </span>
       <span v-if="body" class="panel-sub">{{ body }}</span>
     </div>
   </WidgetFrame>
@@ -15,7 +18,9 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { RouterLink } from 'vue-router'
 import WidgetFrame from '../WidgetFrame.vue'
+import { resolveRowLink } from '../../utils/link.js'
 
 const props = defineProps<{
   source: Record<string, unknown>[]
@@ -54,6 +59,14 @@ const meta = computed(() => asText(props.config.meta))
 // Render the panel when at least one line resolves; an all-empty record falls
 // back to the frame's empty state. A title-only or body-only panel still renders.
 const state = computed<'ready' | 'empty'>(() => (title.value || body.value ? 'ready' : 'empty'))
+
+// §2c row-scoped link: when `linkTo` is set, the prominent title becomes a link,
+// :tokens interpolated from the bound record (tokenless stays static).
+const linkHref = computed<string | undefined>(() => {
+  const linkTo = asText(props.config.linkTo)
+  if (!linkTo) return undefined
+  return resolveRowLink(linkTo, record.value, props.consumerId ?? '')
+})
 </script>
 
 <style scoped>
@@ -83,5 +96,15 @@ const state = computed<'ready' | 'empty'>(() => (title.value || body.value ? 're
   color: var(--fg-muted);
   white-space: normal;
   overflow-wrap: anywhere;
+}
+
+/* Title-as-link: inherit the title type, accent on hover. */
+.panel-link {
+  color: inherit;
+  text-decoration: none;
+}
+.panel-link:hover {
+  color: var(--accent-link);
+  text-decoration: underline;
 }
 </style>
