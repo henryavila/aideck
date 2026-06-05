@@ -40,6 +40,10 @@
               <span class="bar"><i :style="barStyle(row)" /></span>
               <span>{{ pct(row[col]) }}%</span>
             </span>
+            <template v-else-if="subtitleFor(col, row)">
+              <span class="cell-primary">{{ formatCell(row[col]) }}</span>
+              <span class="cell-sub">{{ subtitleFor(col, row) }}</span>
+            </template>
             <template v-else>{{ formatCell(row[col]) }}</template>
           </td>
         </tr>
@@ -65,6 +69,7 @@
           </span>
         </div>
         <div class="tc-title">{{ cardTitle(row) }}</div>
+        <div v-if="cardSub(row)" class="tc-sub">{{ cardSub(row) }}</div>
         <div v-if="progressCol" class="tc-progress">
           <span class="tc-bar"><i :style="barStyle(row)" /></span>
           <span class="tc-pct">{{ pct(row[progressCol]) }}%</span>
@@ -141,6 +146,21 @@ const meta = computed(() => {
 
 const emptyNote = computed(() => String(props.config.emptyNote ?? '0 rows'))
 
+// A `subtitles` config maps a columnId -> the field whose value renders as a
+// muted second line under that column's primary value (e.g. a task `title` with
+// its one-line `summary` beneath it). Lets a manifest fold two fields into one
+// readable cell instead of two columns. Generic: no column name is hardcoded.
+const subtitles = computed<Record<string, string>>(() => {
+  const s = props.config.subtitles
+  return s && typeof s === 'object' && !Array.isArray(s) ? (s as Record<string, string>) : {}
+})
+function subtitleFor(col: string, row: Record<string, unknown>): string {
+  const f = subtitles.value[col]
+  if (!f) return ''
+  const v = row[f]
+  return v === null || v === undefined || v === '' ? '' : String(v)
+}
+
 const STATUS_KEYS = new Set(['status', 'state'])
 const PROGRESS_KEYS = new Set(['progress', 'pct', 'percent'])
 
@@ -172,6 +192,13 @@ function cardId(row: Record<string, unknown>): string {
 function cardTitle(row: Record<string, unknown>): string {
   const k = pickKey(TITLE_KEYS) ?? columns.value.find((c) => c !== statusCol.value && c !== progressCol.value)
   return k ? formatCell(row[k]) : ''
+}
+// Mobile counterpart of the desktop subtitle: the muted line under the card's
+// title, resolved from the same column the card uses as its title.
+function cardSub(row: Record<string, unknown>): string {
+  const titleKey =
+    pickKey(TITLE_KEYS) ?? columns.value.find((c) => c !== statusCol.value && c !== progressCol.value)
+  return titleKey ? subtitleFor(titleKey, row) : ''
 }
 function cardMeta(row: Record<string, unknown>): string[] {
   const used = new Set(
@@ -208,12 +235,16 @@ function pct(value: unknown): number {
 }
 
 function cellClass(col: string, value: unknown): string {
-  if (isStatusCol(col) || isProgressCol(col)) return ''
-  if (typeof value === 'number') return 'num'
-  if (ID_KEYS.includes(col.toLowerCase())) return 'mono'
-  if (TITLE_KEYS.includes(col.toLowerCase())) return 'title'
-  if (col.toLowerCase() === 'owner') return 'owner'
-  return ''
+  let base = ''
+  if (isStatusCol(col) || isProgressCol(col)) base = ''
+  else if (typeof value === 'number') base = 'num'
+  else if (ID_KEYS.includes(col.toLowerCase())) base = 'mono'
+  else if (TITLE_KEYS.includes(col.toLowerCase())) base = 'title'
+  else if (col.toLowerCase() === 'owner') base = 'owner'
+  // A column carrying a subtitle stacks two lines — top-align it so a two-line
+  // cell reads cleanly next to single-line cells (id, status).
+  if (subtitles.value[col]) base = base ? base + ' has-sub' : 'has-sub'
+  return base
 }
 
 function formatCell(value: unknown): string {
