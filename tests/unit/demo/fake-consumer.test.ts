@@ -76,8 +76,10 @@ describe('fake-consumer applies intents to demo files', () => {
       })
       await waitUntil(async () => {
         const raw = await readFile(initPath, 'utf8')
-        const fm = parseYaml(raw.split('---\n')[1] ?? '') as { tasks: Array<{ status: string }> }
-        return fm.tasks.some((t) => t.status === 'done')
+        // The consumer rewrites the file in place; a poll can land mid-write with
+        // empty/partial frontmatter (parseYaml -> null). Treat that as "not yet".
+        const fm = parseYaml(raw.split('---\n')[1] ?? '') as { tasks?: Array<{ status: string }> } | null
+        return fm?.tasks?.some((t) => t.status === 'done') ?? false
       })
     } finally {
       await consumer.stop()
