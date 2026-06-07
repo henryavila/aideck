@@ -51,7 +51,7 @@ async function dispatchServe(
       requested: parsed.flags.port,
       isExplicit: parsed.portExplicit
     })
-    const running = await startServer({ rootDir: process.cwd(), port, staticDir })
+    const running = await startServer({ rootDir: process.cwd(), port, staticDir, version: readVersion() })
     const url = `http://127.0.0.1:${running.port}`
     await writeEnvFile({ url, port: running.port, pid: process.pid })
     stdout.write(`aideck serve: listening on ${url}${staticDir ? ` (static: ${staticDir})` : ''}\n`)
@@ -119,7 +119,7 @@ async function dispatchDemo(parsed: ReturnType<typeof parseCliArgs>, stdout: Nod
       resolve(moduleDir, '..', 'dist/client'),
       resolve(moduleDir, 'client')
     ].find((dir) => existsSync(join(dir, 'index.html')))
-    running = await startServer({ rootDir: env.rootDir, port, demo: true, staticDir })
+    running = await startServer({ rootDir: env.rootDir, port, demo: true, staticDir, version: readVersion() })
     const url = `http://127.0.0.1:${running.port}`
     await writeEnvFile({ url, port: running.port, pid: process.pid })
     envFileWritten = true

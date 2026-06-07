@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-06-07
+
+### Fixed
+
+- **`/api/health` reports the real package version.** `serve` and `demo` now pass the resolved version into `startServer` instead of falling back to the hardcoded `0.0.1` default, so the health endpoint accurately reflects the running build.
+- **`exports` exposes `./package.json`.** Programmatic consumers can now `require.resolve('@henryavila/aideck/package.json')` to locate the install directory without hitting `ERR_PACKAGE_PATH_NOT_EXPORTED`.
+
 ## [0.1.0] - 2026-06-06
 
 First public release.
@@ -21,5 +28,6 @@ First public release.
 - **`--static-dir`** flag to serve a prebuilt SPA bundle with API passthrough.
 - **Local-first guarantees** — binds localhost only, no telemetry, files remain the source of truth.
 
-[Unreleased]: https://github.com/henryavila/aideck/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/henryavila/aideck/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/henryavila/aideck/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/henryavila/aideck/releases/tag/v0.1.0
