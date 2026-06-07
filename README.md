@@ -1,5 +1,13 @@
 # aiDeck
 
+<p>
+  <a href="https://www.npmjs.com/package/@henryavila/aideck"><img src="https://img.shields.io/npm/v/@henryavila/aideck.svg?label=npm&color=cb3837&logo=npm" alt="npm version" /></a>
+  <a href="https://www.npmjs.com/package/@henryavila/aideck"><img src="https://img.shields.io/npm/dm/@henryavila/aideck.svg?color=blue" alt="npm downloads" /></a>
+  <a href="https://github.com/henryavila/aideck/actions/workflows/test.yml"><img src="https://github.com/henryavila/aideck/actions/workflows/test.yml/badge.svg" alt="CI" /></a>
+  <a href="https://github.com/henryavila/aideck/blob/main/LICENSE"><img src="https://img.shields.io/npm/l/@henryavila/aideck.svg?color=success" alt="license" /></a>
+  <img src="https://img.shields.io/node/v/@henryavila/aideck.svg?color=339933&logo=node.js" alt="node version" />
+</p>
+
 Generic AI dashboard runtime. Reads consumer manifests, renders 25 built-in widgets across 3 layout modes, serves data via HTTP/SSE/MCP -- all on localhost.
 
 ## What is aiDeck

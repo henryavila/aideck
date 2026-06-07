@@ -1,0 +1,33 @@
+name: Publish to npm
+
+on:
+  release:
+    types: [published]
+
+# OIDC Trusted Publishing — no npm token needed.
+# Configure the trusted publisher once at:
+#   https://www.npmjs.com/package/@henryavila/aideck/access
+#   (Settings → Trusted Publisher → GitHub Actions: repo henryavila/aideck, workflow publish.yml)
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+
+      - run: npm install -g npm@latest
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npx vitest run
+
+      # No NODE_AUTH_TOKEN — OIDC handles auth via id-token.
+      # `prepublishOnly` runs the build before packing.
+      - run: npm publish --provenance --access public

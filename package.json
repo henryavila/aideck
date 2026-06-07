@@ -1,6 +1,6 @@
 {
   "name": "@henryavila/aideck",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "AI-native dashboard runtime for developer workflows.",
   "type": "module",
   "bin": {
@@ -22,7 +22,9 @@
   },
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
   ],
   "scripts": {
     "dev": "tsx watch src/server/index.ts",
@@ -75,5 +77,9 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/henryavila/aideck.git"
+  },
+  "homepage": "https://github.com/henryavila/aideck#readme",
+  "bugs": {
+    "url": "https://github.com/henryavila/aideck/issues"
   }
 }
