@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -127,16 +127,19 @@ describe('validateRootDir', () => {
     if (!r.ok) expect(r.reason).toContain('does not exist')
   })
 
-  it('rejects path without .atomic-skills/', async () => {
-    const r = await validateRootDir(tmp)
-    expect(r.ok).toBe(false)
-    if (!r.ok) expect(r.reason).toContain('.atomic-skills')
-  })
-
-  it('accepts path with .atomic-skills/', async () => {
-    await mkdir(join(tmp, '.atomic-skills'), { recursive: true })
+  it('accepts any existing directory — no consumer-specific layout required', async () => {
+    // aiDeck is consumer-agnostic: a project root need not contain `.atomic-skills/`
+    // (or any other consumer's marker directory) to be valid.
     const r = await validateRootDir(tmp)
     expect(r.ok).toBe(true)
     if (r.ok) expect(r.canonical).toBe(resolve(tmp))
+  })
+
+  it('rejects a path that exists but is not a directory', async () => {
+    const file = join(tmp, 'a-file')
+    await writeFile(file, 'x', 'utf8')
+    const r = await validateRootDir(file)
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.reason).toContain('not a directory')
   })
 })

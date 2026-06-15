@@ -34,7 +34,6 @@
         :aria-selected="currentPage.slug === page.slug"
       >
         <span>{{ page.title }}</span>
-        <span class="ct">{{ pageWidgetCount(page) }}</span>
       </router-link>
       <span class="tabs-tail">
         <span>layout · {{ currentPage.layout }}</span>
@@ -43,7 +42,7 @@
       </span>
     </div>
 
-    <div class="page-content">
+    <div v-if="scopeReady" class="page-content">
       <SectionsLayout
         v-if="currentPage.layout === 'sections'"
         :sections="currentPage.sections ?? []"
@@ -66,6 +65,12 @@
         :config="currentPage.config"
         :consumer-id="consumerId"
       />
+    </div>
+    <div v-else class="page-state is-loading">
+      <div class="skel-stack">
+        <span class="skel-block" />
+        <span class="skel-block" />
+      </div>
     </div>
   </div>
 
@@ -123,6 +128,17 @@ const dataSources = computed(
 )
 const hasProjectScope = computed(() => dataSources.value.some((d) => d.root === 'project'))
 
+// Which consumer the current `projects` / `selectedProjectId` were resolved for.
+// `selectedProjectId` is a single ref that persists across consumer navigation
+// (Vue reuses this route component on a param change), and it is reset only
+// asynchronously inside loadManifest. Between the synchronous consumerId change
+// and that async reset, widgets would otherwise fetch the NEW consumer against
+// the OLD consumer's project — a cross-consumer read (404 with the server-side
+// binding guard, a data leak without it). Gate the widgets on this so they never
+// render until the project scope has been resolved for the consumer on screen.
+const scopeConsumerId = ref<string | undefined>(undefined)
+const scopeReady = computed(() => !hasProjectScope.value || scopeConsumerId.value === consumerId.value)
+
 function selectProject(id: string): void {
   selectedProjectId.value = id
   void router.replace({ query: { ...route.query, project: id } })
@@ -135,28 +151,26 @@ const currentPage = computed(() => {
   return pages.value.find((p) => p.default) ?? pages.value[0]
 })
 
-function pageWidgetCount(page: PageDecl): number {
-  if (page.layout === 'sections') {
-    return (page.sections ?? []).reduce((n, s) => n + (s.widgets?.length ?? 0), 0)
-  }
-  if (page.layout === 'grid') return (page.widgets ?? []).length
-  return 1
-}
-
 async function loadManifest(): Promise<void> {
+  // Capture the consumer this run is for, so a fast double-navigation can't mark
+  // the scope ready for the wrong consumer.
+  const cid = consumerId.value
   try {
-    manifest.value = await fetchConsumerManifest(consumerId.value)
+    manifest.value = await fetchConsumerManifest(cid)
   } catch {
     manifest.value = null
     return
   }
   if (hasProjectScope.value) {
-    projects.value = await fetchProjects(consumerId.value)
+    projects.value = await fetchProjects(cid)
     const ids = projects.value.map((p) => p.projectId)
     if (!selectedProjectId.value || !ids.includes(selectedProjectId.value)) {
       selectedProjectId.value = ids[0]
     }
   }
+  // Scope resolved for `cid` — unblocks the widgets (selectedProjectId is now this
+  // consumer's own project, or undefined when it has none registered).
+  scopeConsumerId.value = cid
 }
 
 onMounted(loadManifest)

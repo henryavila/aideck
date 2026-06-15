@@ -36,16 +36,17 @@ describe('HomePage', () => {
     expect(wrapper.text()).toContain('2 registered')
   })
 
-  it('shows data source and page counts on each card', async () => {
+  it('does not render structural data-source / page count badges on the card', async () => {
+    // These counts are template structure (manifest.dataSources.length /
+    // pages.length), identical for every project — they read as per-project
+    // metrics and were removed. The card still shows identity, not structure.
     const wrapper = mount(HomePage, { global: { plugins: [router] } })
     await flushPromises()
 
     const alpha = wrapper.findAll('.cc').find((c) => c.text().includes('Alpha Consumer'))
     expect(alpha).toBeTruthy()
-    expect(alpha!.text()).toContain('pages')
-    expect(alpha!.text()).toContain('3')
-    expect(alpha!.text()).toContain('data sources')
-    expect(alpha!.text()).toContain('2')
+    expect(alpha!.text()).not.toContain('data sources')
+    expect(alpha!.text()).not.toContain('pages')
   })
 
   it('links each card to its consumer page', async () => {

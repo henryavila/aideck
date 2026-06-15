@@ -110,14 +110,15 @@ describe('register validation', () => {
     expect(body.error.message).toContain('does not exist')
   })
 
-  it('rejects rootDir without .atomic-skills/', async () => {
+  it('accepts a rootDir with no consumer-specific layout (aiDeck is agnostic)', async () => {
+    // A project root need not contain `.atomic-skills/` — that is one consumer's
+    // convention. aiDeck registers any existing directory; the consumer's manifest
+    // declares where its data actually lives.
     const noAs = await mkdtemp(join(tmpdir(), 'aideck-noas-'))
     try {
       const { app } = build()
       const res = await post(app, '/api/projects/register', { rootDir: noAs })
-      expect(res.status).toBe(400)
-      const body = await res.json() as { error: { message: string } }
-      expect(body.error.message).toContain('.atomic-skills')
+      expect(res.status).toBe(201)
     } finally {
       await rm(noAs, { recursive: true, force: true })
     }
