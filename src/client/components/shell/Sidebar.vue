@@ -20,7 +20,6 @@
     >
       <span class="dot" :style="{ background: chartColor(i) }" />
       <span class="name">{{ c.title }}</span>
-      <span class="ct">{{ c.dataSourceCount }}</span>
     </router-link>
 
     <div class="grp" style="margin-top: 12px"><span>data sources</span></div>
@@ -34,7 +33,6 @@
         :class="dirClass(i)"
       >
         <span class="fs-name">{{ c.id }}/</span>
-        <span class="fs-meta">{{ c.dataSourceCount }} srcs</span>
       </div>
     </div>
 

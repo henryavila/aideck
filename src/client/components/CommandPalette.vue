@@ -129,7 +129,7 @@ async function buildIndex(): Promise<void> {
     entries.push({
       kind: 'consumer',
       name: c.title,
-      path: `${c.id} · ${c.dataSourceCount} sources`,
+      path: c.id,
       glyph: '',
       accent: chartColor(i),
       consumer: c.id,

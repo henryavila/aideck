@@ -60,17 +60,6 @@
           </div>
           <span class="pill success"><span class="dot" />ready</span>
         </div>
-        <div class="cc-divide" />
-        <div class="cc-meta">
-          <div class="cc-kv">
-            <span class="k">pages</span>
-            <span class="v">{{ c.pageCount }}</span>
-          </div>
-          <div class="cc-kv">
-            <span class="k">data sources</span>
-            <span class="v">{{ c.dataSourceCount }}</span>
-          </div>
-        </div>
         <div class="cc-filler" />
       </router-link>
     </div>

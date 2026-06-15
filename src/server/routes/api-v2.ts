@@ -1,4 +1,4 @@
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import { Hono } from 'hono'
 import type { Context } from 'hono'
 import type { ConsumerRegistry } from '../consumer-registry.js'
@@ -188,6 +188,13 @@ export function createApiV2Router(deps: ApiV2Deps): Hono {
     if (!project) {
       return errResp(c, 'path_not_found', `project "${projectId}" not registered`, 404)
     }
+    // Binding guard (defense in depth): a consumer bound to a rootDir may read
+    // ONLY its own project — never a sibling's, even when that project is
+    // globally registered. Without this, the projects-list scope could be
+    // bypassed by requesting another consumer's projectId directly.
+    if (consumer.manifest.rootDir && resolve(project.rootDir) !== resolve(consumer.manifest.rootDir)) {
+      return errResp(c, 'path_not_found', `project "${projectId}" is not bound to consumer "${id}"`, 404)
+    }
     const allSources = consumer.manifest.dataSources
     const decl = allSources.find((ds) => ds.id === dataSourceId)
     if (!decl) {
@@ -205,10 +212,24 @@ export function createApiV2Router(deps: ApiV2Deps): Hono {
 
   app.get('/api/consumers/:id/projects', (c) => {
     const id = c.req.param('id')
-    if (!deps.consumers.get(id)) {
+    const consumer = deps.consumers.get(id)
+    if (!consumer) {
       return errResp(c, 'consumer_not_found', `consumer "${id}" not found`, 404)
     }
-    const projects = deps.registry.list().map(({ watcher: _w, ...p }) => p)
+    // A consumer bound to a `rootDir` sees ONLY its own project — never a
+    // sibling's (the contamination guard). When that project is not registered
+    // (its root vanished, or it has not been registered yet) the list is empty,
+    // so the client honestly shows "no project" instead of falling back to the
+    // first-registered consumer's data. A consumer with no rootDir is a generic
+    // lens over every registered project (legacy behaviour, unchanged).
+    const boundRoot = consumer.manifest.rootDir
+    const entries = boundRoot
+      ? (() => {
+          const e = deps.registry.getByRootDir(boundRoot)
+          return e ? [e] : []
+        })()
+      : deps.registry.list()
+    const projects = entries.map(({ watcher: _w, ...p }) => p)
     return c.json({ projects })
   })
 
