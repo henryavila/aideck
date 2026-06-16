@@ -29,8 +29,8 @@ describe('sse default project filtering', () => {
     registry.register(tmp, 'default-proj')
 
     // Emit events for different projects
-    eventBus.emit({ kind: 'state-change', consumer: 'project-status', slug: 'p1', entityKind: 'plan', changeType: 'add', projectId: 'default-proj' })
-    eventBus.emit({ kind: 'state-change', consumer: 'project-status', slug: 'p2', entityKind: 'plan', changeType: 'add', projectId: 'other-proj' })
+    eventBus.emit({ kind: 'data_changed', consumer: 'project-status', projectId: 'default-proj', payload: { file: 'p1.md', dataSourceId: 'plans' } })
+    eventBus.emit({ kind: 'data_changed', consumer: 'project-status', projectId: 'other-proj', payload: { file: 'p2.md', dataSourceId: 'plans' } })
     eventBus.emit({ kind: 'health-tick', uptimeMs: 1000 })
 
     const res = await app.fetch(new Request('http://127.0.0.1/sse', {
@@ -62,8 +62,8 @@ describe('sse default project filtering', () => {
 
     registry.register(tmp, 'alpha')
 
-    eventBus.emit({ kind: 'state-change', consumer: 'project-status', slug: 'p1', entityKind: 'plan', changeType: 'add', projectId: 'alpha' })
-    eventBus.emit({ kind: 'state-change', consumer: 'project-status', slug: 'p2', entityKind: 'plan', changeType: 'add', projectId: 'beta' })
+    eventBus.emit({ kind: 'data_changed', consumer: 'project-status', projectId: 'alpha', payload: { file: 'p1.md', dataSourceId: 'plans' } })
+    eventBus.emit({ kind: 'data_changed', consumer: 'project-status', projectId: 'beta', payload: { file: 'p2.md', dataSourceId: 'plans' } })
     eventBus.emit({ kind: 'health-tick', uptimeMs: 1000 })
 
     const res = await app.fetch(new Request('http://127.0.0.1/sse?project=beta', {

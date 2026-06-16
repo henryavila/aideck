@@ -25,6 +25,10 @@ export interface ServerOptions {
   demo?: boolean
   /** Set to true to skip starting the watcher (used by some tests). */
   skipWatcher?: boolean
+  /** Base dir scanned for v2 consumer manifests (under `<dir>/consumers/`).
+   *  Defaults to `~/.aideck`. Overridable so tests/embedders don't read the real
+   *  home directory. */
+  aideckBaseDir?: string
 }
 
 /**
@@ -58,17 +62,18 @@ export function buildApp(opts: ServerOptions): BuiltApp {
   const startedAt = Date.now()
   const registry = createProjectRegistry()
 
+  // v2 consumer registry — scans <aideckBaseDir>/consumers/ (default ~/.aideck)
+  const aideckBaseDir = opts.aideckBaseDir ?? join(homedir(), '.aideck')
+  const consumers = createConsumerRegistry(aideckBaseDir)
+
   // Per-project watchers: created on-demand when projects register via /api/projects/register.
-  // These watch .atomic-skills/ inside each registered project and emit SSE events.
+  // These watch .atomic-skills/ inside each registered project and classify changed
+  // files against the registered consumers' manifest globs, emitting data_changed.
   if (!opts.skipWatcher) {
     registry.setWatcherFactory((projectId, rootDir) =>
-      createWatcher({ rootDir, eventBus, projectId })
+      createWatcher({ rootDir, eventBus, projectId, consumers })
     )
   }
-
-  // v2 consumer registry — scans ~/.aideck/consumers/
-  const aideckBaseDir = join(homedir(), '.aideck')
-  const consumers = createConsumerRegistry(aideckBaseDir)
 
   // v2 consumer watcher — watches ~/.aideck/consumers/*/data/
   const consumerWatcher = opts.skipWatcher

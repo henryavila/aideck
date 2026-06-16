@@ -113,6 +113,34 @@ async function walkSegments(
   return out
 }
 
+/**
+ * Pure (no I/O) test of whether an already-known relative path matches a glob
+ * `pattern`. Uses the same per-segment semantics as `expandGlob`: `*` matches
+ * within one path segment, `**` matches any number of segments (including
+ * zero). Both `relPath` and `pattern` are POSIX-slash separated. Used by the
+ * watcher to classify a changed file against a consumer's declared globs
+ * without walking the filesystem.
+ */
+export function pathMatchesGlob(relPath: string, pattern: string): boolean {
+  const nameParts = relPath.split('/').filter((s) => s.length > 0)
+  const patParts = pattern.split('/').filter((s) => s.length > 0)
+  const match = (ni: number, pi: number): boolean => {
+    if (pi >= patParts.length) return ni >= nameParts.length
+    const seg = patParts[pi]
+    if (seg === '**') {
+      // Consume zero or more name segments.
+      for (let k = ni; k <= nameParts.length; k++) {
+        if (match(k, pi + 1)) return true
+      }
+      return false
+    }
+    if (ni >= nameParts.length) return false
+    if (!segmentMatcher(seg)(nameParts[ni])) return false
+    return match(ni + 1, pi + 1)
+  }
+  return match(0, 0)
+}
+
 async function expandGlob(baseDir: string, pattern: string): Promise<GlobMatch[]> {
   // No wildcard → resolve to the literal path WITHOUT an existence check, so a
   // missing single file surfaces as io_error downstream (contract preserved).

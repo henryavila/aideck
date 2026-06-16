@@ -4,6 +4,7 @@ import type { Context } from 'hono'
 import type { ConsumerRegistry } from '../consumer-registry.js'
 import type { ProjectRegistry } from '../project-registry.js'
 import { readDataSource } from '../data-source-reader.js'
+import { rootAncestor } from '../data-source-resolve.js'
 import type { DataSourceDecl } from '../manifest-schema.js'
 import { appendJsonlLine } from '../writers/jsonl-append.js'
 import { isWithinDir } from '../writers/path-guard.js'
@@ -160,21 +161,6 @@ export function createApiV2Router(deps: ApiV2Deps): Hono {
   // `root: 'project'` dataSources resolve their path against a registered
   // project's rootDir (the repo's git-tracked .atomic-skills/ tree, read in
   // place). `root: 'consumer'` sources still read from the consumer dir.
-
-  // A derived source (§2a) has no `root` of its own — its baseDir must follow
-  // the root *ancestor* it ultimately derives from (e.g. `phases` → `plans`,
-  // root: 'project'). Walk the derivesFrom chain (cycle-guarded) to that source.
-  function rootAncestor(decl: DataSourceDecl, all: DataSourceDecl[]): DataSourceDecl {
-    let cur = decl
-    const seen = new Set<string>()
-    while (cur.derivesFrom && !seen.has(cur.id)) {
-      seen.add(cur.id)
-      const parent = all.find((ds) => ds.id === cur.derivesFrom)
-      if (!parent) break
-      cur = parent
-    }
-    return cur
-  }
 
   function resolveProjectDataSource(
     c: Context

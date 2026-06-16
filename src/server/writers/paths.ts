@@ -44,119 +44,52 @@ export function inboxPathFor(consumerDir: string, date: Date = new Date()): stri
 }
 
 /**
- * Entity-directory names that may appear immediately under `.atomic-skills/`
- * in the flat layout (e.g. `.atomic-skills/plans/foo.md`). When the first
- * segment is one of these, the path is treated as belonging to the default
- * `project-status` consumer rather than as a literal consumer id.
+ * The three append-only subdirectories aiDeck itself writes for every consumer
+ * (Iron Law #1). These are aiDeck's universal write contract — NOT a consumer's
+ * domain vocabulary — so the generic classifier may recognize them by name. All
+ * other directory structure (plans, initiatives, projects, …) is consumer
+ * domain and must be declared via the manifest, never hardcoded here.
  */
-export const ENTITY_DIRS = new Set<string>([
-  'plans',
-  'initiatives',
-  'annotations',
-  'highlights',
-  'inbox'
-])
-
-export const DEFAULT_CONSUMER = 'project-status'
+const UNIVERSAL_SUBDIRS = {
+  annotations: 'annotations-jsonl',
+  highlights: 'highlights-jsonl',
+  inbox: 'inbox-jsonl'
+} as const
 
 /**
  * Given an absolute path under `<rootDir>/.atomic-skills/...`, returns the
- * consumer id, or null if the path is not within the atomic-skills root.
- *
- * Two layouts are supported:
- *   1. Explicit: `.atomic-skills/<consumer>/<entityDir>/...`  → returns `<consumer>`
- *   2. Flat:     `.atomic-skills/<entityDir>/...`             → returns `DEFAULT_CONSUMER`
- *
- * The flat layout exists because atomic-skills' `project-status` skill writes
- * directly under `.atomic-skills/plans/` and `.atomic-skills/initiatives/`
- * without an intermediate consumer-id segment. Treating those entity-dir
- * names as reserved keeps the single-consumer case ergonomic while preserving
- * multi-consumer support via the explicit layout.
+ * consumer id taken from the first (explicit) path segment, or null if the path
+ * is not within the atomic-skills root. There is no flat-layout fallback: every
+ * path is attributed to the consumer named by its leading segment
+ * (`.atomic-skills/<consumer>/...`).
  */
 export function extractConsumerId(filePath: string, rootDir: string): string | null {
   const rel = relative(atomicSkillsRoot(rootDir), filePath)
   if (rel.startsWith('..') || rel === '') return null
   const head = rel.split(sep)[0]
-  if (!head) return null
-  if (ENTITY_DIRS.has(head)) return DEFAULT_CONSUMER
-  // Nested project layout `.atomic-skills/projects/<id>/<slug>/...` written by
-  // the project-status skill — attributed to DEFAULT_CONSUMER like the flat layout.
-  if (head === 'projects') return DEFAULT_CONSUMER
-  return head
+  return head || null
 }
 
-export type EntityKind = 'plan' | 'initiative' | 'discover-run' | 'annotations-jsonl' | 'highlights-jsonl' | 'inbox-jsonl' | 'other'
+export type EntityKind = 'annotations-jsonl' | 'highlights-jsonl' | 'inbox-jsonl' | 'other'
 
 /**
- * Classifies a path inside `.atomic-skills/`, returning the consumer id, the
- * entity kind, and (for plan/initiative) a slug. Returns null if the path is
- * outside the atomic-skills root.
- *
- * Supports both the explicit layout (`<consumer>/<entityDir>/<file>`) and
- * the flat layout (`<entityDir>/<file>`, attributed to DEFAULT_CONSUMER).
- * For nested initiative archives like `initiatives/archive/<file>.md` the
- * returned slug preserves the nested path (`archive/<file>`).
+ * Classifies a path inside `.atomic-skills/` for the watcher's append-only
+ * event path. Only the universal `<consumer>/{annotations,highlights,inbox}/`
+ * subdirectories are recognized; everything else is `kind: 'other'` (entity/
+ * data files are classified by manifest globs, not here). Returns null if the
+ * path is outside the atomic-skills root.
  */
-export function classifyFile(filePath: string, rootDir: string): { consumer: string; kind: EntityKind; slug?: string } | null {
+export function classifyFile(
+  filePath: string,
+  rootDir: string
+): { consumer: string; kind: EntityKind } | null {
   const relFromAtomic = relative(atomicSkillsRoot(rootDir), filePath)
   if (relFromAtomic.startsWith('..') || relFromAtomic === '') return null
   const parts = relFromAtomic.split(sep).filter((p) => p !== '')
   if (parts.length === 0) return null
 
-  // §2d — nested project layout: `projects/<projectId>/<slug>/plan.md` and
-  // `projects/<projectId>/<slug>/phases/<file>.md` (the layout the project-status
-  // skill actually writes). Without this branch these fall through to
-  // kind:'other' and the watcher emits no state-change → no live refresh.
-  // The returned slug matches the data-source captures (planSlug = <slug>,
-  // phaseFile = <file>) so it aligns with the project-scoped read path.
-  if (parts[0] === 'projects') {
-    if (parts.length === 4 && parts[3] === 'plan.md') {
-      return { consumer: DEFAULT_CONSUMER, kind: 'plan', slug: parts[2] }
-    }
-    const last = parts[parts.length - 1]
-    if (parts.length >= 5 && parts[3] === 'phases' && last.endsWith('.md')) {
-      return { consumer: DEFAULT_CONSUMER, kind: 'initiative', slug: last.slice(0, -3) }
-    }
-    return { consumer: DEFAULT_CONSUMER, kind: 'other' }
-  }
-
-  const head = parts[0]
-  let consumer: string
-  let entityDir: string | undefined
-  let entityParts: string[]
-  if (ENTITY_DIRS.has(head)) {
-    consumer = DEFAULT_CONSUMER
-    entityDir = head
-    entityParts = parts.slice(1)
-  } else {
-    consumer = head
-    entityDir = parts[1]
-    entityParts = parts.slice(2)
-  }
-
-  const mdSlug = (): string => {
-    const joined = entityParts.join('/')
-    return joined.endsWith('.md') ? joined.slice(0, -3) : joined
-  }
-
-  if (entityDir === 'discover-run.json') {
-    return { consumer, kind: 'discover-run' }
-  }
-
-  switch (entityDir) {
-    case 'plans':
-      if (entityParts.length === 0) return { consumer, kind: 'other' }
-      return { consumer, kind: 'plan', slug: mdSlug() }
-    case 'initiatives':
-      if (entityParts.length === 0) return { consumer, kind: 'other' }
-      return { consumer, kind: 'initiative', slug: mdSlug() }
-    case 'annotations':
-      return { consumer, kind: 'annotations-jsonl' }
-    case 'highlights':
-      return { consumer, kind: 'highlights-jsonl' }
-    case 'inbox':
-      return { consumer, kind: 'inbox-jsonl' }
-    default:
-      return { consumer, kind: 'other' }
-  }
+  const consumer = parts[0]
+  const subdir = parts[1]
+  const kind = subdir ? UNIVERSAL_SUBDIRS[subdir as keyof typeof UNIVERSAL_SUBDIRS] : undefined
+  return { consumer, kind: kind ?? 'other' }
 }

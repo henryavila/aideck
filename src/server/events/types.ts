@@ -4,24 +4,10 @@ import type {
   Highlight,
   IsoTimestamp
 } from '../../schemas/common.js'
-import type { Initiative, Plan } from '../../schemas/project-status.js'
-
-export type EntityKind = 'plan' | 'initiative' | 'discover-run'
-export type ChangeType = 'add' | 'change' | 'unlink'
 
 export interface BaseEvent {
   id: number
   emittedAt: IsoTimestamp
-}
-
-export interface StateChangeEvent extends BaseEvent {
-  kind: 'state-change'
-  consumer: string
-  slug: string
-  entityKind: EntityKind
-  changeType: ChangeType
-  entity?: Plan | Initiative
-  projectId?: string
 }
 
 export interface AnnotationAddedEvent extends BaseEvent {
@@ -56,9 +42,14 @@ export interface HealthTickEvent extends BaseEvent {
 export interface DataChangedEvent extends BaseEvent {
   kind: 'data_changed'
   consumer: string
+  projectId?: string
   payload: {
     file: string
-    dataSourceHint: string
+    /** Path within a consumer's `data/` dir (consumer-watcher). */
+    dataSourceHint?: string
+    /** The manifest dataSource id whose glob the changed file matched
+     *  (project-tree watcher). */
+    dataSourceId?: string
   }
 }
 
@@ -69,7 +60,6 @@ export interface ConsumerManifestChangedEvent extends BaseEvent {
 }
 
 export type RuntimeEvent =
-  | StateChangeEvent
   | AnnotationAddedEvent
   | HighlightAddedEvent
   | ParseErrorEvent
