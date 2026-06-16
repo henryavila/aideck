@@ -1,6 +1,5 @@
 import { resolve, basename } from 'node:path'
-import { access } from 'node:fs/promises'
-import { join } from 'node:path'
+import { stat } from 'node:fs/promises'
 import type { Watcher } from './watcher.js'
 
 export interface ProjectEntry {
@@ -143,16 +142,20 @@ export function createProjectRegistry(): ProjectRegistry {
 export async function validateRootDir(rootDir: string): Promise<{ ok: true; canonical: string } | { ok: false; reason: string }> {
   const canonical = resolve(rootDir)
 
+  // aiDeck is consumer-agnostic: a project root is any directory. WHERE a
+  // consumer's data lives (e.g. `.atomic-skills/`) is the consumer's own
+  // convention, declared by its manifest dataSources — aiDeck must never
+  // require a particular subdirectory or it would bind the runtime to one
+  // consumer's layout.
+  let stats
   try {
-    await access(canonical)
+    stats = await stat(canonical)
   } catch {
     return { ok: false, reason: `rootDir does not exist: ${canonical}` }
   }
 
-  try {
-    await access(join(canonical, '.atomic-skills'))
-  } catch {
-    return { ok: false, reason: `rootDir has no .atomic-skills/ directory: ${canonical}` }
+  if (!stats.isDirectory()) {
+    return { ok: false, reason: `rootDir is not a directory: ${canonical}` }
   }
 
   return { ok: true, canonical }

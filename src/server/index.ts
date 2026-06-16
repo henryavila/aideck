@@ -9,7 +9,7 @@ import { createApiRouter } from './routes/api.js'
 import { createApiV2Router } from './routes/api-v2.js'
 import { createSseRouter } from './routes/sse.js'
 import { createSpaRouter } from './routes/spa.js'
-import { createProjectRegistry, type ProjectRegistry } from './project-registry.js'
+import { createProjectRegistry, validateRootDir, type ProjectRegistry } from './project-registry.js'
 import { createConsumerRegistry, type ConsumerRegistry } from './consumer-registry.js'
 import { createConsumerWatcher, type ConsumerWatcher } from './consumer-watcher.js'
 import { acquireLock, releaseLock } from './lockfile.js'
@@ -120,11 +120,46 @@ export function buildApp(opts: ServerOptions): BuiltApp {
   return { app, eventBus, consumers, consumerWatcher, startedAt, rootDir: opts.rootDir, registry }
 }
 
+/**
+ * Re-register a project for every persistent consumer that declares a `rootDir`
+ * in its manifest. The in-memory project registry is volatile (a restart clears
+ * it), but consumers persist on disk under ~/.aideck/consumers/. Without this,
+ * after a restart only the consumer that next spawns/registers has a project,
+ * and /api/consumers/:id/projects falls back to that one for EVERY consumer —
+ * so every consumer renders the first-registered consumer's data (the
+ * contamination bug). Driving registration off the persistent consumer manifests
+ * makes the binding durable: the project is re-registered on every scan without
+ * the consuming tool doing anything.
+ *
+ * A declared rootDir that no longer exists (or lost its `.atomic-skills/`) is
+ * skipped — we never register a dead root, and the scoped endpoint then honestly
+ * reports the consumer has no project rather than leaking a sibling's.
+ * Idempotent: an already-registered rootDir is left as-is (its watcher keeps
+ * running). Exported for unit coverage.
+ */
+export async function registerConsumerProjects(
+  consumers: ConsumerRegistry,
+  registry: ProjectRegistry
+): Promise<void> {
+  for (const consumer of consumers.list()) {
+    const rootDir = consumer.manifest.rootDir
+    if (!rootDir) continue
+    if (registry.getByRootDir(rootDir)) continue
+    const validation = await validateRootDir(rootDir)
+    if (!validation.ok) continue
+    const entry = registry.register(validation.canonical, consumer.id)
+    if (entry.watcher) entry.watcher.start().catch(() => {})
+  }
+}
+
 export async function startServer(opts: ServerOptions): Promise<RunningServer> {
   const built = buildApp(opts)
 
   // Scan v2 consumers before starting (safe even if ~/.aideck/consumers/ doesn't exist)
   await built.consumers.scan()
+  // Re-register each persistent consumer's bound project so the binding survives
+  // this restart without the consuming tool re-registering (see fn doc above).
+  await registerConsumerProjects(built.consumers, built.registry)
 
   if (built.consumerWatcher) {
     await built.consumerWatcher.start()

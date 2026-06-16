@@ -289,6 +289,15 @@ export const manifestSchema = z.object({
   mcpNamespace: mcpNamespaceSchema,
   title: z.string().min(1),
   icon: z.string().optional(),
+  // Optional, machine-local absolute path to the project this consumer is bound
+  // to (its `root: 'project'` dataSources resolve against it). When present,
+  // aiDeck auto-registers the project from it on every scan, so the binding
+  // survives a restart without the consuming tool re-registering, and
+  // /api/consumers/:id/projects is scoped to it (never surfaces a sibling
+  // consumer's project). Absent → the consumer is a generic lens over every
+  // registered project. Lives in ~/.aideck/consumers/<id>/manifest.yaml (local
+  // runtime state), never committed to a repo.
+  rootDir: z.string().min(1).optional(),
   dataSources: z.array(dataSourceSchema),
   nav: navSchema.optional(),
   pages: z.array(pageSchema),

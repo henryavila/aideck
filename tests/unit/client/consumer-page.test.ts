@@ -9,6 +9,7 @@ vi.mock('../../../src/client/api.js', () => ({
   fetchConsumerManifest: vi.fn(),
   fetchConsumers: vi.fn().mockResolvedValue([]),
   fetchDataSource: vi.fn().mockResolvedValue([]),
+  fetchProjects: vi.fn().mockResolvedValue([]),
 }))
 
 function makeRouter(path: string) {
@@ -141,6 +142,49 @@ describe('ConsumerPage', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('Page not found')
+  })
+
+  it('gates widgets until the project scope resolves for the CURRENT consumer (no cross-consumer leak on nav)', async () => {
+    const { fetchConsumerManifest, fetchProjects } = await import('../../../src/client/api.js')
+    const scoped = (id: string) => ({
+      id,
+      schemaVersion: '0.1',
+      title: id,
+      dataSources: [{ id: 'plans', path: 'x', format: 'frontmatter', root: 'project' }],
+      pages: [{ slug: 'overview', title: 'Overview', layout: 'sections', default: true, sections: [] }],
+    })
+    vi.mocked(fetchConsumerManifest).mockImplementation(async (cid: string) => scoped(cid) as never)
+    vi.mocked(fetchProjects).mockImplementation(
+      async (cid: string) => [{ projectId: cid, rootDir: '/' + cid, registeredAt: '' }] as never
+    )
+
+    const router = makeRouter('/arch/overview')
+    await router.isReady()
+    const wrapper = mount(ConsumerPage, { global: { plugins: [router] } })
+    await flushPromises()
+    expect(wrapper.find('.page-content').exists()).toBe(true) // arch scope resolved
+
+    // Navigate arch → lekto, holding lekto's project resolution PENDING so the
+    // race window (consumerId already = lekto, selectedProjectId still = arch) is open.
+    let release!: () => void
+    vi.mocked(fetchProjects).mockImplementationOnce(
+      () =>
+        new Promise((r) => {
+          release = () => r([{ projectId: 'lekto', rootDir: '/lekto', registeredAt: '' }] as never)
+        })
+    )
+    await router.push('/lekto/overview')
+    await flushPromises() // manifest(lekto) resolved; projects(lekto) still pending
+
+    // The bug: without a gate, widgets render now with consumerId=lekto but the
+    // injected project still 'arch' → they fetch lekto's consumer against arch's
+    // project (cross-consumer). The page-content MUST stay gated until lekto's
+    // own project scope resolves.
+    expect(wrapper.find('.page-content').exists()).toBe(false)
+
+    release()
+    await flushPromises()
+    expect(wrapper.find('.page-content').exists()).toBe(true) // lekto scope resolved
   })
 
   it('falls back to the loading skeleton when manifest fetch fails', async () => {

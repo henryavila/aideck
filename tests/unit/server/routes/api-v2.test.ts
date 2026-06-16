@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createConsumerRegistry } from '../../../../src/server/consumer-registry.js'
+import { createProjectRegistry } from '../../../../src/server/project-registry.js'
 import { createApiV2Router } from '../../../../src/server/routes/api-v2.js'
 
 const MANIFEST = `
@@ -257,5 +258,110 @@ pages:
     expect(res.status).toBe(400)
     const body = await res.json() as { error: { code: string } }
     expect(body.error.code).toBe('validation_error')
+  })
+})
+
+// ── /api/consumers/:id/projects scoping ────────────────────────────────────
+// A v2 consumer that declares a `rootDir` is bound to THAT project only. The
+// endpoint must never surface another consumer's project (the contamination
+// bug: it returned the global registry for every consumer, so a consumer whose
+// own project was not registered leaked the first-registered project's data).
+function scopedManifest(id: string, rootDir: string): string {
+  return `
+schemaVersion: '0.1'
+id: ${id}
+mcpNamespace: ${id.replace(/-/g, '_')}
+title: ${id}
+rootDir: '${rootDir}'
+dataSources:
+  - id: plans
+    path: .atomic-skills/projects/*/*/plan.md
+    format: frontmatter
+    root: project
+pages:
+  - slug: home
+    title: Home
+    layout: sections
+    sections: []
+`.trimStart()
+}
+
+describe('GET /api/consumers/:id/projects — scoped to the consumer rootDir', () => {
+  let baseDir: string
+  let lektoRoot: string
+  let archRoot: string
+
+  beforeEach(async () => {
+    baseDir = await mkdtemp(join(tmpdir(), 'api-v2-scope-base-'))
+    lektoRoot = await mkdtemp(join(tmpdir(), 'api-v2-scope-lekto-'))
+    archRoot = await mkdtemp(join(tmpdir(), 'api-v2-scope-arch-'))
+    await mkdir(join(lektoRoot, '.atomic-skills'), { recursive: true })
+    await mkdir(join(archRoot, '.atomic-skills'), { recursive: true })
+    await mkdir(join(baseDir, 'consumers', 'lekto'), { recursive: true })
+    await mkdir(join(baseDir, 'consumers', 'arch'), { recursive: true })
+    await writeFile(join(baseDir, 'consumers', 'lekto', 'manifest.yaml'), scopedManifest('lekto', lektoRoot), 'utf8')
+    await writeFile(join(baseDir, 'consumers', 'arch', 'manifest.yaml'), scopedManifest('arch', archRoot), 'utf8')
+  })
+
+  afterEach(async () => {
+    await rm(baseDir, { recursive: true, force: true })
+    await rm(lektoRoot, { recursive: true, force: true })
+    await rm(archRoot, { recursive: true, force: true })
+  })
+
+  it('never leaks another consumer’s project when this consumer’s project is unregistered', async () => {
+    const consumers = createConsumerRegistry(baseDir)
+    await consumers.scan()
+    const registry = createProjectRegistry()
+    // Only lekto registered (e.g. it spawned the server); arch's project was lost
+    // on restart and never re-registered.
+    registry.register(lektoRoot, 'lekto')
+    const app = createApiV2Router({ consumers, registry, version: '0.0.0', startedAt: Date.now() })
+
+    const archRes = await app.request('/api/consumers/arch/projects')
+    expect(archRes.status).toBe(200)
+    const archBody = await archRes.json() as { projects: Array<{ projectId: string; rootDir: string }> }
+    // arch's own project is NOT registered → must be empty, NOT lekto.
+    expect(archBody.projects).toEqual([])
+
+    // lekto still sees its own.
+    const lektoRes = await app.request('/api/consumers/lekto/projects')
+    const lektoBody = await lektoRes.json() as { projects: Array<{ projectId: string }> }
+    expect(lektoBody.projects.map((p) => p.projectId)).toEqual(['lekto'])
+  })
+
+  it('returns the consumer’s own project once registered, never the sibling’s', async () => {
+    const consumers = createConsumerRegistry(baseDir)
+    await consumers.scan()
+    const registry = createProjectRegistry()
+    registry.register(lektoRoot, 'lekto')
+    registry.register(archRoot, 'arch')
+    const app = createApiV2Router({ consumers, registry, version: '0.0.0', startedAt: Date.now() })
+
+    const archBody = await (await app.request('/api/consumers/arch/projects')).json() as { projects: Array<{ projectId: string; rootDir: string }> }
+    expect(archBody.projects.map((p) => p.projectId)).toEqual(['arch'])
+    expect(archBody.projects[0].rootDir).toBe(archRoot)
+
+    const lektoBody = await (await app.request('/api/consumers/lekto/projects')).json() as { projects: Array<{ projectId: string }> }
+    expect(lektoBody.projects.map((p) => p.projectId)).toEqual(['lekto'])
+  })
+
+  it('refuses to read a sibling project through a bound consumer (data-endpoint binding guard)', async () => {
+    const consumers = createConsumerRegistry(baseDir)
+    await consumers.scan()
+    const registry = createProjectRegistry()
+    // Both projects globally registered — the data endpoint must still refuse to
+    // serve lekto's data under the arch consumer (defense in depth: the binding
+    // is enforced on the data path, not only the projects-list path).
+    registry.register(lektoRoot, 'lekto')
+    registry.register(archRoot, 'arch')
+    const app = createApiV2Router({ consumers, registry, version: '0.0.0', startedAt: Date.now() })
+
+    const leak = await app.request('/api/consumers/arch/projects/lekto/data/plans')
+    expect(leak.status).toBe(404)
+
+    // The consumer's OWN project still reads fine.
+    const own = await app.request('/api/consumers/arch/projects/arch/data/plans')
+    expect(own.status).toBe(200)
   })
 })
