@@ -1,7 +1,7 @@
 <template>
   <WidgetFrame frameless>
-    <!-- Empty state: neither title nor body resolved → muted note, no banner. -->
-    <span v-if="!title && !body" class="callout-empty">// no callout</span>
+    <!-- Empty state: no eyebrow/title/body resolved → muted note, no banner. -->
+    <span v-if="!eyebrow && !title && !body" class="callout-empty">// no callout</span>
 
     <component
       :is="linkHref ? RouterLink : 'div'"
@@ -14,6 +14,7 @@
       <span class="co-bar" aria-hidden="true" />
       <span class="co-glyph" aria-hidden="true">{{ glyph }}</span>
       <span class="co-text">
+        <span v-if="eyebrow" class="co-eyebrow">{{ eyebrow }}</span>
         <span v-if="title" class="co-title">{{ title }}</span>
         <span v-if="body" class="co-body">{{ body }}</span>
       </span>
@@ -48,6 +49,8 @@ const record = computed<Record<string, unknown>>(() => props.source[0] ?? {})
 
 const titleField = computed(() => String(props.config.titleField ?? 'title'))
 const bodyField = computed(() => String(props.config.bodyField ?? 'body'))
+// DS v2.1 atom: a small uppercase eyebrow label above the body, tone-colored.
+const eyebrowField = computed(() => String(props.config.eyebrowField ?? 'eyebrow'))
 
 function asText(v: unknown): string | undefined {
   if (v === null || v === undefined) return undefined
@@ -62,6 +65,18 @@ const title = computed<string | undefined>(
 const body = computed<string | undefined>(
   () => asText(props.config.body) ?? asText(record.value[bodyField.value]),
 )
+const eyebrow = computed<string | undefined>(
+  () => asText(props.config.eyebrow) ?? asText(record.value[eyebrowField.value]),
+)
+
+// DS v2.1: a direct `tone` (success|warning|error|info|neutral) takes precedence
+// over the variant→tone mapping — lets the atom be tone-driven, including neutral.
+const TONES = new Set<Tone>(['success', 'warning', 'error', 'info', 'neutral'])
+const toneOverride = computed<Tone | undefined>(() => {
+  const raw = asText(props.config.tone) ?? asText(record.value.tone)
+  return raw && TONES.has(raw as Tone) ? (raw as Tone) : undefined
+})
+const TONE_GLYPH: Record<Tone, string> = { success: '✓', warning: '!', error: '×', info: '◉', neutral: '·' }
 
 // Variant precedence: explicit config.variant, else the record's own `variant`,
 // else a neutral 'info' tone. 'attention' is widget-specific (accent-primary);
@@ -83,9 +98,12 @@ const VARIANT_STATUS: Record<Exclude<Variant, 'attention'>, string> = {
   error: 'error',
 }
 
-const tone = computed<Tone>(() => (variant.value === 'attention' ? 'info' : statusInfo(VARIANT_STATUS[variant.value]).tone))
+const tone = computed<Tone>(() =>
+  toneOverride.value ?? (variant.value === 'attention' ? 'info' : statusInfo(VARIANT_STATUS[variant.value]).tone),
+)
 
 const glyph = computed<string>(() => {
+  if (toneOverride.value) return TONE_GLYPH[toneOverride.value]
   if (variant.value === 'attention') return '◆'
   return statusInfo(VARIANT_STATUS[variant.value]).glyph
 })
@@ -153,6 +171,16 @@ const linkHref = computed<string | undefined>(() => {
   gap: 1px;
   min-width: 0;
   flex: 1 1 auto;
+}
+
+.co-eyebrow {
+  font-family: var(--font-sans);
+  font-size: 10px;
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  line-height: 1.3;
+  color: var(--status-neutral);
 }
 
 .co-title {
@@ -236,6 +264,13 @@ const linkHref = computed<string | undefined>(() => {
 
 .callout.c-neutral .co-bar { background: var(--status-neutral); }
 .callout.c-neutral .co-glyph { color: var(--status-neutral); background: var(--status-neutral-bg); }
+
+/* Eyebrow adopts the tone (info uses the accent, matching the glyph). */
+.callout.c-success .co-eyebrow { color: var(--status-success); }
+.callout.c-warning .co-eyebrow { color: var(--status-warning); }
+.callout.c-error   .co-eyebrow { color: var(--status-error); }
+.callout.c-info    .co-eyebrow { color: var(--accent-primary); }
+.callout.c-neutral .co-eyebrow { color: var(--status-neutral); }
 
 /* ── Pulse (variant 'attention' only) ───────────────────────────── */
 .callout.is-pulse .co-bar {

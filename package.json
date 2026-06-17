@@ -38,6 +38,7 @@
   },
   "dependencies": {
     "@hono/node-server": "^1.13.0",
+    "@mdi/font": "^7.4.47",
     "@modelcontextprotocol/sdk": "^1.0.0",
     "chokidar": "^4.0.0",
     "hono": "^4.6.0",

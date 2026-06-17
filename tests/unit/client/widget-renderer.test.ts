@@ -8,6 +8,7 @@ import { PROJECT_ID_KEY } from '../../../src/client/composables/useProjectScope.
 
 vi.mock('../../../src/client/api.js', () => ({
   fetchDataSource: vi.fn().mockResolvedValue([]),
+  fetchDataSourceAllProjects: vi.fn().mockResolvedValue([]),
 }))
 
 function makeRouter(path: string) {
@@ -40,6 +41,109 @@ describe('WidgetRenderer', () => {
     })
 
     expect(wrapper.text()).toContain('Unknown widget: nonexistent-widget')
+  })
+
+  it('injects a count aggregate into config.value and keeps the records', async () => {
+    const { fetchDataSource } = await import('../../../src/client/api.js')
+    vi.mocked(fetchDataSource).mockResolvedValue([
+      { id: 'a', status: 'active' },
+      { id: 'b', status: 'active' },
+      { id: 'c', status: 'paused' },
+    ])
+    const router = makeRouter('/alpha/overview')
+    await router.isReady()
+
+    const wrapper = mount(WidgetRenderer, {
+      props: {
+        binding: { widget: 'stat', source: { ref: 'plans', agg: 'count', where: { status: 'active' } } },
+        consumerId: 'alpha',
+      },
+      global: { plugins: [router] },
+    })
+    await flushPromises()
+
+    const vm = wrapper.vm as unknown as {
+      effectiveConfig: Record<string, unknown>
+      sourceData: Record<string, unknown>[]
+    }
+    expect(vm.effectiveConfig.value).toBe('2')
+    expect(vm.effectiveConfig.aggCount).toBe(2)
+    // the widget still receives the underlying records (lanes/lists keep working)
+    expect(vm.sourceData).toHaveLength(3)
+    // the rendered stat shows the aggregate
+    expect(wrapper.text()).toContain('2')
+  })
+
+  it('feeds a ratio aggregate to a headline-banner count', async () => {
+    const { fetchDataSource } = await import('../../../src/client/api.js')
+    vi.mocked(fetchDataSource).mockResolvedValue([
+      { id: 'a', status: 'done' },
+      { id: 'b', status: 'active' },
+      { id: 'c', status: 'active' },
+      { id: 'd', status: 'active' },
+    ])
+    const router = makeRouter('/alpha/overview')
+    await router.isReady()
+
+    const wrapper = mount(WidgetRenderer, {
+      props: {
+        binding: {
+          widget: 'headline-banner',
+          source: { ref: 'tasks', agg: 'ratio', of: 'status==done' },
+        },
+        consumerId: 'alpha',
+      },
+      global: { plugins: [router] },
+    })
+    await flushPromises()
+
+    // 1 of 4 done = 25%; the banner shows the injected aggregate, not source.length (4)
+    expect(wrapper.find('.hb-count').text()).toBe('25%')
+  })
+
+  it('reads across all projects when source.scope is all-projects', async () => {
+    const { fetchDataSource, fetchDataSourceAllProjects } = await import('../../../src/client/api.js')
+    vi.mocked(fetchDataSourceAllProjects).mockResolvedValue([
+      { id: 'a', projectId: 'alpha', status: 'active' },
+      { id: 'b', projectId: 'beta', status: 'active' },
+    ])
+    const router = makeRouter('/alpha/panorama')
+    await router.isReady()
+
+    const wrapper = mount(WidgetRenderer, {
+      props: {
+        binding: { widget: 'table', source: { ref: 'plans', scope: 'all-projects' } },
+        consumerId: 'atomic-skills',
+      },
+      global: { plugins: [router] },
+    })
+    await flushPromises()
+
+    // routed to the cross-project endpoint, not the per-project one
+    expect(fetchDataSourceAllProjects).toHaveBeenCalledWith('atomic-skills', 'plans')
+    expect(fetchDataSource).not.toHaveBeenCalled()
+    expect((wrapper.vm as unknown as { sourceData: Record<string, unknown>[] }).sourceData).toHaveLength(2)
+  })
+
+  it('fans out one instance per record for repeat:{ ref }', async () => {
+    const { fetchDataSource } = await import('../../../src/client/api.js')
+    vi.mocked(fetchDataSource).mockResolvedValue([
+      { id: 'p1', slug: 'p1', title: 'Plan One', status: 'active' },
+      { id: 'p2', slug: 'p2', title: 'Plan Two', status: 'active' },
+    ])
+    const router = makeRouter('/alpha/overview')
+    await router.isReady()
+
+    const wrapper = mount(WidgetRenderer, {
+      props: {
+        binding: { widget: 'card', repeat: { ref: 'plans', filter: { status: 'active' } } },
+        consumerId: 'alpha',
+      },
+      global: { plugins: [router] },
+    })
+    await flushPromises()
+
+    expect(wrapper.findAll('.repeat-item')).toHaveLength(2)
   })
 
   it('fetches data source when source.ref is provided', async () => {

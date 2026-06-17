@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createConsumerRegistry } from '../../../../src/server/consumer-registry.js'
+import { createProjectRegistry } from '../../../../src/server/project-registry.js'
 import { createApiV2Router } from '../../../../src/server/routes/api-v2.js'
 
 const MANIFEST = `
@@ -213,6 +214,72 @@ pages:
     expect(res.status).toBe(400)
     const body = await res.json() as { error: { code: string } }
     expect(body.error.code).toBe('validation_error')
+  })
+
+  // ─── Cross-project read (Panorama primitive) ──────────────────────────
+  const XPROJ_MANIFEST = `
+schemaVersion: '0.1'
+id: multi
+mcpNamespace: multi
+title: Multi
+dataSources:
+  - id: plans
+    path: .atomic-skills/project-status/plans/*.md
+    format: frontmatter
+    root: project
+    captures: [planSlug]
+pages:
+  - slug: overview
+    title: Overview
+    layout: sections
+    sections: []
+`.trimStart()
+
+  const PLAN_FM = (slug: string, status: string) => `---\nslug: ${slug}\ntitle: ${slug}\nstatus: ${status}\n---\n# ${slug}\n`
+
+  async function withCrossProjectConsumer() {
+    const dir = join(baseDir, 'consumers', 'multi')
+    await mkdir(dir, { recursive: true })
+    await writeFile(join(dir, 'manifest.yaml'), XPROJ_MANIFEST, 'utf8')
+    const consumers = createConsumerRegistry(baseDir)
+    await consumers.scan()
+
+    const projA = await mkdtemp(join(tmpdir(), 'xproj-a-'))
+    const projB = await mkdtemp(join(tmpdir(), 'xproj-b-'))
+    for (const [p, slug, status] of [[projA, 'plan-a', 'active'], [projB, 'plan-b', 'paused']] as const) {
+      await mkdir(join(p, '.atomic-skills', 'project-status', 'plans'), { recursive: true })
+      await writeFile(join(p, '.atomic-skills', 'project-status', 'plans', `${slug}.md`), PLAN_FM(slug, status))
+    }
+    const registry = createProjectRegistry()
+    registry.register(projA, 'alpha')
+    registry.register(projB, 'beta')
+
+    const app = createApiV2Router({ consumers, registry, version: '0.0.0', startedAt: Date.now() })
+    return { app, cleanup: () => Promise.all([rm(projA, { recursive: true, force: true }), rm(projB, { recursive: true, force: true })]) }
+  }
+
+  it('GET /all-projects/data/:ds — merges every project, tagging each record with projectId', async () => {
+    const { app, cleanup } = await withCrossProjectConsumer()
+    try {
+      const res = await app.request('/api/consumers/multi/all-projects/data/plans')
+      expect(res.status).toBe(200)
+      const body = (await res.json()) as { records: Array<{ slug: string; projectId: string }>; count: number }
+      expect(body.count).toBe(2)
+      const byProject = Object.fromEntries(body.records.map((r) => [r.projectId, r.slug]))
+      expect(byProject).toEqual({ alpha: 'plan-a', beta: 'plan-b' })
+    } finally {
+      await cleanup()
+    }
+  })
+
+  it('GET /all-projects/data/:ds — 404 for an unknown data source', async () => {
+    const { app, cleanup } = await withCrossProjectConsumer()
+    try {
+      const res = await app.request('/api/consumers/multi/all-projects/data/nope')
+      expect(res.status).toBe(404)
+    } finally {
+      await cleanup()
+    }
   })
 
   it('POST /api/consumers/:id/write/:target — appends JSONL and returns path', async () => {

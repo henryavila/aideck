@@ -60,6 +60,7 @@
   letter-spacing: -0.005em;
   transition: color 120ms var(--ease-out), border-color 120ms var(--ease-out);
 }
+.tabs-bar .tb .tb-ico { font-size: 12px; line-height: 1; opacity: 0.85; }
 .tabs-bar .tb:hover { color: var(--fg-default); }
 .tabs-bar .tb.on {
   color: var(--fg-default);

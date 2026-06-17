@@ -39,12 +39,20 @@
       <span class="lh-tag">no telemetry</span>
     </span>
 
-    <button class="icon-btn chrome-help" title="help" aria-label="help">?</button>
+    <button
+      v-if="hasHelp"
+      class="icon-btn chrome-help"
+      :class="{ on: helpActive }"
+      title="help"
+      aria-label="help"
+      :aria-pressed="helpActive"
+      @click="$emit('open-help')"
+    >?</button>
     <button class="icon-btn chrome-menu" title="menu" aria-label="menu">⋯</button>
   </header>
 </template>
 
 <script setup lang="ts">
-defineProps<{ crumb: string[]; hasSidebar: boolean }>()
-defineEmits<{ (e: 'open-palette'): void; (e: 'toggle-sidebar'): void }>()
+defineProps<{ crumb: string[]; hasSidebar: boolean; hasHelp?: boolean; helpActive?: boolean }>()
+defineEmits<{ (e: 'open-palette'): void; (e: 'toggle-sidebar'): void; (e: 'open-help'): void }>()
 </script>

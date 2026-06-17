@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createRouter, createWebHashHistory } from 'vue-router'
 import ConsumerPage from '../../../src/client/pages/ConsumerPage.vue'
+import { __resetActiveManifest } from '../../../src/client/composables/useActiveManifest.js'
 
 // Mock the API module
 vi.mock('../../../src/client/api.js', () => ({
@@ -26,6 +27,7 @@ function makeRouter(path: string) {
 describe('ConsumerPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    __resetActiveManifest()
   })
 
   it('shows loading skeleton before manifest resolves', async () => {

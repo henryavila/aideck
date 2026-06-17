@@ -23,16 +23,17 @@
       </div>
     </div>
 
-    <div v-if="pages.length > 1" class="tabs-bar" role="tablist">
+    <div v-if="pages.length > 1 && !sidebarNav" class="tabs-bar" role="tablist">
       <router-link
         v-for="page in pages"
         :key="page.slug"
-        :to="`/${consumerId}/${page.slug}`"
+        :to="page.route ?? `/${consumerId}/${page.slug}`"
         class="tb"
         :class="{ on: currentPage.slug === page.slug }"
         role="tab"
         :aria-selected="currentPage.slug === page.slug"
       >
+        <span v-if="showIcons" class="tb-ico"><Icon :icon="page.icon" /></span>
         <span>{{ page.title }}</span>
         <span class="ct">{{ pageWidgetCount(page) }}</span>
       </router-link>
@@ -83,10 +84,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, provide, watch } from 'vue'
+import { ref, computed, provide, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { fetchConsumerManifest, fetchProjects, type ProjectSummary } from '../api.js'
+import { fetchProjects, type ProjectSummary } from '../api.js'
 import { PROJECT_ID_KEY } from '../composables/useProjectScope.js'
+import { useActiveManifest } from '../composables/useActiveManifest.js'
+import { PAGE_STATE_KEY, type PageState } from '../composables/usePageState.js'
+import { STATUS_MAP_KEY } from '../utils/status.js'
+import Icon from '../components/shell/Icon.vue'
 import SectionsLayout from '../layouts/SectionsLayout.vue'
 import GridLayout from '../layouts/GridLayout.vue'
 import SingleLayout from '../layouts/SingleLayout.vue'
@@ -94,7 +99,6 @@ import type { PageDecl } from '../../server/manifest-schema.js'
 
 const route = useRoute()
 const router = useRouter()
-const manifest = ref<Record<string, unknown> | null>(null)
 
 // Project scope: when the consumer has root:'project' dataSources, widgets read
 // the project-scoped endpoint for the selected project. The ref is provided to
@@ -118,6 +122,28 @@ watch(
 
 const consumerId = computed(() => String(route.params.consumerId))
 const pageSlug = computed(() => route.params.pageSlug as string | undefined)
+
+// Shared with the chrome/sidebar so nav and page body agree on one manifest.
+const { manifest, nav, statusMap, reload } = useActiveManifest(consumerId)
+// Manifest-level statusMap → default status vocabulary for every descendant widget.
+provide(STATUS_MAP_KEY, statusMap)
+
+// Cross-widget interaction state, scoped to the page and reset on navigation so
+// a selection never bleeds across consumers or pages.
+const pageState = ref<PageState>({})
+provide(PAGE_STATE_KEY, pageState)
+watch(
+  () => [consumerId.value, pageSlug.value],
+  () => {
+    pageState.value = {}
+  }
+)
+
+// nav.style: sidebar moves page navigation into the left Sidebar, so the in-page
+// tab bar is suppressed; tabs remain the default.
+const sidebarNav = computed(() => nav.value.style === 'sidebar')
+const showIcons = computed(() => nav.value.showIcons === true)
+
 const dataSources = computed(
   () => (manifest.value?.dataSources as Array<{ root?: string }> | undefined) ?? []
 )
@@ -143,22 +169,21 @@ function pageWidgetCount(page: PageDecl): number {
   return 1
 }
 
-async function loadManifest(): Promise<void> {
-  try {
-    manifest.value = await fetchConsumerManifest(consumerId.value)
-  } catch {
-    manifest.value = null
-    return
-  }
-  if (hasProjectScope.value) {
+// Project-scoped consumers seed their project list once the manifest resolves.
+watch(
+  manifest,
+  async (m) => {
+    if (!m || !hasProjectScope.value) return
     projects.value = await fetchProjects(consumerId.value)
     const ids = projects.value.map((p) => p.projectId)
     if (!selectedProjectId.value || !ids.includes(selectedProjectId.value)) {
       selectedProjectId.value = ids[0]
     }
-  }
-}
+  },
+  { immediate: true }
+)
 
-onMounted(loadManifest)
-watch(consumerId, loadManifest)
+function loadManifest(): void {
+  void reload()
+}
 </script>

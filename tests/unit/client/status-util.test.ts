@@ -1,7 +1,34 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest'
-import { toneForValue, type ToneBand } from '../../../src/client/utils/status.js'
+import {
+  toneForValue,
+  normalizeStatusMap,
+  statusInfo,
+  type ToneBand
+} from '../../../src/client/utils/status.js'
 import { useStatuses } from '../../../src/client/composables/useStatuses.js'
+
+describe('normalizeStatusMap', () => {
+  it('expands a bare tone string to a partial StatusInfo', () => {
+    expect(normalizeStatusMap({ active: 'info' })).toEqual({ active: { tone: 'info' } })
+  })
+
+  it('passes through a full triple unchanged', () => {
+    const map = { blocked: { tone: 'error', label: 'travado', glyph: '⚑' } }
+    expect(normalizeStatusMap(map)).toEqual(map)
+  })
+
+  it('returns an empty map for non-object input', () => {
+    expect(normalizeStatusMap(undefined)).toEqual({})
+    expect(normalizeStatusMap(null)).toEqual({})
+    expect(normalizeStatusMap('nope')).toEqual({})
+  })
+
+  it('feeds statusInfo so a consumer word resolves to its declared tone', () => {
+    const overrides = normalizeStatusMap({ paused: 'warning' })
+    expect(statusInfo('paused', overrides).tone).toBe('warning')
+  })
+})
 
 describe('toneForValue', () => {
   // Bands lifted from the three widgets that used to hand-roll the loop.

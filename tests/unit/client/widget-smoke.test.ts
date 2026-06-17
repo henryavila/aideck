@@ -20,6 +20,12 @@ import TimelineWidget from '../../../src/client/components/widgets/TimelineWidge
 import TreeViewWidget from '../../../src/client/components/widgets/TreeViewWidget.vue'
 import SparklineWidget from '../../../src/client/components/widgets/SparklineWidget.vue'
 import ProgressBarWidget from '../../../src/client/components/widgets/ProgressBarWidget.vue'
+import StepperWidget from '../../../src/client/components/widgets/StepperWidget.vue'
+import StatusListWidget from '../../../src/client/components/widgets/StatusListWidget.vue'
+import HeadlineBannerWidget from '../../../src/client/components/widgets/HeadlineBannerWidget.vue'
+import CollectionGridWidget from '../../../src/client/components/widgets/CollectionGridWidget.vue'
+import RecordSwitcherWidget from '../../../src/client/components/widgets/RecordSwitcherWidget.vue'
+import CatalogWidget from '../../../src/client/components/widgets/CatalogWidget.vue'
 
 vi.mock('../../../src/client/api.js', () => ({
   fetchDataSource: vi.fn().mockResolvedValue([]),
@@ -45,6 +51,17 @@ const CASES: { name: string; component: Component; config?: Record<string, unkno
   { name: 'tree-view', component: TreeViewWidget },
   { name: 'sparkline', component: SparklineWidget, config: { mode: 'bar', valueField: 'value', domain: [0, 10] } },
   { name: 'progress-bar', component: ProgressBarWidget },
+  // DS v2.1 widget extension.
+  { name: 'stepper (horizontal)', component: StepperWidget, config: { currentId: 'x', statuses: { active: { tone: 'info' } } } },
+  { name: 'stepper (vertical)', component: StepperWidget, config: { orientation: 'vertical', selectable: true, linkTo: '/x/:slug' } },
+  { name: 'stepper (dense)', component: StepperWidget, config: { variant: 'dense' } },
+  { name: 'status-list', component: StatusListWidget },
+  { name: 'status-list (groupBy)', component: StatusListWidget, config: { groupBy: 'kind', groupOrder: ['started'] } },
+  { name: 'status-list (checklist)', component: StatusListWidget, config: { variant: 'checklist', checkField: 'check' } },
+  { name: 'headline-banner', component: HeadlineBannerWidget, config: { count: 7, title: 'Records', tone: 'info' } },
+  { name: 'collection-grid', component: CollectionGridWidget, config: { titleField: 'title', attention: { when: 'count', gt: 1, tone: 'error' }, live: { when: 'status' } } },
+  { name: 'record-switcher', component: RecordSwitcherWidget, config: { linkTo: '/x/:slug' } },
+  { name: 'catalog', component: CatalogWidget },
 ]
 
 function makeRouter() {

@@ -239,6 +239,43 @@ export function createApiV2Router(deps: ApiV2Deps): Hono {
     return c.json({ record })
   })
 
+  // ─── Cross-project data ───────────────────────────────────────────────
+  // Read a project-scoped dataSource across ALL registered projects, tagging
+  // each record with its `projectId`, for cross-project overview pages (a
+  // "Panorama"). A consumer-scoped source has no project fan-out — read once.
+  // A project that lacks this collection is skipped (not an error: a project may
+  // simply not have e.g. exit_gates), so one sparse project never breaks the view.
+  app.get('/api/consumers/:id/all-projects/data/:dataSourceId', async (c) => {
+    const id = c.req.param('id') ?? ''
+    const dataSourceId = c.req.param('dataSourceId') ?? ''
+    const consumer = deps.consumers.get(id)
+    if (!consumer) return errResp(c, 'consumer_not_found', `consumer "${id}" not found`, 404)
+    const allSources = consumer.manifest.dataSources
+    const decl = allSources.find((ds) => ds.id === dataSourceId)
+    if (!decl) {
+      return errResp(c, 'data_source_not_found', `data source "${dataSourceId}" not found in consumer "${id}"`, 404)
+    }
+
+    if (rootAncestor(decl, allSources).root !== 'project') {
+      const result = await readDataSource(consumer.dir, decl, allSources)
+      if (!result.ok) {
+        return errResp(c, result.error.code, result.error.message, 500, {
+          suggestion: result.error.suggestion,
+          details: result.error.details
+        })
+      }
+      return c.json({ records: result.value.records, count: result.value.records.length })
+    }
+
+    const merged: Record<string, unknown>[] = []
+    for (const project of deps.registry?.list() ?? []) {
+      const result = await readDataSource(project.rootDir, decl, allSources)
+      if (!result.ok) continue
+      for (const record of result.value.records) merged.push({ ...record, projectId: project.projectId })
+    }
+    return c.json({ records: merged, count: merged.length })
+  })
+
   app.post('/api/consumers/:id/write/:target{.+}', async (c) => {
     const id = c.req.param('id')
     const target = c.req.param('target')

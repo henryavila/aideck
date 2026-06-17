@@ -247,6 +247,27 @@ body::before {
   font-feature-settings: 'calt' 0;
 }
 
+/* Page rows — the active consumer's pages nested under it (nav.style: sidebar) */
+.page-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 4px 8px 4px 22px;
+  border-radius: 4px;
+  font-family: var(--font-sans); font-size: 12px;
+  color: var(--fg-subtle);
+  cursor: pointer;
+  transition: background 120ms var(--ease-out), color 120ms var(--ease-out);
+}
+.page-row:hover { background: var(--bg-elevated); color: var(--fg-default); }
+.page-row.on { color: var(--fg-default); }
+.page-row.on::before {
+  content: ''; position: absolute; left: 12px;
+  width: 2px; height: 14px; border-radius: 1px;
+  background: var(--accent, var(--fg-default));
+}
+.page-row { position: relative; }
+.page-row .page-ico { width: 14px; text-align: center; flex: none; font-size: 12px; }
+.page-row .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 /* Data sources tree (sidebar) */
 .fs-tree {
   padding: 4px 8px;
