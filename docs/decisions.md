@@ -426,3 +426,273 @@ The recommended refactor (deferred above) was then done, behavior-preserving:
 - **`useStatuses(props)`** (`composables/useStatuses.ts`) returns the `computed(() => props.config.statuses)` that had been copy-pasted into 10 widgets (Accordion, Badge, Card, Kanban, KeyValue, List, PhaseTimeline, Table, Timeline, TreeView). Each now calls it; `StatusOverrides` imports dropped where newly unused. CalloutWidget still legitimately omits it (resolves an internal `variant` enum, not consumer data).
 - **`toneForValue(value, bands, fallback='neutral')`** + `ToneBand` (`utils/status.ts`) replaces the hand-rolled "highest ascending band ≤ value" loop in Sparkline (fallback `neutral`), ProgressBar (`[30→warning,50→info,90→success]`, fallback `error`), and PhaseTimeline (`[1→warning,50→info,100→success]`, fallback `neutral`). Divergent cutoffs stay as per-widget band consts; only the loop is shared. Unit tests assert it reproduces each widget's prior thresholds exactly.
 - **Client has no typecheck** (both tsconfigs exclude `src/client`); the safety net was `vite build` (compile + import resolution) + new `status-util` unit tests + a `widget-smoke` test that mounts all 12 refactored widgets. `npx vitest run` passes apart from the documented flaky chokidar watcher/throttle suite (untouched here).
+
+---
+
+## 2026-06-16 — Watcher de-leak (hard-cut): manifest-driven classification
+
+### Context
+The last residual domain leak in the otherwise-agnostic runtime was the file watcher +
+path classifier (`src/server/watcher.ts`, `src/server/writers/paths.ts`). They hardcoded
+`project-status` concepts: `ENTITY_DIRS = {plans, initiatives, …}`, the §2d nested
+`projects/<id>/<slug>/plan.md` + `phases/` layout, `EntityKind = 'plan'|'initiative'|…`,
+`DEFAULT_CONSUMER = 'project-status'`, and the watcher parsed `Plan`/`Initiative` entities
+to ship on a `state-change` event. The §2d branch existed only so the **generic v2
+dashboard** got live-refresh for project-rooted dataSources — coupling the generic watcher
+to one consumer's domain.
+
+### Decision: hard-cut (user-chosen), manifest-glob-driven watching
+- The watcher now classifies a changed entity/data file by matching its path against each
+  **registered consumer's `root: 'project'` dataSource globs** (`classifyByManifests` in
+  `src/server/watch-classify.ts`, using a new pure `pathMatchesGlob` extracted from
+  `data-source-reader.ts`), and emits the already-generic `data_changed` event keyed by the
+  matched consumer. The client (`WidgetRenderer`) only ever filtered on `event.consumer`, so
+  `state-change`'s `entity`/`entityKind`/`slug` payload was dead weight — `StateChangeEvent`
+  is removed entirely. `intents.ts` emits `data_changed` too.
+- `paths.ts` keeps only generic helpers + a `classifyFile`/`extractConsumerId` that knows
+  the three **universal aiDeck subdirs** (`annotations`/`highlights`/`inbox`) under the
+  explicit `<consumer>/` layout. No flat-layout fallback, no `DEFAULT_CONSUMER`.
+- `/api/state` (`state.ts`) dropped its `DEFAULT_CONSUMER` flat dual-scan; it reads only the
+  explicit `<consumer>/{plans,initiatives}/` layout and is now legacy (superseded by the
+  generic project-scoped data endpoints).
+- The watcher gained access to the `ConsumerRegistry` via the factory in `index.ts`; a new
+  `ServerOptions.aideckBaseDir` seam lets tests/embedders point the consumer scan at a temp
+  dir instead of the real `~/.aideck`.
+
+### Cross-repo coordination (required)
+`project-status` is no longer a hardcoded first-class consumer for watching — it must ship a
+manifest like any other consumer. Wrote `docs/handoffs/atomic-skills-manifest.md` with the
+exact `manifest.yaml` (project-rooted globs matching the existing `.atomic-skills/` layout —
+no data moves) and a sequencing note: atomic-skills publishes + registers the manifest
+**before** this hard-cut lands, else project-status loses live-refresh.
+
+### Verification
+`tsc --noEmit` clean; **668/668 `npx vitest run` pass**. New tests: `pathMatchesGlob` +
+`classifyByManifests` (`watch-classify.test.ts`), watcher emits `data_changed` on a
+manifest-glob match and stays silent on an unmatched path. The `watcher.test`/`paths.test`/
+`intents.test`/`sse-project-filter`/`multi-watcher` suites were rewritten off `state-change`.
+The malformed-plan watcher test was dropped (the watcher no longer parses entities — parse
+errors surface at read time via the data endpoints).
+
+## 2026-06-16 — DS v2.1 widget extension: 6 new widgets + callout/progress enhancements
+
+### Context
+The `aiDeck DS` claude.ai/design project gained a v2.1 widget batch (`prompts/11-widgets-extension.md`,
+`ui_kits/dashboard/widgets-new.jsx`, and seven `preview/widget-*` cards). Implemented the new
+runtime widgets to match. Everything stays domain-agnostic per the canonical pattern: each widget
+reads consumer-supplied **field names** with neutral defaults, and resolves consumer **status values**
+to one of the 5 DS tones via `statusInfo(value, config.statuses)` (the §0.2 tone rule). No domain
+vocabulary enters a prop name, default, or value→meaning dictionary.
+
+### New widgets (registered in `WidgetRenderer.widgetMap`)
+- **`stepper`** (`StepperWidget.vue`) — compact ordered step sequence. `horizontal` pills + connectors,
+  `vertical` numbered timeline with `dependsOn` + optional selectable/`linkTo` rows, and a frameless
+  `dense` dot row for table cells. `currentId`/`currentField` draws the "you are here" info ring.
+- **`status-list`** (`StatusListWidget.vue`) — short items with a status chip or `annotation`;
+  `groupBy`/`groupOrder` sections with counts; `variant: checklist` renders ✓/×/· criteria with a mono `meta`.
+- **`headline-banner`** (`HeadlineBannerWidget.vue`) — big mono aggregate number + tone-coded lane strip
+  (one bar per record, faded when inactive). `count` falls back to `source.length`; a zero aggregate
+  renders "0", not an empty state.
+- **`collection-grid`** (`CollectionGridWidget.vue`) — auto-fit `minmax(minColWidth,1fr)` grid that repeats
+  a slot-composed card per record (reuses CardWidget's `header`/`body`/`footer` WidgetSlot pattern).
+  `attention:{when,gt|eq,tone}` paints a conditional border + ring; `live:{when}` adds `.is-live`.
+- **`record-switcher`** (`RecordSwitcherWidget.vue`) — detail-page `<h1>` trigger + scrollable dropdown;
+  selection is router navigation (`resolveRowLink(linkTo, …)`); "current" = the record whose resolved
+  link equals `route.path` (fallbacks: `idField`==`route.params[paramField]`, else first). Closes on
+  pick / outside-click / Escape.
+- **`catalog`** (`CatalogWidget.vue`) — full-height (single-layout) master-detail browser. Toolbar search +
+  facet chips (AND-filter, union of all records' `facetsField`); detail sections render only when present
+  (`summary`/`examples`/`pros·cons`/`subItems`/`fields`/`deps·outputs`/`refs`); `refs` chips re-select the
+  matching record (the navigable graph).
+
+### `stepper` key reassignment (supersedes the 2026-05 alias)
+The earlier "PhaseTimeline → generic `stepper`" note registered `stepper` as an **alias of**
+`PhaseTimelineWidget`. The DS v2.1 prompt #1 defines `stepper` as a **distinct** compact widget, explicitly
+contrasted with the exploded phase cards ("sequência macro + andamento micro = `stepper` + labeled
+`progress` lado a lado"). So `stepper` now maps to the new `StepperWidget`; the exploded phase cards keep
+their descriptive `phase-timeline` key. **Safe in practice**: a repo-wide grep found no consumer manifest,
+fixture, or demo binding `widget: stepper` — only the registry line, this log, and an example-vocabulary
+comment. The DS is authoritative for widget vocabulary (Iron Law: docs win), and the user asked for the DS
+as built.
+
+### Enhancements (additive, backward-compatible)
+- **`callout`** — added an uppercase tone-colored `eyebrow` (above body) and a direct `tone`
+  (`success|warning|error|info|neutral`) that overrides the legacy `variant→tone` mapping; `variant`
+  still works. Empty state now also considers `eyebrow`.
+- **`progress-bar`** — added `tone` (forced fill: a DS tone or a status value; per-row `colorField` still
+  wins), `valueText`/`valueTextField` (custom right-aligned head text, e.g. `5/12`), `caption`/`captionField`
+  (subtle line below), and `segmented` (max ≤ 40 discrete cells, value filled) for discrete counts.
+- **`card`** already supported `header`/`body`/`footer` slot composition (the record-card preset is a
+  consumer composition, not new code).
+
+### Deferred
+The `header-nav`/command-palette **`?`-help action** (open a consumer-declared `catalog` page from the
+chrome, active state while open) touches the app shell more deeply than a leaf widget and is left for a
+focused follow-up. The existing `CommandPalette.vue` is unchanged.
+
+### Verification
+`tsc --noEmit` clean; **699/699 `npx vitest run` pass** (was 668 — +31: 10 new smoke mounts in
+`widget-smoke.test.ts` and 21 success-gate assertions in `ds-v2.1-widgets.test.ts`). The `build.test.ts`
+`vite build` passes, so all six new SFCs compile, not just mount. New widgets live entirely under
+`src/client/components/widgets/`; the only shared edit is the `widgetMap` registry (+ the `stepper` repoint).
+
+## 2026-06-17 — DS v2.1 nav/chrome/status (agnostic), additive on schemaVersion 0.1
+
+Context: the atomic-skills redesign handoff (`docs/handoffs/atomic-skills-dashboard-redesign/`)
+proposed a v2.0 manifest grammar (`schemaVersion: "2.0"`, a `sources:` map, a `chrome` block,
+an aggregation engine, an `emits` bus, ~11 domain-named widgets). Validated against the live
+runtime and the code; decisions below.
+
+### Schema stays `0.1` — extend additively, no 2.0 bump
+The only truly breaking item in the v2.0 sample is `sources:` map vs `dataSources:` array
+(cosmetic). Bumping a major version for that trips Iron Law #3 (version mismatches are refused,
+never coerced) for no real gain. Every valuable capability is **additive** to 0.1 (optional
+fields). So consumers migrate by *adopting new optional fields*, not by a version jump — fastest
+path off the legacy manifest, and every consumer benefits. The `sources:`-map ergonomics are
+deferred (not worth the break).
+
+### Domain-named widgets are NOT built (de-leak upheld)
+`handoff-manifest-e-componentes.md §3` lists `front-card`, `parallelism-banner`, `project-grid`,
+`phase-timeline`, `skill-catalog`, `plan-picker`, etc. That doc predates the de-leak; the
+**converged** design (`manifest.sample.yaml` + `CONTRAST-aideck-gaps.md`) uses the generic v2.1
+widgets (`stat`, `collection-grid`, `callout`, `catalog`, `headline-banner`, `record-switcher`,
+`stepper`, `status-list`, `progress`) with domain pushed into config + `statusMap` + emitter-
+derived fields. Treated as design rationale, not a build list. aiDeck core privileges no domain
+vocabulary (Iron Law).
+
+### Shipped this turn (all additive, agnostic, backward-compatible)
+- **`nav.style: sidebar` is now live** (was dead config — silent false-green). When set, the
+  active consumer's pages render nested under it in `Sidebar.vue` (`.page-row`), and
+  `ConsumerPage.vue` suppresses the in-page tab bar. Default/`tabs` unchanged. Both the chrome
+  and the page body read ONE manifest via the new `useActiveManifest` composable (module-scoped
+  singleton → single fetch, shared reactivity; `__resetActiveManifest()` for test isolation).
+- **`help: <pageSlug>` top-level** + the chrome `?` is wired (`ChromeHeader` emits `open-help`;
+  `App.vue` routes to the help page; `helpActive`/`aria-pressed` when on it). The button is now
+  **hidden** when no help page is declared (was an always-present inert button). `help` is
+  refined to a declared page slug — a dangling slug is a parse error, not a dead button.
+- **Page `icon` + `nav.showIcons`** render in tabs and sidebar page rows (was a no-op). aiDeck
+  ships no icon font, so token icons (`mdi:*`) degrade to a neutral `◆` via the shared
+  `utils/icon.ts`; literal glyphs/emoji render. `showIcons` defaults **off** (no regression for
+  existing consumers). Page `route` override is now honored for tab/sidebar link targets.
+- **Top-level `statusMap`** (consumer status word → DS tone, bare `active: info` or full triple).
+  Threaded as a per-widget default via provide/inject (`STATUS_MAP_KEY`) merged under each
+  widget's `config.statuses` in `WidgetRenderer` — a widget's own `config.statuses` still wins.
+  **Zero widget changes** (they already read `config.statuses`). `normalizeStatusMap` in
+  `utils/status.ts`.
+- **`progress` widget alias** → `ProgressBarWidget` (`type: progress` rendered "Unknown widget").
+
+### Deferred to a Phase 2 (need their own design pass; specced in the atomic-skills handoff)
+Source aggregation (`agg: count|ratio|sum`, `where`, `of`); `repeat: { source }` fan-out; the
+cross-widget `emits`/`set` state bus; `fieldMap` role-binding; command-palette indexing records;
+a cross-project Panorama landing + ProjectRegistry; a richer `chrome:` block (the top-level
+`help:` is forward-compatible — it can later fold into `chrome.help`). An icon font for `mdi:*`.
+
+### Verification
+`tsc --noEmit` clean; **720/720 `npx vitest run` pass** (+21); `vite build` succeeds (SFCs
+compile). New: `useActiveManifest.ts`, `utils/icon.ts`; new tests for schema (`help`/`statusMap`/
+`nav`), `normalizeStatusMap`, `iconGlyph`, Sidebar nesting, and the chrome help button.
+
+## 2026-06-17 (round 2) — DS v2 engine extensions (agnostic, additive on 0.1)
+
+Owner direction: implement everything aiDeck-side that the atomic-skills redesign needs, keeping
+it generic; aiDeck **computes aggregations at read time** (vs the emitter precomputing). Scope =
+the agnostic engine; `emits` bus + cross-project Panorama remain deferred. Supersedes the round-1
+"Deferred to a Phase 2" note for the items below. Full contract + consumer migration steps live in
+`docs/handoffs/to-atomic-skills-v2-engine-contracts.md`.
+
+### Shipped (all additive, schemaVersion stays 0.1)
+- **Source aggregation `agg: count|ratio|sum` + `where` + `of` + `ratioFormat`** on a `source`
+  binding (`utils/aggregate.ts`, pure/tested). `where` operators: equality, boolean, `"*"` (exists),
+  `in`, `gt/gte/lt/lte`, `ne`, `exists` — multiple fields ANDed. The widget still receives its
+  records (lanes/lists intact); the scalar is injected into `config.value` (+ raw
+  `aggCount/aggTotal/aggRatio`); author `config.value` wins. This moves count/ratio computation out
+  of the consumer emitter — a pure regenerable read, not authoritative state (canonical-data-pattern).
+- **Array filters**: `filter: { status: [active, paused] }` = membership; scalar stays strict
+  equality (no regression).
+- **`fieldMap: { role: field }`** expands to flat `config.<role>Field` keys before render (author
+  `<role>Field` wins). Zero widget changes — sugar over the existing `*Field` convention.
+- **`repeat: { ref, filter?, param? }`** fans out one widget instance per record of another source
+  (each record = the instance scope; nested data via slots). The string group-by form is unchanged.
+- **`commandPalette.records[]`** (top-level): opt-in ⌘K record indexing with `titleField`/
+  `subtitleField`/`route` (`:consumerId` + `:field` tokens). Records rank above pages.
+
+### Delivery choices worth recording
+- Aggregation is delivered by **config injection**, not by replacing `source`, because widgets like
+  `headline-banner` need both the number AND the per-record list (lanes). The uniform mechanism is
+  `source.agg` (not a `count:{agg}` object inside config — the design sample's per-widget form was
+  reinterpreted to the binding form so it works for every widget).
+- `fieldMap`/`statusMap`/`agg` all layer in one `effectiveConfig` computed in `WidgetRenderer`,
+  author-overridable, skipped when absent (no churn to the common config object).
+
+### Still deferred (unchanged)
+`emits`/`set` cross-widget bus; cross-project Panorama + ProjectRegistry (default page remains the
+landing); rich `chrome:` block; an icon font for `mdi:*` tokens (consumers use emoji/glyph meanwhile).
+
+### Verification
+`tsc --noEmit` clean; **739/739 `npx vitest run` pass** (+19 over round 1); `vite build` green.
+New: `utils/aggregate.ts` + tests (`aggregate.test.ts`), schema grammar tests, and WidgetRenderer
+gate tests for agg injection and `repeat:{source}` fan-out.
+
+## 2026-06-17 (round 3) — cross-widget emits/state bus (closes the agnostic engine)
+
+Owner: "continue com a implementação completa." Implemented the last agnostic engine feature from
+the DS — same-page cross-widget selection without navigation. Cross-project Panorama remains the
+only deferred item (decision G4 stands: a consumer's default page is its landing).
+
+- **Page-state bus** (`composables/usePageState.ts`, `PAGE_STATE_KEY`): a reactive, page-scoped
+  `Record<string, unknown>`, provided by `ConsumerPage` and **reset on every navigation** (consumer
+  or page). Ephemeral UI state, never canonical data.
+- **`emits: { select: { set: <key>, value?: <field> } }`** on a widget binding: WidgetRenderer
+  listens for the widget's `select` event and writes `pageState[key]` (the selected id, or the named
+  field of the selected record).
+- **`source.param.match` gains `{ field, state }`** — match a record field against a page-state key,
+  alongside the existing `{ field, param }` (route) and bare-string forms. An unset key skips the
+  clause (reader shows all → graceful default). WidgetRenderer snapshots page state synchronously
+  before its first await so `watchEffect` tracks bus changes (same discipline as route params).
+- **`stepper` is the wired emitter**: `selectable` steps emit on click AND seed the bus with the
+  **current** step on load, so the dependent widget defaults to "current" before any click. Other
+  selecting widgets (record-switcher, catalog) keep their router/internal selection and can adopt
+  `@select` later with no contract change — the bus is opt-in per binding.
+
+Why a bus and not just routing: routing already covers cross-*page* drill-down; the bus covers
+*same-page* re-scoping (the DS's phase-timeline → focus-panel interaction) without a navigation.
+
+### Verification
+`tsc --noEmit` clean; **744/744 `npx vitest run` pass** (+3); `vite build` green. New: `usePageState.ts`,
+`emits-bus.test.ts`; schema + StepperWidget emit wiring. Handoff `to-atomic-skills-v2-engine-contracts.md`
+updated (emits moved from deferred → §A11 with full contract).
+
+## 2026-06-17 (round 3b) — landing page treatment (G4 in practice)
+
+A `default: true` page is the consumer's landing. Beyond rendering at `/:consumerId` (existing), the
+sidebar now (a) **pins the landing page to the top** of the nested page list regardless of its
+`pages:` array position (`pinLanding`), and (b) reads the landing row **active at the consumer root**
+(`activePageSlug = route.pageSlug ?? landingSlug`), closing the rough edge where the root URL showed
+the landing content with no highlighted row. Pure helpers `landingSlug`/`pinLanding` in
+`useActiveManifest.ts` (tested); wired in `App.vue` without touching `currentPageSlug` (so `helpActive`
+is unaffected). Still per-consumer — the cross-project Panorama remains the only deferred item.
+748 tests pass (1 pre-existing perf test flakes only under heavy parallel load; green in isolation).
+
+## 2026-06-17 (round 4) — cross-project read (reverses the G4 Panorama deferral)
+
+The atomic-skills owner confirmed the Panorama must aggregate **all projects at once** (they run
+several in parallel). That's a concrete need, so the cross-project capability — previously deferred
+under G4 — is implemented as a single agnostic primitive, NOT a special domain page.
+
+- **`source.scope: 'all-projects'`** (schema, default `'project'`): read a `root: project` dataSource
+  across every registered project, merged, each record tagged with `projectId`. New server endpoint
+  `GET /api/consumers/:id/all-projects/data/:ds` loops `registry.list()`, reads each `rootDir`, tags
+  + concatenates; a project lacking the collection is skipped (not an error). Client
+  `fetchDataSourceAllProjects` + `WidgetRenderer` route `scope: all-projects` to it (ignoring the
+  selected-project scope). A `root: consumer` source reads once.
+- **No new widgets, nothing new in the consumer emitter.** The Panorama composes from existing
+  pieces: cross-project totals via `agg`/`where` over `scope: all-projects`, per-project sections via
+  the string `repeat: projectId` (group-by), and `default: true` to make it the landing.
+- This is still **per-consumer** (atomic-skills' own projects) — not cross-*consumer*. That keeps it
+  within the canonical-data-pattern (pure read over the consumer's registered project roots).
+
+### Verification
+`tsc --noEmit` clean; **753/753 `npx vitest run` pass** (+9); `vite build` green. New server route test
+(merges 2 projects, tags projectId), client scope-routing test, schema scope tests. Handoff
+`to-atomic-skills-v2-engine-contracts.md` updated: §A12 added, Panorama removed from §C (deferred),
+§B1 gains a Panorama build step.

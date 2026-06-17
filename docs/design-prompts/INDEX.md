@@ -17,10 +17,14 @@ Prompts para colar em [claude.ai/design](https://claude.ai/design) na ordem list
 | 08 | [widgets-content-layout](08-widgets-content-layout.md) | Grupo D: markdown, code-block, tabs, accordion, container, grid-columns |
 | 09 | [widgets-activity-nav](09-widgets-activity-nav.md) | Grupo E: kanban, timeline, log-feed, tree-view, breadcrumb, header-nav, drawer, search-filter |
 | 10 | [handoff](10-handoff.md) | Prompt de handoff para Claude Code |
+| 11 | [widgets-extension](11-widgets-extension.md) | v2.1: stepper, status-list, callout, collection-grid, record-switcher, catalog, headline-banner + enhancements |
 
-## Cobertura dos 25+1 widgets
+## Cobertura dos widgets
 
-Todos os 26 widgets (25 built-in + card-grid alias) estao cobertos nos grupos A-E.
+Grupos A-E (05-09) cobrem os 26 widgets base (25 built-in + card-grid alias). O
+prompt 11 (v2.1) adiciona 6 widgets novos no runtime (`stepper` reassigned,
+`status-list`, `collection-grid`, `record-switcher`, `catalog`, `headline-banner`)
++ enhancements em `callout`, `progress-bar` e `card`. Ver `docs/decisions.md`.
 
 ## Dados usados
 
