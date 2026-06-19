@@ -1,5 +1,6 @@
 <template>
   <WidgetFrame
+    :frameless="!framed"
     :title="title"
     :icon="icon"
     :meta="meta"
@@ -25,7 +26,7 @@
     </div>
 
     <!-- Single bar variant -->
-    <div v-else class="pbar pbar-solo">
+    <div v-else class="pbar pbar-solo" :class="{ 'is-inline': !framed }">
       <div class="pbar-head">
         <span class="name">{{ rows[0].name }}</span>
         <span class="frac">{{ rows[0].valueText ?? (showPct ? rows[0].pct + '%' : rows[0].value + ' / ' + rows[0].max) }}</span>
@@ -67,6 +68,8 @@ const props = defineProps<{
 const title = computed(() => props.config.title as string | undefined)
 const icon = computed(() => (props.config.icon as string | undefined) ?? '▭')
 const live = computed(() => props.config.live === true)
+// Inline (frameless) mode for embedding in a card body (config.frame: false).
+const framed = computed(() => props.config.frame !== false)
 const showPct = computed(() => props.config.pct === true)
 const unit = computed(() => String(props.config.unit ?? 'items'))
 // DS v2.1: render the single bar as `max` discrete units instead of a fill.
@@ -153,6 +156,11 @@ const weightedAvg = computed(() => {
 .pbar-solo {
   justify-content: center;
   height: 100%;
+}
+/* Inline (in a card body): size to content, top-aligned — no frame to fill. */
+.pbar-solo.is-inline {
+  height: auto;
+  justify-content: flex-start;
 }
 .pbar-head {
   display: flex;

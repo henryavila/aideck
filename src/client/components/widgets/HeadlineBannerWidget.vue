@@ -1,6 +1,6 @@
 <template>
   <WidgetFrame frameless>
-    <div class="banner" :class="`b-${tone}`">
+    <div class="hb" :class="`b-${tone}`">
       <div class="hb-lead">
         <span class="hb-count">{{ count }}</span>
         <span v-if="title" class="hb-title">{{ title }}</span>
@@ -86,7 +86,13 @@ const tone = computed<Tone>(() => {
 </script>
 
 <style scoped>
-.banner {
+/* NOTE: the root class is `.hb` (not `.banner`). `.banner` is a GLOBAL unscoped
+   class (the demo/warning banner in shell.css) that forces height:32px + display:flex;
+   reusing it here let that global rule clobber the widget (clamping it to 32px and
+   overflowing the number/title onto the next section), because scoped CSS only
+   namespaces this component's OWN selectors — it does not shield its elements from
+   matching global class rules. `.hb` matches the design specimen and has no global rule. */
+.hb {
   display: flex;
   align-items: stretch;
   justify-content: space-between;
@@ -159,18 +165,18 @@ const tone = computed<Tone>(() => {
 
 /* Banner tone: border adopts the tone line; the big number takes the tone color
    (neutral stays muted to avoid a colorless number reading as an error). */
-.banner.b-success { border-color: var(--status-success-line); }
-.banner.b-success .hb-count { color: var(--status-success); }
+.hb.b-success { border-color: var(--status-success-line); }
+.hb.b-success .hb-count { color: var(--status-success); }
 
-.banner.b-warning { border-color: var(--status-warning-line); }
-.banner.b-warning .hb-count { color: var(--status-warning); }
+.hb.b-warning { border-color: var(--status-warning-line); }
+.hb.b-warning .hb-count { color: var(--status-warning); }
 
-.banner.b-error { border-color: var(--status-error-line); }
-.banner.b-error .hb-count { color: var(--status-error); }
+.hb.b-error { border-color: var(--status-error-line); }
+.hb.b-error .hb-count { color: var(--status-error); }
 
-.banner.b-info { border-color: var(--status-info-line); }
-.banner.b-info .hb-count { color: var(--status-info); }
+.hb.b-info { border-color: var(--status-info-line); }
+.hb.b-info .hb-count { color: var(--status-info); }
 
-.banner.b-neutral { border-color: var(--border-default); }
-.banner.b-neutral .hb-count { color: var(--fg-muted); }
+.hb.b-neutral { border-color: var(--border-default); }
+.hb.b-neutral .hb-count { color: var(--fg-muted); }
 </style>

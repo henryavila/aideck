@@ -17,6 +17,7 @@
 
   <WidgetFrame
     v-else
+    :frameless="!framed"
     :title="title"
     :icon="icon"
     :meta="meta"
@@ -25,14 +26,22 @@
     empty-note="no steps"
   >
     <!-- HORIZONTAL — pills joined by connectors -->
-    <ol v-if="orientation === 'horizontal'" class="stp-h">
-      <li v-for="(step, i) in steps" :key="step.key" class="stp-h-item">
-        <span v-if="i > 0" class="stp-conn" :class="{ 'is-success': step.tone === 'success' }" aria-hidden="true" />
-        <span class="stp-pill" :class="['c-' + step.tone, { 'is-current': step.current }]">
-          {{ step.id }}
-        </span>
-      </li>
-    </ol>
+    <template v-if="orientation === 'horizontal'">
+      <!-- Inline mode (frame:false) reinstates the label/summary the frame would
+           otherwise carry — matches the design's "roteiro" sub-caption row. -->
+      <div v-if="!framed && inlineLabel" class="stp-inline-head">
+        <span class="pr-label">{{ inlineLabel }}</span>
+        <span v-if="doneSummary" class="pr-val">{{ doneSummary }}</span>
+      </div>
+      <ol class="stp-h">
+        <li v-for="(step, i) in steps" :key="step.key" class="stp-h-item">
+          <span v-if="i > 0" class="stp-conn" :class="{ 'is-success': step.tone === 'success' }" aria-hidden="true" />
+          <span class="stp-pill" :class="['c-' + step.tone, { 'is-current': step.current }]">
+            {{ step.id }}
+          </span>
+        </li>
+      </ol>
+    </template>
 
     <!-- VERTICAL — a timeline of numbered rows -->
     <ol v-else class="stp-v">
@@ -118,6 +127,9 @@ const statuses = useStatuses(props)
 const title = computed(() => props.config.title as string | undefined)
 const icon = computed(() => (props.config.icon as string | undefined) ?? '⋯')
 const live = computed(() => props.config.live === true)
+// Inline (frameless) horizontal mode for embedding in a card body.
+const framed = computed(() => props.config.frame !== false)
+const inlineLabel = computed(() => (props.config.label as string | undefined) || undefined)
 
 const orientation = computed<'horizontal' | 'vertical'>(() =>
   props.config.orientation === 'vertical' ? 'vertical' : 'horizontal',
@@ -213,9 +225,42 @@ const meta = computed(() => {
   const n = steps.value.length
   return `${n} step${n === 1 ? '' : 's'}`
 })
+
+// Inline-head right caption: "{done}/{total}" + an optional consumer-supplied
+// suffix (config.summaryLabel) — the widget stays domain-agnostic.
+const doneSummary = computed<string | undefined>(() => {
+  const total = steps.value.length
+  if (!total) return undefined
+  const done = steps.value.filter((s) => s.tone === 'success').length
+  const suffix = props.config.summaryLabel ? ` ${String(props.config.summaryLabel)}` : ''
+  return `${done}/${total}${suffix}`
+})
 </script>
 
 <style scoped>
+/* ── Inline-head (frameless horizontal): label + done summary ─────── */
+.stp-inline-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 7px;
+}
+.stp-inline-head .pr-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fg-subtle);
+  font-feature-settings: 'calt' 0;
+}
+.stp-inline-head .pr-val {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--fg-muted);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'calt' 0;
+}
+
 /* ── Horizontal: pills + connectors ──────────────────────────────── */
 .stp-h {
   list-style: none;

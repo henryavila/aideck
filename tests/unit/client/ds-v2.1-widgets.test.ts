@@ -139,8 +139,8 @@ describe('collection-grid', () => {
 
   it('auto-fit grid, one card per record', async () => {
     const w = await mountW(CollectionGridWidget, RECS, { titleField: 'title' })
-    expect(w.findAll('.cg-card')).toHaveLength(2)
-    expect(w.find('.cg-grid').attributes('style')).toContain('auto-fit')
+    expect(w.findAll('.rcard')).toHaveLength(2)
+    expect(w.find('.cgrid').attributes('style')).toContain('auto-fit')
   })
 
   it('attention border applies only when the predicate holds', async () => {
@@ -148,9 +148,9 @@ describe('collection-grid', () => {
       titleField: 'title',
       attention: { when: 'count', gt: 5, tone: 'error' },
     })
-    const cards = w.findAll('.cg-card')
-    expect(cards[0].classes()).toContain('cg-attention')
-    expect(cards[1].classes()).not.toContain('cg-attention')
+    const cards = w.findAll('.rcard')
+    expect(cards[0].classes()).toContain('attn')
+    expect(cards[1].classes()).not.toContain('attn')
   })
 })
 

@@ -54,6 +54,17 @@
           <span v-if="moreField && record[moreField]" class="pr-label pr-faint">+{{ display(record[moreField]) }}</span>
         </div>
         <span v-else-if="idleField && record[idleField]" class="pr-label pr-faint">{{ display(record[idleField]) }}</span>
+
+        <!-- §2b composed body: per-record slot widgets (rendered inline, no frame)
+             — e.g. the Foco card's phase track + tasks progress + próxima-ação. -->
+        <div v-if="slots?.body?.length" class="rc-slot-body">
+          <WidgetSlot
+            :bindings="slots.body"
+            :parent-record="record"
+            :depth="depth ?? 0"
+            :consumer-id="consumerId ?? ''"
+          />
+        </div>
       </div>
 
       <!-- FOOT: timestamp · live -->
@@ -68,6 +79,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
+import WidgetSlot from '../WidgetSlot.vue'
 import { resolveRowLink } from '../../utils/link.js'
 import { type Tone } from '../../utils/status.js'
 
@@ -214,6 +226,8 @@ function isLive(record: Record<string, unknown>): boolean {
 .badge { font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--fg-muted); background: var(--bg-elevated); border: 1px solid var(--border-default); border-radius: var(--radius-sm); padding: 2px 6px; font-feature-settings: 'calt' 0; white-space: nowrap; flex: none; }
 
 .rc-body { padding: 11px 12px; display: flex; flex-direction: column; gap: 11px; }
+/* Composed slot body: stack the inline child widgets with the same rhythm. */
+.rc-slot-body { display: flex; flex-direction: column; gap: 11px; min-width: 0; }
 
 .stat-row { display: flex; gap: 14px; }
 .stat-cell .sv { font-family: var(--font-mono); font-size: 16px; font-weight: 600; color: var(--fg-default); font-variant-numeric: tabular-nums; line-height: 1; font-feature-settings: 'calt' 0; }

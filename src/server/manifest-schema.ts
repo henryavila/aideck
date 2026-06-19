@@ -226,6 +226,8 @@ const widgetBindingSchema: z.ZodType<WidgetBinding> = z.lazy(() =>
 
 const sectionSchema = z.object({
   title: z.string().optional(),
+  // Optional descriptive line shown next to the title (design: section sub-caption).
+  subtitle: z.string().optional(),
   collapsible: z.boolean().optional(),
   columns: z.number().int().min(1).optional(),
   gap: z.number().optional(),
