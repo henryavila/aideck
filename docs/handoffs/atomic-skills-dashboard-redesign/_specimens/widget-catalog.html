@@ -1,0 +1,219 @@
+<!-- @dsCard group="Widgets" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Widgets — Catalog</title>
+<link rel="stylesheet" href="_card.css">
+<style>
+  html,body{height:600px;}
+  .cat { border:1px solid var(--border-default); border-radius:var(--radius-lg); background:var(--bg-surface); box-shadow:var(--shadow-ambient); overflow:hidden; display:flex; flex-direction:column; height:480px; }
+  .cat-tools { display:flex; align-items:center; gap:8px; padding:9px 12px; border-bottom:1px solid var(--border-subtle); }
+  .search { display:flex; align-items:center; gap:7px; flex:none; width:200px; height:28px; padding:0 10px; background:var(--bg-sunken); border:1px solid var(--border-default); border-radius:var(--radius-md); }
+  .search span { font-family:var(--font-mono); color:var(--fg-subtle); font-size:12px; }
+  .search input { flex:1; min-width:0; background:none; border:none; outline:none; color:var(--fg-default); font-family:var(--font-sans); font-size:12px; }
+  .search input::placeholder { color:var(--fg-subtle); }
+  .facets { display:flex; gap:6px; flex-wrap:wrap; }
+  .facet { font-family:var(--font-sans); font-size:11px; color:var(--fg-muted); background:var(--bg-elevated); border:1px solid var(--border-default); border-radius:var(--radius-pill); padding:3px 10px; cursor:pointer; user-select:none; transition:all var(--duration-fast) var(--ease-out); }
+  .facet:hover { border-color:var(--border-bright); }
+  .facet.on { background:var(--status-info-bg); border-color:var(--status-info-line); color:var(--status-info); }
+
+  .cat-body { display:grid; grid-template-columns:236px 1fr; flex:1; min-height:0; }
+  .master { border-right:1px solid var(--border-subtle); overflow-y:auto; padding:5px; }
+  .m-row { display:grid; grid-template-columns:auto 1fr auto; gap:8px; align-items:center; padding:7px 9px; border-radius:var(--radius-md); cursor:pointer; }
+  .m-row:hover { background:var(--bg-elevated); }
+  .m-row.sel { background:var(--bg-overlay); box-shadow:inset 2px 0 0 var(--status-info); }
+  .m-ico { font-family:var(--font-mono); font-size:13px; color:var(--chart-1); width:16px; text-align:center; }
+  .m-name { font-family:var(--font-mono); font-size:12px; color:var(--fg-default); font-feature-settings:'calt' 0; }
+  .m-one { font-family:var(--font-sans); font-size:10px; color:var(--fg-subtle); margin-top:1px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .m-badge { font-family:var(--font-mono); font-size:9px; color:var(--fg-subtle); background:var(--bg-sunken); border:1px solid var(--border-default); border-radius:var(--radius-sm); padding:1px 5px; font-feature-settings:'calt' 0; white-space:nowrap; }
+  .m-empty { padding:24px 12px; text-align:center; font-family:var(--font-mono); font-size:11px; color:var(--fg-subtle); font-feature-settings:'calt' 0; }
+
+  .detail { overflow-y:auto; padding:14px 16px; }
+  .d-head { display:flex; align-items:center; gap:10px; margin-bottom:4px; }
+  .d-ico { font-family:var(--font-mono); font-size:18px; color:var(--chart-1); }
+  .d-title { font-family:var(--font-sans); font-size:18px; font-weight:600; color:var(--fg-default); letter-spacing:-0.015em; }
+  .d-id { font-family:var(--font-mono); font-size:10px; color:var(--fg-subtle); margin-left:auto; font-feature-settings:'calt' 0; }
+  .sec { margin-top:16px; }
+  .sec-h { font-family:var(--font-mono); font-size:9px; letter-spacing:0.08em; text-transform:uppercase; color:var(--fg-subtle); margin-bottom:7px; font-feature-settings:'calt' 0; }
+  .d-summary { font-family:var(--font-sans); font-size:12px; color:var(--fg-default); line-height:1.55; }
+  .code { font-family:var(--font-mono); font-size:11px; color:var(--fg-default); background:var(--bg-sunken); border:1px solid var(--border-subtle); border-radius:var(--radius-sm); padding:7px 10px; font-feature-settings:'calt' 0; white-space:pre; overflow-x:auto; }
+  .code + .code { margin-top:6px; }
+  .pc { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .pc-li { display:flex; gap:7px; font-family:var(--font-sans); font-size:11px; color:var(--fg-default); padding:2px 0; }
+  .pc-li .mk { font-family:var(--font-mono); font-weight:700; flex:none; }
+  .pc-li.pro .mk { color:var(--status-success); }
+  .pc-li.con .mk { color:var(--status-error); }
+  .sub-grp { font-family:var(--font-mono); font-size:9px; letter-spacing:0.06em; text-transform:uppercase; color:var(--fg-subtle); margin:8px 0 4px; font-feature-settings:'calt' 0; }
+  .sub-row { display:flex; gap:8px; padding:4px 0; border-top:1px solid var(--border-subtle); }
+  .sub-name { font-family:var(--font-mono); font-size:11px; color:var(--status-info); flex:none; min-width:90px; font-feature-settings:'calt' 0; }
+  .sub-desc { font-family:var(--font-sans); font-size:11px; color:var(--fg-muted); }
+  table.ft { width:100%; border-collapse:collapse; font-size:11px; }
+  table.ft th { text-align:left; font-family:var(--font-mono); font-size:9px; letter-spacing:0.05em; text-transform:uppercase; color:var(--fg-subtle); padding:4px 8px; border-bottom:1px solid var(--border-subtle); font-weight:500; font-feature-settings:'calt' 0; }
+  table.ft td { padding:5px 8px; border-bottom:1px solid var(--border-subtle); color:var(--fg-default); font-family:var(--font-sans); }
+  table.ft td.mono { font-family:var(--font-mono); color:var(--fg-muted); font-feature-settings:'calt' 0; }
+  .chips { display:flex; gap:6px; flex-wrap:wrap; }
+  .chip-mono { font-family:var(--font-mono); font-size:10px; color:var(--fg-muted); background:var(--bg-elevated); border:1px solid var(--border-default); border-radius:var(--radius-sm); padding:2px 7px; font-feature-settings:'calt' 0; }
+  .chip-ref { font-family:var(--font-mono); font-size:10px; color:var(--accent-link); background:color-mix(in srgb,var(--status-info) 8%,var(--bg-elevated)); border:1px solid var(--status-info-line); border-radius:var(--radius-sm); padding:2px 7px; cursor:pointer; font-feature-settings:'calt' 0; }
+  .chip-ref:hover { background:var(--status-info-bg); }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="specimen-head">
+    <div class="title">Widgets · catalog</div>
+    <div class="sub">master-detail · search · facets · refs graph · live demo</div>
+  </div>
+
+  <div class="cat">
+    <div class="cat-tools">
+      <div class="search"><span>⌕</span><input id="q" placeholder="search catalog…" autocomplete="off"></div>
+      <div class="facets" id="facets"></div>
+    </div>
+    <div class="cat-body">
+      <div class="master" id="master"></div>
+      <div class="detail" id="detail"></div>
+    </div>
+  </div>
+
+  <div class="t-caption" style="margin-top:16px;">A buffer for exploring a flat collection of rich records: searchable + faceted master list (left), detail panel with configurable sections (right). Composes <b style="color:var(--fg-default);">search · list · tag · status-list · table · code · markdown</b> internally. <code class="t-code-inline">refs</code> render as clickable chips that swap the selection — that's the graph. Opened from the chrome <code class="t-code-inline">?</code> action, not a menu item.</div>
+</div>
+
+<script>
+(function(){
+  var records = [
+    { id:"http.request", icon:"⇄", facets:["io","net"], oneLiner:"Issue an HTTP request",
+      summary:"Performs an outbound HTTP request and returns the parsed response. Honors the consumer's timeout and retry policy; never follows redirects across hosts.",
+      examples:["http.request({ url, method: 'GET' })","→ { status, headers, body }"],
+      pros:["streams large bodies","retries idempotent verbs"], cons:["no cross-host redirect","blocks on slow DNS"],
+      subItems:[ {g:"options",n:"timeout",d:"per-attempt ms ceiling"}, {g:"options",n:"retries",d:"max attempts for idempotent verbs"}, {g:"hooks",n:"onChunk",d:"called per streamed chunk"} ],
+      fields:[ {n:"url",k:"string",r:true,d:"absolute request URL"}, {n:"method",k:"enum",r:false,d:"GET · POST · …"}, {n:"body",k:"bytes",r:false,d:"request payload"} ],
+      deps:["net.dial"], outputs:["response","metrics"], refs:["net.dial","fs.read"] },
+
+    { id:"fs.read", icon:"▤", facets:["io","fs"], oneLiner:"Read a file from disk",
+      summary:"Reads a file under the consumer's data root and validates it against the declared JSON Schema before returning. Path traversal outside the root is rejected.",
+      examples:["fs.read({ path: 'data/items.jsonl' })","→ Record[]  // schema-validated"],
+      pros:["schema-validated on read","sandboxed to data root"], cons:["whole-file only","no watch (use fs.watch)"],
+      subItems:[ {g:"options",n:"encoding",d:"utf-8 · bytes"}, {g:"options",n:"schema",d:"ref to a declared schema"} ],
+      fields:[ {n:"path",k:"string",r:true,d:"path relative to data root"}, {n:"schema",k:"ref",r:false,d:"validate against this"} ],
+      deps:[], outputs:["records"], refs:["fs.watch","http.request"] },
+
+    { id:"fs.watch", icon:"◎", facets:["io","fs","stream"], oneLiner:"Watch a path for changes",
+      summary:"Emits an event over SSE whenever a watched file changes on disk. Drives the .is-live widget state — the dashboard re-reads and re-renders without user action.",
+      examples:["fs.watch({ path: 'data/*.jsonl' })","→ stream<{ path, kind }>"],
+      pros:["powers live widgets","debounced by default"], cons:["one process per watch","no recursive globs"],
+      subItems:[ {g:"events",n:"change",d:"file content changed"}, {g:"events",n:"unlink",d:"file removed"} ],
+      fields:[ {n:"path",k:"glob",r:true,d:"file or glob to watch"}, {n:"debounce",k:"int",r:false,d:"ms to coalesce"} ],
+      deps:["fs.read"], outputs:["stream"], refs:["fs.read"] },
+
+    { id:"net.dial", icon:"⊕", facets:["net"], oneLiner:"Open a raw socket",
+      summary:"Low-level TCP dial used by higher-level transports. Most consumers should reach for http.request instead unless they need a custom protocol.",
+      examples:["net.dial({ host, port })","→ Socket"],
+      pros:["custom protocols","keep-alive pooling"], cons:["no TLS helpers","manual framing"],
+      subItems:[ {g:"options",n:"keepAlive",d:"reuse idle sockets"} ],
+      fields:[ {n:"host",k:"string",r:true,d:"target host"}, {n:"port",k:"int",r:true,d:"target port"} ],
+      deps:[], outputs:["socket"], refs:["http.request"] },
+
+    { id:"schema.validate", icon:"✓", facets:["data"], oneLiner:"Validate against a schema",
+      summary:"Validates a value against a declared JSON Schema and returns structured errors with a concrete suggestion per failure — the same shape widgets render in their error state.",
+      examples:["schema.validate(value, 'item')","→ { ok, errors[] }"],
+      pros:["structured error + suggestion","reused by fs.read"], cons:["no async refs","draft-07 only"],
+      subItems:[ {g:"errors",n:"path",d:"json-pointer to the failure"}, {g:"errors",n:"suggestion",d:"concrete next step"} ],
+      fields:[ {n:"value",k:"any",r:true,d:"value to check"}, {n:"schema",k:"ref",r:true,d:"declared schema id"} ],
+      deps:[], outputs:["report"], refs:["fs.read"] }
+  ];
+
+  var allFacets = ["io","net","fs","stream","data"];
+  var activeFacets = {};
+  var query = "";
+  var selected = records[0].id;
+
+  var master = document.getElementById("master");
+  var detail = document.getElementById("detail");
+  var facetsEl = document.getElementById("facets");
+  var qEl = document.getElementById("q");
+
+  facetsEl.innerHTML = allFacets.map(function(f){ return '<span class="facet" data-f="'+f+'">'+f+'</span>'; }).join('');
+
+  function matches(r){
+    if(query){
+      var hay = (r.id+' '+r.oneLiner+' '+r.summary+' '+r.facets.join(' ')).toLowerCase();
+      if(hay.indexOf(query) === -1) return false;
+    }
+    var act = Object.keys(activeFacets).filter(function(k){ return activeFacets[k]; });
+    if(act.length && !act.every(function(f){ return r.facets.indexOf(f) !== -1; })) return false;
+    return true;
+  }
+
+  function renderMaster(){
+    var list = records.filter(matches);
+    if(!list.length){ master.innerHTML = '<div class="m-empty">// nothing — clear the filter</div>'; return; }
+    master.innerHTML = list.map(function(r){
+      return '<div class="m-row '+(r.id===selected?'sel':'')+'" data-id="'+r.id+'">'
+        + '<span class="m-ico">'+r.icon+'</span>'
+        + '<div style="min-width:0"><div class="m-name">'+r.id+'</div><div class="m-one">'+r.oneLiner+'</div></div>'
+        + '<span class="m-badge">'+r.subItems.length+'</span></div>';
+    }).join('');
+  }
+
+  function rec(id){ return records.find(function(r){ return r.id===id; }); }
+
+  function renderDetail(){
+    var r = rec(selected);
+    if(!r){ detail.innerHTML = '<div class="m-empty">// nothing selected</div>'; return; }
+    var groups = {};
+    r.subItems.forEach(function(s){ (groups[s.g]=groups[s.g]||[]).push(s); });
+    var subHtml = Object.keys(groups).map(function(g){
+      return '<div class="sub-grp">'+g+'</div>' + groups[g].map(function(s){
+        return '<div class="sub-row"><span class="sub-name">'+s.n+'</span><span class="sub-desc">'+s.d+'</span></div>';
+      }).join('');
+    }).join('');
+
+    detail.innerHTML =
+      '<div class="d-head"><span class="d-ico">'+r.icon+'</span><span class="d-title">'+r.id+'</span><span class="d-id">'+r.facets.join(' · ')+'</span></div>'
+      + '<div class="sec"><div class="sec-h">summary</div><div class="d-summary">'+r.summary+'</div></div>'
+      + '<div class="sec"><div class="sec-h">examples</div>'+r.examples.map(function(e){ return '<div class="code">'+e+'</div>'; }).join('')+'</div>'
+      + '<div class="sec"><div class="sec-h">when · when not</div><div class="pc"><div>'
+        + r.pros.map(function(p){ return '<div class="pc-li pro"><span class="mk">✓</span>'+p+'</div>'; }).join('')
+        + '</div><div>'
+        + r.cons.map(function(c){ return '<div class="pc-li con"><span class="mk">×</span>'+c+'</div>'; }).join('')
+        + '</div></div></div>'
+      + '<div class="sec"><div class="sec-h">items</div>'+subHtml+'</div>'
+      + '<div class="sec"><div class="sec-h">fields</div><table class="ft"><thead><tr><th>arg</th><th>kind</th><th>req</th><th>description</th></tr></thead><tbody>'
+        + r.fields.map(function(f){ return '<tr><td class="mono">'+f.n+'</td><td class="mono">'+f.k+'</td><td class="mono">'+(f.r?'✓':'·')+'</td><td>'+f.d+'</td></tr>'; }).join('')
+        + '</tbody></table></div>'
+      + '<div class="sec"><div class="sec-h">deps · outputs</div><div class="chips">'
+        + (r.deps.length ? r.deps.map(function(d){ return '<span class="chip-mono">↳ '+d+'</span>'; }).join('') : '<span class="chip-mono" style="opacity:.5">none</span>')
+        + r.outputs.map(function(o){ return '<span class="chip-mono">→ '+o+'</span>'; }).join('')
+        + '</div></div>'
+      + '<div class="sec"><div class="sec-h">related</div><div class="chips">'
+        + r.refs.map(function(rf){ return '<span class="chip-ref" data-ref="'+rf+'">'+rf+'</span>'; }).join('')
+        + '</div></div>';
+  }
+
+  master.addEventListener('click', function(e){
+    var row = e.target.closest('.m-row'); if(!row) return;
+    selected = row.getAttribute('data-id'); renderMaster(); renderDetail();
+  });
+  detail.addEventListener('click', function(e){
+    var chip = e.target.closest('.chip-ref'); if(!chip) return;
+    var id = chip.getAttribute('data-ref');
+    if(rec(id)){ selected = id; query=''; qEl.value=''; activeFacets={}; renderFacets(); renderMaster(); renderDetail(); }
+  });
+  facetsEl.addEventListener('click', function(e){
+    var f = e.target.closest('.facet'); if(!f) return;
+    var k = f.getAttribute('data-f'); activeFacets[k] = !activeFacets[k];
+    renderFacets(); renderMaster();
+  });
+  function renderFacets(){
+    [].forEach.call(facetsEl.children, function(el){
+      el.classList.toggle('on', !!activeFacets[el.getAttribute('data-f')]);
+    });
+  }
+  qEl.addEventListener('input', function(){ query = qEl.value.trim().toLowerCase(); renderMaster(); });
+
+  renderMaster(); renderDetail();
+})();
+</script>
+</body>
+</html>

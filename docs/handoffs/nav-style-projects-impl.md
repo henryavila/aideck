@@ -77,12 +77,16 @@ Os 7 widgets (`stepper`, `status-list`, `callout`, `collection-grid`, `record-sw
   selecionar um escopa as pages.
 - **Gate test**: grep do diff por termos de domínio proibidos = 0.
 - **Não-regressão**: consumers `sidebar`/`tabs` inalterados.
+- **`showInNav`**: fixture neutra com uma page `showInNav: false` → a page **não** aparece na
+  Sidebar/tab bar, mas continua acessível por rota direta e pelo `help:`/`?` (default `true`
+  mantém todas as outras visíveis).
 - **Prova visual**: rodar e capturar com a fixture neutra.
 
 ## Arquivos prováveis
 
-`src/server/manifest-schema.ts` (enum + 2 campos), `src/client/components/shell/Sidebar.vue`,
-`src/client/pages/ConsumerPage.vue` / `App.vue` (modo + landing routing),
+`src/server/manifest-schema.ts` (enum + 2 campos do nav + `page.showInNav`),
+`src/client/components/shell/Sidebar.vue` (modo projects + filtro `showInNav`),
+`src/client/pages/ConsumerPage.vue` / `App.vue` (modo + landing routing + filtro `showInNav` na tab bar),
 `src/client/pages/HomePage.vue` (inalterado ou ajuste menor), testes + fixture neutra.
 
 > Validado contra o source em 2026-06-19: a causa raiz do "dashboard errado" é exatamente a

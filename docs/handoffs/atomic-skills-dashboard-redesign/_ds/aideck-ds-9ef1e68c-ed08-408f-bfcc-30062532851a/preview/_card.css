@@ -1,0 +1,168 @@
+/* Shared base for aiDeck design-system preview cards.
+   Each card is rendered at 760×card-height into the Design System tab. */
+@import url('../colors_and_type.css');
+
+html, body {
+  width: 760px;
+  margin: 0;
+  padding: 0;
+  background: var(--bg-canvas);
+  background-image: var(--texture-grid);
+  background-size: var(--texture-grid-size);
+  overflow: hidden;
+}
+
+.card {
+  width: 760px;
+  padding: 24px 28px;
+  box-sizing: border-box;
+}
+
+.row  { display: flex;  align-items: center; gap: var(--space-8); }
+.col  { display: flex;  flex-direction: column; gap: var(--space-4); }
+.grow { flex: 1; }
+.wrap { flex-wrap: wrap; }
+
+.label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--fg-subtle);
+  font-feature-settings: "calt" 0;
+}
+
+.token {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-muted);
+  font-feature-settings: "calt" 0;
+}
+
+.value {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-default);
+  font-feature-settings: "calt" 0;
+}
+
+/* Specimen header — title + subtitle stripe at top of every card */
+.specimen-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-8);
+  padding-bottom: var(--space-6);
+  margin-bottom: var(--space-10);
+  border-bottom: 1px solid var(--border-subtle);
+}
+.specimen-head .title {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--fg-default);
+  letter-spacing: -0.01em;
+}
+.specimen-head .sub {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--fg-subtle);
+}
+
+/* Color swatches */
+.swatch {
+  width: 100%;
+  height: 56px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-subtle);
+  position: relative;
+}
+.swatch-sm {
+  width: 100%;
+  height: 40px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+}
+.swatch-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.swatch-grid {
+  display: grid;
+  gap: var(--space-6);
+}
+.cols-3  { grid-template-columns: repeat(3, 1fr); }
+.cols-4  { grid-template-columns: repeat(4, 1fr); }
+.cols-5  { grid-template-columns: repeat(5, 1fr); }
+.cols-6  { grid-template-columns: repeat(6, 1fr); }
+.cols-7  { grid-template-columns: repeat(7, 1fr); }
+.cols-8  { grid-template-columns: repeat(8, 1fr); }
+
+/* Chip / pill primitives — used in many specimens. Each specimen styles
+   color/background inline so the chip vocabulary stays consistent. */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: var(--radius-pill);
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: var(--fw-medium);
+  border: 1px solid transparent;
+  white-space: nowrap;
+  letter-spacing: 0;
+}
+.chip .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex: none;
+}
+.chip-sq {
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-feature-settings: "calt" 0;
+}
+
+/* Mini "widget card" used in component & layout specimens */
+.w-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-ambient);
+  overflow: hidden;
+}
+.w-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-6);
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: linear-gradient(180deg,
+    rgba(255, 255, 255, 0.018) 0%,
+    transparent 100%);
+}
+.w-title {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg-default);
+  letter-spacing: -0.005em;
+}
+.w-meta {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--fg-subtle);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+}
+.w-body {
+  padding: 14px;
+}

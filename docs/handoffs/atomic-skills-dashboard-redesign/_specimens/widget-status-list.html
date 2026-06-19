@@ -1,0 +1,122 @@
+<!-- @dsCard group="Widgets" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Widgets — Status list + Callout</title>
+<link rel="stylesheet" href="_card.css">
+<style>
+  html,body{height:560px;}
+  .grid2 { display:grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items:start; }
+
+  .grp-head {
+    display:flex; align-items:center; gap:8px;
+    padding:7px 10px 5px; margin-top:2px;
+  }
+  .grp-head .gt { font-family:var(--font-mono); font-size:10px; letter-spacing:0.06em; text-transform:uppercase; color:var(--fg-subtle); font-feature-settings:'calt' 0; }
+  .grp-head .gc { font-family:var(--font-mono); font-size:10px; color:var(--fg-faint); font-feature-settings:'calt' 0; }
+  .grp-head .gl { flex:1; height:1px; background:var(--border-subtle); }
+
+  .sl-row { display:grid; grid-template-columns: auto 1fr auto; gap:8px; align-items:center; padding:5px 10px; }
+  .sl-row + .sl-row { border-top:1px solid var(--border-subtle); }
+  .sl-id { font-family:var(--font-mono); font-size:11px; color:var(--fg-subtle); font-feature-settings:'calt' 0; }
+  .sl-label { font-family:var(--font-sans); font-size:12px; color:var(--fg-default); min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .sl-anno { font-family:var(--font-mono); font-size:10px; color:var(--fg-subtle); font-feature-settings:'calt' 0; white-space:nowrap; }
+  .sl-anno.warn { color:var(--status-warning); }
+
+  .sc { display:inline-flex; align-items:center; gap:5px; height:18px; padding:0 7px; border-radius:var(--radius-pill); font-family:var(--font-sans); font-size:10px; font-weight:500; border:1px solid transparent; white-space:nowrap; }
+  .sc .d { width:5px; height:5px; border-radius:50%; flex:none; }
+  .sc.s-active { background:var(--status-info-bg); border-color:var(--status-info-line); color:var(--status-info); }
+  .sc.s-warn   { background:var(--status-warning-bg); border-color:var(--status-warning-line); color:var(--status-warning); }
+  .sc.s-pending{ background:var(--status-neutral-bg); border-color:var(--status-neutral-line); color:var(--fg-muted); }
+  .sc.s-done   { background:var(--status-success-bg); border-color:var(--status-success-line); color:var(--status-success); }
+
+  /* checklist */
+  .ck-row { display:flex; align-items:center; gap:9px; padding:6px 10px; }
+  .ck-row + .ck-row { border-top:1px solid var(--border-subtle); }
+  .ck-mark { width:16px; height:16px; border-radius:var(--radius-sm); display:flex; align-items:center; justify-content:center; font-family:var(--font-mono); font-size:10px; font-weight:700; flex:none; font-feature-settings:'calt' 0; }
+  .ck-mark.ok { background:var(--status-success-bg); border:1px solid var(--status-success-line); color:var(--status-success); }
+  .ck-mark.no { background:var(--status-error-bg); border:1px solid var(--status-error-line); color:var(--status-error); }
+  .ck-mark.idle { background:var(--bg-elevated); border:1px solid var(--border-default); color:var(--fg-faint); }
+  .ck-label { flex:1; font-family:var(--font-sans); font-size:12px; color:var(--fg-default); }
+  .ck-meta { font-family:var(--font-mono); font-size:10px; color:var(--fg-subtle); font-feature-settings:'calt' 0; max-width:120px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+  /* callout atom */
+  .callout { border-radius:0 6px 6px 0; padding:9px 12px; margin-bottom:8px; }
+  .callout:last-child { margin-bottom:0; }
+  .callout .eyebrow { font-family:var(--font-sans); font-size:10px; font-weight:600; letter-spacing:0.08em; text-transform:uppercase; margin-bottom:3px; }
+  .callout .body { font-family:var(--font-sans); font-size:12px; color:var(--fg-default); line-height:1.45; }
+  .co-info    { border-left:2px solid var(--status-info);    background:color-mix(in srgb, var(--status-info) 8%, var(--bg-surface)); }
+  .co-info .eyebrow { color:var(--status-info); }
+  .co-warn    { border-left:2px solid var(--status-warning); background:color-mix(in srgb, var(--status-warning) 8%, var(--bg-surface)); }
+  .co-warn .eyebrow { color:var(--status-warning); }
+  .co-success { border-left:2px solid var(--status-success); background:color-mix(in srgb, var(--status-success) 8%, var(--bg-surface)); }
+  .co-success .eyebrow { color:var(--status-success); }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="specimen-head">
+    <div class="title">Widgets · status-list + callout</div>
+    <div class="sub">grouped by status · checklist variant · callout atom</div>
+  </div>
+
+  <div class="grid2">
+
+    <!-- STATUS LIST (grouped) -->
+    <div class="w-card">
+      <div class="w-head"><div class="w-title">Status list · grouped</div><div class="w-meta">groupBy: status</div></div>
+      <div class="w-body" style="padding:4px 0 8px;">
+        <div class="grp-head"><span class="gt">running</span><span class="gc">2</span><span class="gl"></span></div>
+        <div class="sl-row"><span class="sl-id">T-004</span><span class="sl-label">reindex search shards</span><span class="sc s-active"><span class="d" style="background:var(--status-info);"></span>running</span></div>
+        <div class="sl-row"><span class="sl-id">T-009</span><span class="sl-label">warm cache layer</span><span class="sc s-active"><span class="d" style="background:var(--status-info);"></span>running</span></div>
+
+        <div class="grp-head"><span class="gt">blocked</span><span class="gc">2</span><span class="gl"></span></div>
+        <div class="sl-row"><span class="sl-id">T-011</span><span class="sl-label">migrate fixtures</span><span class="sl-anno warn">by T-004</span></div>
+        <div class="sl-row"><span class="sl-id">T-013</span><span class="sl-label">publish manifest</span><span class="sl-anno warn">by T-009, T-011</span></div>
+
+        <div class="grp-head"><span class="gt">pending</span><span class="gc">1</span><span class="gl"></span></div>
+        <div class="sl-row"><span class="sl-id">T-018</span><span class="sl-label">archive old snapshots</span><span class="sc s-pending"><span class="d" style="background:var(--status-neutral);"></span>pending</span></div>
+
+        <div class="grp-head"><span class="gt">done</span><span class="gc">1</span><span class="gl"></span></div>
+        <div class="sl-row"><span class="sl-id">T-001</span><span class="sl-label">validate schema</span><span class="sc s-done"><span class="d" style="background:var(--status-success);"></span>done</span></div>
+      </div>
+    </div>
+
+    <!-- RIGHT: checklist + callouts -->
+    <div class="col" style="gap:14px;">
+      <div class="w-card">
+        <div class="w-head"><div class="w-title">Checklist · variant</div><div class="w-meta">groupBy: none · meta</div></div>
+        <div class="w-body" style="padding:2px 0;">
+          <div class="ck-row"><span class="ck-mark ok">✓</span><span class="ck-label">all required fields present</span><span class="ck-meta">schema@1.4</span></div>
+          <div class="ck-row"><span class="ck-mark ok">✓</span><span class="ck-label">no orphaned references</span><span class="ck-meta">linter</span></div>
+          <div class="ck-row"><span class="ck-mark no">×</span><span class="ck-label">data source resolves</span><span class="ck-meta">fs-check</span></div>
+          <div class="ck-row"><span class="ck-mark idle">·</span><span class="ck-label">snapshot signed</span><span class="ck-meta">not run</span></div>
+        </div>
+      </div>
+
+      <div class="w-card">
+        <div class="w-head"><div class="w-title">Callout · atom</div><div class="w-meta">tone · eyebrow · body</div></div>
+        <div class="w-body" style="padding:12px;">
+          <div class="callout co-info">
+            <div class="eyebrow">next action</div>
+            <div class="body">Run <code class="t-code-inline">aideck validate</code> to unblock 2 dependent records.</div>
+          </div>
+          <div class="callout co-warn">
+            <div class="eyebrow">attention</div>
+            <div class="body">Data source has not refreshed in 6 minutes.</div>
+          </div>
+          <div class="callout co-success">
+            <div class="eyebrow">ready</div>
+            <div class="body">All criteria pass — snapshot can be published.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="t-caption" style="margin-top:16px;">The DS <b style="color:var(--fg-default);">list</b> plus a per-item status chip, a secondary annotation, and optional <code class="t-code-inline">groupBy</code> sections with counts. The <b style="color:var(--fg-default);">checklist</b> is the same widget without grouping — each row a criterion with a verify-label <code class="t-code-inline">meta</code>. <b style="color:var(--fg-default);">callout</b> is the atom underneath: a tone-coded side bar for one important field (a next step, an alert).</div>
+</div>
+</body>
+</html>

@@ -1,0 +1,127 @@
+<!-- @dsCard group="Widgets" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Widgets — Headline banner + Progress</title>
+<link rel="stylesheet" href="_card.css">
+<style>
+  html,body{height:520px;}
+  .grid2 { display:grid; grid-template-columns: 1fr 1fr; gap:14px; align-items:start; }
+
+  /* headline banner */
+  .hb { display:flex; align-items:stretch; justify-content:space-between; gap:14px; border-radius:var(--radius-lg); border:1px solid var(--border-default); background:var(--bg-surface); box-shadow:var(--shadow-ambient); padding:14px 16px; }
+  .hb.tone-success { border-color:var(--status-success-line); }
+  .hb.tone-neutral { border-color:var(--border-default); }
+  .hb-num { font-family:var(--font-mono); font-size:40px; font-weight:600; line-height:1; letter-spacing:-0.03em; color:var(--fg-default); font-variant-numeric:tabular-nums; font-feature-settings:'calt' 0; }
+  .hb-num.success { color:var(--status-success); }
+  .hb-num.neutral { color:var(--fg-muted); }
+  .hb-title { font-family:var(--font-sans); font-size:14px; font-weight:600; color:var(--fg-default); margin-top:8px; letter-spacing:-0.01em; }
+  .hb-sub { font-family:var(--font-mono); font-size:11px; color:var(--fg-subtle); margin-top:3px; font-feature-settings:'calt' 0; }
+  /* lanes */
+  .lanes { display:flex; align-items:flex-end; gap:3px; }
+  .lane { width:6px; border-radius:2px 2px 0 0; height:46px; }
+  .lane.active { opacity:1; }
+  .lane.idle { opacity:0.28; }
+
+  /* labeled progress (enhancement) */
+  .pblock { padding:11px 14px; }
+  .pblock + .pblock { border-top:1px solid var(--border-subtle); }
+  .pb-top { display:flex; align-items:baseline; justify-content:space-between; margin-bottom:6px; }
+  .pb-label { font-family:var(--font-mono); font-size:10px; letter-spacing:0.06em; text-transform:uppercase; color:var(--fg-muted); font-feature-settings:'calt' 0; }
+  .pb-val { font-family:var(--font-mono); font-size:11px; color:var(--fg-default); font-variant-numeric:tabular-nums; font-feature-settings:'calt' 0; }
+  .pb-track { height:6px; border-radius:3px; background:var(--bg-sunken); overflow:hidden; }
+  .pb-fill { height:100%; border-radius:3px; }
+  .pb-cap { font-family:var(--font-sans); font-size:11px; color:var(--fg-subtle); margin-top:5px; }
+  /* segmented */
+  .pb-seg { display:flex; gap:2px; height:6px; }
+  .pb-seg span { flex:1; border-radius:2px; background:var(--bg-sunken); }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="specimen-head">
+    <div class="title">Widgets · headline-banner + progress</div>
+    <div class="sub">aggregate stat · per-record lanes · labeled progress</div>
+  </div>
+
+  <div class="grid2">
+
+    <!-- headline banners -->
+    <div class="col" style="gap:14px;">
+      <div class="hb tone-success">
+        <div>
+          <div class="hb-num success">142</div>
+          <div class="hb-title">records healthy</div>
+          <div class="hb-sub">of 156 · ↑ 8 today</div>
+        </div>
+        <div class="lanes">
+          <span class="lane active" style="background:var(--status-success);"></span>
+          <span class="lane active" style="background:var(--status-success);"></span>
+          <span class="lane active" style="background:var(--status-success);"></span>
+          <span class="lane active" style="background:var(--status-info);"></span>
+          <span class="lane active" style="background:var(--status-info);"></span>
+          <span class="lane active" style="background:var(--status-warning);"></span>
+          <span class="lane idle" style="background:var(--status-neutral);"></span>
+          <span class="lane idle" style="background:var(--status-neutral);"></span>
+        </div>
+      </div>
+
+      <div class="hb tone-neutral">
+        <div>
+          <div class="hb-num neutral">0</div>
+          <div class="hb-title">errors open</div>
+          <div class="hb-sub">all clear · last 24h</div>
+        </div>
+        <div class="lanes">
+          <span class="lane idle" style="background:var(--status-neutral);"></span>
+          <span class="lane idle" style="background:var(--status-neutral);"></span>
+          <span class="lane idle" style="background:var(--status-neutral);"></span>
+          <span class="lane idle" style="background:var(--status-neutral);"></span>
+          <span class="lane idle" style="background:var(--status-neutral);"></span>
+        </div>
+      </div>
+
+      <div class="t-meta" style="padding:0 2px;">One mark per record · tone-coded · solid = active, faint = inactive. Border + number take the banner tone.</div>
+    </div>
+
+    <!-- progress (enhanced) -->
+    <div class="w-card">
+      <div class="w-head"><div class="w-title">Progress · enhanced</div><div class="w-meta">label · valueText · caption · tone</div></div>
+      <div class="w-body" style="padding:2px 0;">
+        <div class="pblock">
+          <div class="pb-top"><span class="pb-label">indexing</span><span class="pb-val">5 / 12</span></div>
+          <div class="pb-track"><div class="pb-fill" style="width:42%; background:var(--status-info);"></div></div>
+          <div class="pb-cap">2 shards running · est. 40s remaining</div>
+        </div>
+        <div class="pblock">
+          <div class="pb-top"><span class="pb-label">disk budget</span><span class="pb-val">86%</span></div>
+          <div class="pb-track"><div class="pb-fill" style="width:86%; background:var(--status-warning);"></div></div>
+          <div class="pb-cap" style="color:var(--status-warning);">over threshold — prune snapshots</div>
+        </div>
+        <div class="pblock">
+          <div class="pb-top"><span class="pb-label">coverage</span><span class="pb-val">94%</span></div>
+          <div class="pb-track"><div class="pb-fill" style="width:94%; background:var(--status-success);"></div></div>
+          <div class="pb-cap">up 2.1pts since last snapshot</div>
+        </div>
+        <div class="pblock">
+          <div class="pb-top"><span class="pb-label">pipeline · segmented</span><span class="pb-val">3 / 6</span></div>
+          <div class="pb-seg">
+            <span style="background:var(--status-success);"></span>
+            <span style="background:var(--status-success);"></span>
+            <span style="background:var(--status-success);"></span>
+            <span style="background:var(--status-info);"></span>
+            <span></span>
+            <span></span>
+          </div>
+          <div class="pb-cap">optional segmented mode for discrete units</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="t-caption" style="margin-top:16px;">A big number + label + caption with a <b style="color:var(--fg-default);">lanes</b> strip — one tone-coded mark per record — so a page header communicates an aggregate <i>and</i> its distribution at a glance. The existing <b style="color:var(--fg-default);">progress</b> bar gains a <code class="t-code-inline">label</code>, right-aligned <code class="t-code-inline">valueText</code>, a subtle <code class="t-code-inline">caption</code>, and a tone driven by status / threshold — plus an optional segmented mode.</div>
+</div>
+</body>
+</html>
