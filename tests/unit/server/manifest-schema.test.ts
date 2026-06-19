@@ -42,6 +42,44 @@ describe('parseManifest', () => {
     expect(parseManifest(raw).ok).toBe(false)
   })
 
+  it('accepts nav.style projects with projectsLabel + landingPage', () => {
+    const raw = {
+      ...minimalManifest,
+      nav: { style: 'projects', projectsLabel: 'workspaces', landingPage: 'home' },
+      pages: [
+        { slug: 'home', title: 'Home', layout: 'sections', default: true, sections: [] },
+        { slug: 'detail', title: 'Detail', layout: 'sections', sections: [] }
+      ]
+    }
+    const result = parseManifest(raw)
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.value.nav?.style).toBe('projects')
+      expect(result.value.nav?.projectsLabel).toBe('workspaces')
+      expect(result.value.nav?.landingPage).toBe('home')
+    }
+  })
+
+  it('accepts nav.style projects without the optional label/landing', () => {
+    const raw = {
+      ...minimalManifest,
+      nav: { style: 'projects' },
+      pages: [{ slug: 'home', title: 'Home', layout: 'sections', default: true, sections: [] }]
+    }
+    expect(parseManifest(raw).ok).toBe(true)
+  })
+
+  it('rejects a nav.landingPage that names no declared page', () => {
+    const raw = {
+      ...minimalManifest,
+      nav: { style: 'projects', landingPage: 'ghost' },
+      pages: [{ slug: 'home', title: 'Home', layout: 'sections', default: true, sections: [] }]
+    }
+    const result = parseManifest(raw)
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.message).toContain('landingPage')
+  })
+
   it('accepts a help slug that references a declared page', () => {
     const raw = {
       ...minimalManifest,

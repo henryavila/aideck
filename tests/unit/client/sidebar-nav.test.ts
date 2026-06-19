@@ -22,6 +22,20 @@ function router() {
   return r
 }
 
+// A neutral (non-atomic-skills) project-centric consumer: nothing here is a
+// consumer-domain word — `acme` with `workspaces` listing repos `web/api/mobile`.
+const projectsConsumers = [{ id: 'acme', title: 'Acme', dataSourceCount: 2, pageCount: 3 }]
+const landingPage: PageMeta = { slug: 'overview', title: 'Overview', icon: '🛰️' }
+const acmeProjectPages: PageMeta[] = [
+  { slug: 'board', title: 'Board', icon: 'mdi:view-dashboard' },
+  { slug: 'detail', title: 'Detail' }
+]
+const acmeProjects = [
+  { projectId: 'web', rootDir: '/repos/web' },
+  { projectId: 'api', rootDir: '/repos/api' },
+  { projectId: 'mobile', rootDir: '/repos/mobile' }
+]
+
 const consumers = [
   { id: 'alpha', title: 'Alpha', dataSourceCount: 2, pageCount: 3 },
   { id: 'beta', title: 'Beta', dataSourceCount: 1, pageCount: 1 }
@@ -97,6 +111,76 @@ describe('Sidebar nav.style: sidebar', () => {
     expect(names).toEqual(['Panorama', 'Foco'])
     // at the consumer root the landing row reads active
     expect(wrapper.find('.page-row.on .name').text()).toBe('Panorama')
+  })
+})
+
+describe('Sidebar nav.style: projects (generic project-centric shell)', () => {
+  function mountProjects(props: Record<string, unknown> = {}) {
+    return mount(Sidebar, {
+      global: { plugins: [router()] },
+      props: {
+        consumers: projectsConsumers,
+        currentId: 'acme',
+        navStyle: 'projects',
+        projectsLabel: 'workspaces',
+        projects: acmeProjects,
+        landingPage,
+        projectPages: acmeProjectPages,
+        showIcons: true,
+        ...props
+      }
+    })
+  }
+
+  it('pins the landing page at the top and labels the projects group from the prop', () => {
+    const wrapper = mountProjects()
+    const landing = wrapper.find('.landing-row')
+    expect(landing.exists()).toBe(true)
+    expect(landing.text()).toContain('Overview')
+    expect(landing.attributes('href')).toContain('/acme')
+    // The group header reads the consumer-supplied label, not a hardcoded word.
+    expect(wrapper.text()).toContain('workspaces')
+  })
+
+  it('lists every registered project and no other consumer as a nav unit', () => {
+    const wrapper = mountProjects()
+    // .consumer-row = landing + one per project; no other-consumer rows here.
+    const rows = wrapper.findAll('.consumer-row')
+    expect(rows).toHaveLength(1 + acmeProjects.length)
+    const names = wrapper.findAll('.consumer-row .name').map((n) => n.text())
+    expect(names).toEqual(['Overview', 'web', 'api', 'mobile'])
+  })
+
+  it('marks the landing active at the consumer root (no page slug)', () => {
+    const wrapper = mountProjects({ currentPageSlug: undefined })
+    expect(wrapper.find('.landing-row.on').exists()).toBe(true)
+  })
+
+  it('expands only the selected project to its per-project pages, scoped by ?project=', () => {
+    const wrapper = mountProjects({ selectedProjectId: 'api', currentPageSlug: 'board' })
+    const pageRows = wrapper.findAll('.page-row')
+    // Only the selected project (api) expands → its two pages, no others.
+    expect(pageRows).toHaveLength(acmeProjectPages.length)
+    expect(pageRows.map((r) => r.find('.name').text())).toEqual(['Board', 'Detail'])
+    // The active page row is marked, and its link carries the project scope.
+    const active = wrapper.find('.page-row.on')
+    expect(active.find('.name').text()).toBe('Board')
+    expect(active.attributes('href')).toContain('/acme/board')
+    expect(active.attributes('href')).toContain('project=api')
+    // The selected project row reads active.
+    expect(wrapper.find('.consumer-row.on .name').text()).toBe('api')
+  })
+
+  it('collapses all projects at the landing (no project selected)', () => {
+    const wrapper = mountProjects({ selectedProjectId: undefined, currentPageSlug: undefined })
+    expect(wrapper.findAll('.page-row')).toHaveLength(0)
+  })
+
+  it('points a project row at its first per-project page with the scope query', () => {
+    const wrapper = mountProjects()
+    const webRow = wrapper.findAll('.consumer-row').find((r) => r.find('.name').text() === 'web')!
+    expect(webRow.attributes('href')).toContain('/acme/board')
+    expect(webRow.attributes('href')).toContain('project=web')
   })
 })
 

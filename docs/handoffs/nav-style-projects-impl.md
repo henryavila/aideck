@@ -53,6 +53,15 @@ falta só o aiDeck oferecê-la.
    de shell.)
 4. **Breadcrumb**: no modo projects, `consumer / project / page` (genérico, dos params/estado).
 5. **Compat**: `tabs`/`sidebar` inalterados; é um terceiro modo aditivo.
+6. **Page fora da nav (genérico) — `page.showInNav?: boolean` (default `true`)**: hoje o runtime
+   lista **toda** page declarada na sidebar/tab bar; não há como ter uma page **alcançável** (por
+   rota e pelo botão `?` do chrome / `help:`) mas **ausente da nav**. Adicione um flag de page
+   `showInNav` (default `true`) no `pageSchema` (`manifest-schema.ts`); quando `false`, a page **não
+   aparece** na Sidebar/tab bar mas continua roteável e abrível por `help:`/`?`/`commandPalette`.
+   É um primitivo genérico de shell (vale para os 3 modos `tabs`/`sidebar`/`projects`), **sem
+   vocabulário de consumer** — o consumer decide quais pages esconder (ex.: uma página de "ajuda"
+   ortogonal acessada só pelo `?`). Aplica em `Sidebar.vue` (filtra `pages.filter(p => p.showInNav !== false)`)
+   e no `tab bar` do `ConsumerPage.vue`.
 
 ## Publicar DS v2.1 (parte B do gap report)
 

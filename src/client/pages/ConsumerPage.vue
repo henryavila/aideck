@@ -11,7 +11,7 @@
       </span>
       <div class="actions">
         <select
-          v-if="hasProjectScope && projects.length"
+          v-if="hasProjectScope && projects.length && !projectsMode"
           class="project-select"
           :value="selectedProjectId"
           aria-label="Select project"
@@ -23,7 +23,7 @@
       </div>
     </div>
 
-    <div v-if="pages.length > 1 && !sidebarNav" class="tabs-bar" role="tablist">
+    <div v-if="pages.length > 1 && !sidebarNav && !projectsMode" class="tabs-bar" role="tablist">
       <router-link
         v-for="page in pages"
         :key="page.slug"
@@ -112,11 +112,19 @@ const selectedProjectId = ref<string | undefined>(
     : undefined) ?? (typeof route.query.project === 'string' ? route.query.project : undefined)
 )
 provide(PROJECT_ID_KEY, selectedProjectId)
-// Keep the scope in sync when navigating between detail pages client-side.
+// Keep the scope in sync when navigating between detail pages client-side, from
+// either the drill-down path param or the ?project= query (the projects shell
+// switches scope via the sidebar by changing the query).
 watch(
   () => route.params.projectId,
   (pid) => {
     if (typeof pid === 'string' && pid) selectedProjectId.value = pid
+  }
+)
+watch(
+  () => route.query.project,
+  (proj) => {
+    if (typeof proj === 'string' && proj) selectedProjectId.value = proj
   }
 )
 
@@ -140,8 +148,11 @@ watch(
 )
 
 // nav.style: sidebar moves page navigation into the left Sidebar, so the in-page
-// tab bar is suppressed; tabs remain the default.
+// tab bar is suppressed; tabs remain the default. nav.style: projects likewise
+// owns nav (landing + projects) in the sidebar, so it suppresses tabs + the
+// in-page project picker too.
 const sidebarNav = computed(() => nav.value.style === 'sidebar')
+const projectsMode = computed(() => nav.value.style === 'projects')
 const showIcons = computed(() => nav.value.showIcons === true)
 
 const dataSources = computed(
@@ -158,6 +169,13 @@ const consumerTitle = computed(() => (manifest.value?.title as string | undefine
 const pages = computed(() => (manifest.value?.pages as PageDecl[]) ?? [])
 const currentPage = computed(() => {
   if (pageSlug.value) return pages.value.find((p) => p.slug === pageSlug.value)
+  // Consumer root: an explicit nav.landingPage wins (the projects-shell
+  // cross-project landing), else the default/first page.
+  const landing = nav.value.landingPage
+  if (landing) {
+    const found = pages.value.find((p) => p.slug === landing)
+    if (found) return found
+  }
   return pages.value.find((p) => p.default) ?? pages.value[0]
 })
 

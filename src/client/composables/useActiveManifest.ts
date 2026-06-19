@@ -3,8 +3,12 @@ import { fetchConsumerManifest } from '../api.js'
 import { normalizeStatusMap, type StatusOverrides } from '../utils/status.js'
 
 export interface NavConfig {
-  style?: 'tabs' | 'sidebar'
+  style?: 'tabs' | 'sidebar' | 'projects'
   showIcons?: boolean
+  /** Human label for the projects group in the sidebar (style:'projects'). */
+  projectsLabel?: string
+  /** Slug of the cross-project landing page (style:'projects'); defaults to the default page. */
+  landingPage?: string
 }
 
 export interface PageMeta {
@@ -77,6 +81,20 @@ export function useActiveManifest(consumerId: Ref<string | undefined>) {
 /** The landing page slug: explicit `default: true`, else the first declared page. */
 export function landingSlug(pages: PageMeta[]): string | undefined {
   return pages.find((p) => p.default)?.slug ?? pages[0]?.slug
+}
+
+/**
+ * The cross-project landing slug for the projects shell: an explicit
+ * `nav.landingPage` wins, otherwise the default/first page. Generic — the slug
+ * is a manifest primitive, never a hardcoded page name.
+ */
+export function resolveLandingSlug(pages: PageMeta[], nav?: NavConfig): string | undefined {
+  return nav?.landingPage ?? landingSlug(pages)
+}
+
+/** Every page except the landing — the per-project pages a selected project expands to. */
+export function nonLandingPages(pages: PageMeta[], landing: string | undefined): PageMeta[] {
+  return pages.filter((p) => p.slug !== landing)
 }
 
 /** Order pages with the landing page pinned first (its manifest position aside). */

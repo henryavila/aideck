@@ -342,8 +342,18 @@ const customComponentSchema = z.object({
 })
 
 const navSchema = z.object({
-  style: z.enum(['tabs', 'sidebar']).optional(),
-  showIcons: z.boolean().optional()
+  // 'projects' = a project-centric shell: a fixed cross-project landing pinned at
+  // the top of the sidebar + the consumer's registered projects listed as the
+  // primary nav unit. A purely generic shell capability over the project-registry;
+  // any human label still comes from `projectsLabel` (never hardcoded).
+  style: z.enum(['tabs', 'sidebar', 'projects']).optional(),
+  showIcons: z.boolean().optional(),
+  // Human label for the projects group in the sidebar (style:'projects'). The
+  // consumer owns the word; the runtime defaults to a generic English label.
+  projectsLabel: z.string().min(1).optional(),
+  // Slug of the page used as the cross-project landing (style:'projects'). Defaults
+  // to the page with `default: true`. Refined below to a declared page slug.
+  landingPage: z.string().min(1).optional()
 })
 
 // One of the five design-system tones. A consumer's domain status words map onto
@@ -410,6 +420,15 @@ export const manifestSchema = z.object({
     message: 'manifest.help must reference a declared page slug',
     path: ['help']
   })
+  // Same guard for the projects-mode landing: a dangling slug would silently
+  // route the consumer root to nothing.
+  .refine(
+    (m) => m.nav?.landingPage === undefined || m.pages.some((p) => p.slug === m.nav?.landingPage),
+    {
+      message: 'manifest.nav.landingPage must reference a declared page slug',
+      path: ['nav', 'landingPage']
+    }
+  )
 
 export type Manifest = z.infer<typeof manifestSchema>
 

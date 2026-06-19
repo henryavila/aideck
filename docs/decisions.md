@@ -696,3 +696,43 @@ under G4 — is implemented as a single agnostic primitive, NOT a special domain
 (merges 2 projects, tags projectId), client scope-routing test, schema scope tests. Handoff
 `to-atomic-skills-v2-engine-contracts.md` updated: §A12 added, Panorama removed from §C (deferred),
 §B1 gains a Panorama build step.
+
+## 2026-06-19 — nav.style: 'projects' (generic project-centric shell)
+
+A third, additive `nav.style` for consumers whose `root: 'project'` dataSources register N
+projects and want a project-centric shell: a fixed cross-project landing pinned at the top of
+the sidebar + the registered projects listed as the primary nav unit (instead of the
+consumer-list). `tabs`/`sidebar` are unchanged.
+
+- **Zero domain leak (⛔ GATE).** aiDeck stays domain-agnostic: the feature uses only generic
+  primitives already present (`consumers`, `projects`/project-registry, `pages`, `scope`).
+  Every human label comes from the manifest — `nav.projectsLabel` (defaults to the generic
+  English `"projects"`), never a hardcoded consumer word. Enforced by
+  `tests/unit/client/nav-projects-domain-gate.test.ts`, which fails if any consumer-domain
+  token (`atomic-skills`, `initiative`, `panorama`, `foco`, `frente`, `gate`, `plan`, `phase`,
+  `task`) leaks into the generic shell surface.
+- **Why scan source, not `git diff main`.** The handoff asked the gate to grep the diff. This
+  branch already carries unrelated DS-v2 work whose diff legitimately mentions some of those
+  words in comments/examples, so a raw `git diff main` grep would be dominated by pre-existing
+  noise and flaky. The gate instead scans the *feature-owned generic shell files*
+  (`Sidebar.vue`, `App.vue`, `ConsumerPage.vue`, `useActiveManifest.ts`, `useProjects.ts`, and
+  the `navSchema` block) — the precise, CI-stable enforcement of the same invariant. Whole-word
+  matching so `aggregate`/`navigate` never trip on "gate".
+- **No new page-level primitive.** "Project pages" = every page *except* the landing
+  (`nonLandingPages`); the landing is `nav.landingPage` (else the `default: true` page,
+  `resolveLandingSlug`). No page-level `scope` field was added — the existing binding-level
+  `scope: project | all-projects` already expresses cross-project vs per-project data.
+- **Scope via URL.** Selecting a project navigates to its first project page with `?project=`
+  (reusing `selectedProjectId`); the selected project's row expands to its pages. The landing
+  (consumer root) carries no project query — it is cross-project. `ConsumerPage` now also
+  watches `route.query.project` so sidebar-driven switches sync the provided scope. Breadcrumb
+  in projects mode: `consumer / project / page` (project shown only on a scoped page).
+- **Schema guard.** `nav.landingPage` is refined to a declared page slug (mirrors the `help`
+  refine) — a dangling landing would silently route the root to nothing.
+
+### Verification
+`tsc --noEmit` clean; **798/798 `npx vitest run` pass** (+17: schema, sidebar projects, gate).
+End-to-end proof (real server + real registry + real `Sidebar.vue` render) confirmed the
+neutral `acme`/`workspaces` consumer: schema accepts `nav.style: projects`, the registry lists
+`web/api/mobile`, and the sidebar pins the landing + lists the projects + scopes pages on
+select. Styled artifact: `docs/handoffs/nav-style-projects-impl.visual.html`.
