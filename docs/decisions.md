@@ -770,3 +770,38 @@ End-to-end proof (real server + real registry + real `Sidebar.vue` render) confi
 neutral `acme`/`workspaces` consumer: schema accepts `nav.style: projects`, the registry lists
 `web/api/mobile`, and the sidebar pins the landing + lists the projects + scopes pages on
 select. Styled artifact: `docs/handoffs/nav-style-projects-impl.visual.html`.
+
+## 2026-06-19 — page.showInNav (reachable-but-unlisted pages)
+
+Additive page-level primitive `showInNav?: boolean` (default `true`) on all three page
+layouts (`sections`/`grid`/`single`). A consumer can now declare a page that stays fully
+reachable — by direct route and via `help`/`?`/`commandPalette` — but does **not** appear in
+the shell nav. The motivating case is a "help" page opened only from the chrome `?` button,
+but the primitive is generic: the consumer decides what to hide, core privileges no page.
+
+- **Zero domain leak (⛔ GATE).** `showInNav` is a generic shell word; no consumer vocabulary
+  entered the schema, types, or shell components. The existing
+  `nav-projects-domain-gate.test.ts` already scans every file this change touches
+  (`Sidebar.vue`, `ConsumerPage.vue`, `useActiveManifest.ts`) plus the `navSchema` block, so it
+  enforces the invariant on the new code with no extension needed.
+- **Filter at the render surfaces, not in the data pipe.** The predicate (`showInNav !== false`)
+  lives in the two components that actually render nav rows — `Sidebar.vue` (`navPages` for
+  sidebar mode, `navProjectPages` for the projects-mode expansion) and `ConsumerPage.vue`
+  (`navPages` for the tab bar). `App.vue` keeps passing the full page list and the
+  `useActiveManifest` helpers (`nonLandingPages`/`pinLanding`) stay pure: their job is page
+  *identity/order*, not nav *visibility*. This also keeps `Sidebar.vue` self-contained and
+  unit-testable in isolation (the existing `sidebar-nav.test.ts` mounts it directly with props).
+- **Routing is never filtered.** `currentPage` in `ConsumerPage` still resolves against the full
+  page list, so a `showInNav:false` page renders fine on direct navigation; `help`/`?` and the
+  command palette are unaffected. Only the rendered nav rows / tabs are filtered.
+- **A nav row points at the first *visible* page.** The projects-mode project row targets
+  `navProjectPages[0]` (not the first declared page), so clicking a project never deep-links
+  into a hidden page. The tab bar's `> 1` visibility guard and its tail count also use the
+  filtered list, so a single visible page shows no pointless one-tab bar.
+- **Not published.** Ships only on `feat/ds-v2.1-widgets` under `## [Unreleased]`; no version
+  bump or `npm publish` until the owner manually validates the atomic-skills dashboard render.
+
+### Verification
+`tsc --noEmit` clean; **803/803 `npx vitest run` pass** (+5: sidebar nested hide, projects-mode
+expansion hide, project-row targets first visible page, tab-bar hide, hidden page still routable).
+The domain GATE (`nav-projects-domain-gate.test.ts`) stays green over the touched shell files.

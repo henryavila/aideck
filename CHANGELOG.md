@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **`page.showInNav?: boolean`** — a generic shell primitive to keep a page reachable (by route and via `help` / `?` / `commandPalette`) while hiding it from the nav. Default (`undefined`/`true`) is unchanged; `false` omits the page from the sidebar, the projects-mode project expansion, and the in-page tab bar. The consumer decides what to hide; core privileges no page.
+
 ## [0.1.1] - 2026-06-07
 
 ### Fixed

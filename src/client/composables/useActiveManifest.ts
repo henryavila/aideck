@@ -18,6 +18,8 @@ export interface PageMeta {
   route?: string
   layout?: string
   default?: boolean
+  /** When false, the page is hidden from the shell nav but stays routable/openable. */
+  showInNav?: boolean
 }
 
 // Module-scoped so the chrome (App/Sidebar/ChromeHeader) and the routed

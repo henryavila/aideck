@@ -246,6 +246,12 @@ const sectionsPageSchema = z.object({
   icon: z.string().optional(),
   default: z.boolean().optional(),
   route: z.string().optional(),
+  // Nav visibility (generic shell primitive). undefined/true = the page appears in
+  // the shell nav (sidebar / projects expansion / tab bar). `false` = hidden from
+  // nav but still routable and openable via `help`/`?`/commandPalette — a
+  // reachable-but-unlisted page. The consumer decides what to hide; core privileges
+  // no page.
+  showInNav: z.boolean().optional(),
   sections: z.array(sectionSchema).optional()
 })
 
@@ -256,6 +262,7 @@ const gridPageSchema = z.object({
   icon: z.string().optional(),
   default: z.boolean().optional(),
   route: z.string().optional(),
+  showInNav: z.boolean().optional(),
   columns: z.number().int().min(1).optional(),
   rowHeight: z.number().optional(),
   gap: z.number().optional(),
@@ -271,6 +278,7 @@ const singlePageSchema = z.object({
   icon: z.string().optional(),
   default: z.boolean().optional(),
   route: z.string().optional(),
+  showInNav: z.boolean().optional(),
   widget: z.string().optional(),
   source: sourceBindingSchema.optional(),
   config: z.record(z.unknown()).optional()

@@ -23,9 +23,9 @@
       </div>
     </div>
 
-    <div v-if="pages.length > 1 && !sidebarNav && !projectsMode" class="tabs-bar" role="tablist">
+    <div v-if="navPages.length > 1 && !sidebarNav && !projectsMode" class="tabs-bar" role="tablist">
       <router-link
-        v-for="page in pages"
+        v-for="page in navPages"
         :key="page.slug"
         :to="page.route ?? `/${consumerId}/${page.slug}`"
         class="tb"
@@ -40,7 +40,7 @@
       <span class="tabs-tail">
         <span>layout · {{ currentPage.layout }}</span>
         <span style="color: var(--fg-faint)">·</span>
-        <span>{{ pages.length }} pages</span>
+        <span>{{ navPages.length }} pages</span>
       </span>
     </div>
 
@@ -167,6 +167,9 @@ function selectProject(id: string): void {
 const consumerTitle = computed(() => (manifest.value?.title as string | undefined) ?? consumerId.value)
 
 const pages = computed(() => (manifest.value?.pages as PageDecl[]) ?? [])
+// The tab bar lists only nav-visible pages; a showInNav:false page stays routable
+// (currentPage still resolves it below) but gets no tab.
+const navPages = computed(() => pages.value.filter((p) => p.showInNav !== false))
 const currentPage = computed(() => {
   if (pageSlug.value) return pages.value.find((p) => p.slug === pageSlug.value)
   // Consumer root: an explicit nav.landingPage wins (the projects-shell

@@ -40,7 +40,7 @@
 
         <!-- the selected project expands to its per-project pages -->
         <router-link
-          v-for="page in (p.projectId === selectedProjectId ? projectPages : [])"
+          v-for="page in (p.projectId === selectedProjectId ? navProjectPages : [])"
           :key="`${p.projectId}/${page.slug}`"
           :to="pageTarget(page, p.projectId)"
           class="page-row"
@@ -75,7 +75,7 @@
 
         <!-- nav.style: sidebar — the active consumer expands to its pages nested -->
         <router-link
-          v-for="page in (c.id === currentId ? pages : [])"
+          v-for="page in (c.id === currentId ? navPages : [])"
           :key="`${c.id}/${page.slug}`"
           :to="page.route ?? `/${c.id}/${page.slug}`"
           class="page-row"
@@ -148,11 +148,16 @@ const mobileTitle = computed(() =>
   props.navStyle === 'projects' ? (props.landingPage?.title ?? 'navigation') : 'consumers'
 )
 
+// Nav rows render only pages flagged for nav (showInNav !== false). A hidden page
+// stays routable and openable via help/?/commandPalette; it just gets no row here.
+const navPages = computed(() => props.pages.filter((p) => p.showInNav !== false))
+const navProjectPages = computed(() => props.projectPages.filter((p) => p.showInNav !== false))
+
 // A project row navigates to the first per-project page scoped to that project
 // (else the consumer root with the scope query) — selecting it sets the scope
 // (?project=) and expands its pages.
 function projectTarget(projectId: string): RouteLocationRaw {
-  const first = props.projectPages[0]
+  const first = navProjectPages.value[0]
   const path = first ? `/${props.currentId}/${first.slug}` : `/${props.currentId}`
   return { path, query: { project: projectId } }
 }

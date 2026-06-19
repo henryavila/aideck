@@ -88,6 +88,54 @@ describe('ConsumerPage', () => {
     expect(tabs.text()).toContain('Metrics')
   })
 
+  it('omits a showInNav:false page from the tab bar but keeps the visible ones', async () => {
+    const { fetchConsumerManifest } = await import('../../../src/client/api.js')
+    vi.mocked(fetchConsumerManifest).mockResolvedValue({
+      id: 'alpha',
+      schemaVersion: '0.1',
+      pages: [
+        { slug: 'overview', title: 'Overview', layout: 'sections', default: true, sections: [] },
+        { slug: 'metrics', title: 'Metrics', layout: 'sections', sections: [] },
+        { slug: 'aux', title: 'Aux', layout: 'sections', showInNav: false, sections: [] },
+      ],
+    })
+
+    const router = makeRouter('/alpha')
+    await router.isReady()
+
+    const wrapper = mount(ConsumerPage, { global: { plugins: [router] } })
+    await flushPromises()
+
+    const tabs = wrapper.find('.tabs-bar')
+    expect(tabs.exists()).toBe(true)
+    expect(tabs.text()).toContain('Overview')
+    expect(tabs.text()).toContain('Metrics')
+    expect(tabs.text()).not.toContain('Aux')
+  })
+
+  it('keeps a showInNav:false page reachable by direct route', async () => {
+    const { fetchConsumerManifest } = await import('../../../src/client/api.js')
+    vi.mocked(fetchConsumerManifest).mockResolvedValue({
+      id: 'alpha',
+      schemaVersion: '0.1',
+      pages: [
+        { slug: 'overview', title: 'Overview', layout: 'sections', default: true, sections: [] },
+        { slug: 'aux', title: 'Aux', layout: 'sections', showInNav: false, sections: [] },
+      ],
+    })
+
+    const router = makeRouter('/alpha/aux')
+    await router.isReady()
+
+    const wrapper = mount(ConsumerPage, { global: { plugins: [router] } })
+    await flushPromises()
+
+    // hidden-from-nav but still routable: the page resolves and renders.
+    expect(wrapper.text()).not.toContain('Page not found')
+    expect(wrapper.find('.page-state.is-loading').exists()).toBe(false)
+    expect(wrapper.find('.pt-page').text()).toBe('Aux')
+  })
+
   it('renders grid-layout page', async () => {
     const { fetchConsumerManifest } = await import('../../../src/client/api.js')
     vi.mocked(fetchConsumerManifest).mockResolvedValue({

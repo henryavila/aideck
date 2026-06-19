@@ -80,6 +80,21 @@ describe('Sidebar nav.style: sidebar', () => {
     expect(wrapper.findAll('.page-row')).toHaveLength(0)
   })
 
+  it('omits a showInNav:false page from the nested nav, keeping the visible ones', () => {
+    const withHidden: PageMeta[] = [
+      { slug: 'home', title: 'Home' },
+      { slug: 'aux', title: 'Aux', showInNav: false },
+      { slug: 'docs', title: 'Docs' }
+    ]
+    const wrapper = mount(Sidebar, {
+      global: { plugins: [router()] },
+      props: { consumers, currentId: 'alpha', pages: withHidden }
+    })
+    const names = wrapper.findAll('.page-row .name').map((n) => n.text())
+    expect(names).toEqual(['Home', 'Docs'])
+    expect(wrapper.text()).not.toContain('Aux')
+  })
+
   it('renders a glyph icon as text and an mdi token via the webfont class', () => {
     const wrapper = mount(Sidebar, {
       global: { plugins: [router()] },
@@ -181,6 +196,33 @@ describe('Sidebar nav.style: projects (generic project-centric shell)', () => {
     const webRow = wrapper.findAll('.consumer-row').find((r) => r.find('.name').text() === 'web')!
     expect(webRow.attributes('href')).toContain('/acme/board')
     expect(webRow.attributes('href')).toContain('project=web')
+  })
+
+  it('omits a showInNav:false page from the expanded project pages', () => {
+    const withHidden: PageMeta[] = [
+      { slug: 'board', title: 'Board' },
+      { slug: 'aux', title: 'Aux', showInNav: false },
+      { slug: 'detail', title: 'Detail' }
+    ]
+    const wrapper = mountProjects({
+      projectPages: withHidden,
+      selectedProjectId: 'api',
+      currentPageSlug: 'board'
+    })
+    const names = wrapper.findAll('.page-row .name').map((n) => n.text())
+    expect(names).toEqual(['Board', 'Detail'])
+    expect(wrapper.text()).not.toContain('Aux')
+  })
+
+  it('targets a project row at its first nav-visible page when the first is hidden', () => {
+    const withHiddenFirst: PageMeta[] = [
+      { slug: 'aux', title: 'Aux', showInNav: false },
+      { slug: 'board', title: 'Board' }
+    ]
+    const wrapper = mountProjects({ projectPages: withHiddenFirst })
+    const webRow = wrapper.findAll('.consumer-row').find((r) => r.find('.name').text() === 'web')!
+    // routing skips the hidden first page and lands on the first nav-visible one
+    expect(webRow.attributes('href')).toContain('/acme/board')
   })
 })
 
