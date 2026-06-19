@@ -22,9 +22,9 @@ export interface ParsedArgs {
   portExplicit: boolean
 }
 
-export type ExposeProvider = 'off' | 'tailscale' | 'external'
+export type ExposeProvider = 'off' | 'tailscale' | 'tailnet' | 'external'
 
-const EXPOSE_PROVIDERS: ReadonlySet<string> = new Set(['off', 'tailscale', 'external'])
+const EXPOSE_PROVIDERS: ReadonlySet<string> = new Set(['off', 'tailscale', 'tailnet', 'external'])
 
 export class ArgError extends Error {
   constructor(message: string, public readonly hint?: string) {

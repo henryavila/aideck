@@ -139,3 +139,50 @@ describe('normalizers', () => {
     expect(() => normalizeRemoteBaseUrl('https://h.ts.net/dash')).toThrow(ExposeConfigError)
   })
 })
+
+type Stub = () => Promise<{ stdout: string; stderr: string }>
+
+describe('startExpose — tailnet (direct bind)', () => {
+  function fakeTs(overrides: { status?: Stub; ip?: Stub } = {}): ExecFileFn {
+    const defaults: { status: Stub; ip: Stub } = {
+      status: async () => ({ stdout: JSON.stringify({ BackendState: 'Running', Self: { DNSName: `${DNS}.` } }), stderr: '' }),
+      ip: async () => ({ stdout: '100.64.0.5\nfd7a:115c::5\n', stderr: '' })
+    }
+    return async (_cmd, args) => {
+      if (args[0] === 'status') return (overrides.status ?? defaults.status)()
+      if (args[0] === 'ip') return (overrides.ip ?? defaults.ip)()
+      throw new Error(`unexpected tailscale args: ${args.join(' ')}`)
+    }
+  }
+
+  it('resolves name + IPv4 and returns a tailnetBind (no TLS, app port)', async () => {
+    const e = await startExpose({ provider: 'tailnet', localPort: 7777, execFile: fakeTs() })
+    expect(e.provider).toBe('tailnet')
+    expect(e.remoteHost).toBe(DNS)
+    expect(e.remoteUrl).toBe(`http://${DNS}:7777`)
+    expect(e.tailnetBind).toEqual({ ip: '100.64.0.5', name: DNS })
+    expect(e.warnings).toEqual([])
+    await expect(e.stop()).resolves.toBeUndefined()
+  })
+
+  it('degrades to local-only when tailscale is not running', async () => {
+    const e = await startExpose({
+      provider: 'tailnet',
+      localPort: 7777,
+      execFile: fakeTs({ status: async () => ({ stdout: JSON.stringify({ BackendState: 'Stopped' }), stderr: '' }) })
+    })
+    expect(e.remoteUrl).toBeNull()
+    expect(e.tailnetBind ?? null).toBeNull()
+    expect(e.warnings.length).toBeGreaterThan(0)
+  })
+
+  it('degrades to local-only when no IPv4 is returned', async () => {
+    const e = await startExpose({
+      provider: 'tailnet',
+      localPort: 7777,
+      execFile: fakeTs({ ip: async () => ({ stdout: '\n', stderr: '' }) })
+    })
+    expect(e.remoteUrl).toBeNull()
+    expect(e.warnings.some((w) => /ip -4/.test(w))).toBe(true)
+  })
+})

@@ -847,3 +847,82 @@ held-open connection makes a naive `server.close()` time out at 5 s). New unit s
 `graceful-shutdown` (3), `shutdown-sequence` (2), `instance-reconcile` (5), `restart` (2),
 plus a `--help` assertion for `restart`. `tsc --noEmit` clean; full `vitest run` green.
 Not published — same `[Unreleased]` gate as the DS v2.1 work ([[aideck-publish-gate]]).
+
+## SSH local-forward hint — the zero-exposure remote path (detect the real sshd port)
+
+**Context.** On a WSL host, `tailscale serve` was correctly mapping
+`…ts.net:8443 → 127.0.0.1:7777` (cert valid, backend 200, route valid), but a tailnet peer
+could resolve the name yet **not open a TCP connection to :8443** — the serve listener is
+bound to the tailnet IP and inbound connections don't land in this WSL setup, whereas plain
+`sshd` on `0.0.0.0:2222` was reachable from the same peer. The SSH channel is the path that
+demonstrably works.
+
+**Decision.** `aideck serve` now always prints an SSH local-forward command
+(`src/server/expose/ssh-hint.ts`), independent of `--expose`. It is the most generic and most
+secure remote path: aiDeck stays bound to `127.0.0.1` (Iron Law #4), spawns no proxy, uses no
+relay, stores no credential, opens no new surface — the tunnel is the user's own authenticated
+SSH session. aiDeck only prints the command; it never executes it.
+
+The sshd port is **detected, never assumed to be 22**, in precedence order:
+1. `$SSH_CONNECTION` (4th field = the server port the current session arrived on),
+2. `Port` in `/etc/ssh/sshd_config` (+ `sshd_config.d/*.conf`),
+3. fall back to `22` **with a warning** that it's a guess.
+
+Considered and rejected: a full `--expose=ssh` reverse-tunnel provider (`ssh -R` to a relay).
+More powerful but less generic and less secure — needs a relay/jump host, opens a listener
+there, and adds process/teardown/key surface. The hint costs nothing and works anywhere SSH
+does.
+
+### Verification
+`tests/unit/server/ssh-hint.test.ts` (15) covers port parsing, precedence, default+warning,
+and command formatting (`-p` included only for non-default ports). `tsc --noEmit` clean; full
+`vitest run` green (837). Real-host check detected `2222` via `sshd-config`. Not published —
+same `[Unreleased]` gate ([[aideck-publish-gate]]).
+
+## Direct tailnet bind (`--expose=tailnet`) + Host-header allowlist — "expose for real", safely
+
+**Context.** On a WSL host `tailscale serve` mapped `…ts.net:8443 → 127.0.0.1:7777` correctly
+(cert valid, backend 200, route valid) but a tailnet peer could resolve the name yet **not open
+a TCP connection to :8443** — Serve's inbound didn't land in that WSL setup. Meanwhile plain
+`sshd` bound to `0.0.0.0:2222` was reachable from the same peer. The user asked, fairly, why not
+just expose aiDeck directly on the tailnet instead of relying on the Serve proxy.
+
+**Security reasoning (honest).** aiDeck has **no auth** and allows **writes**. The risk was never
+the tailnet itself (WireGuard-encrypted, single-user, ACL'd) — it's the **browser attack
+surface** against a no-auth read/write service. CORS already blocks cross-origin writes (browsers
+always send `Origin` on POST). The residual gap is **DNS rebinding**: a malicious page rebinds its
+hostname to the node's IP and reads data as "same-origin" (GET often omits `Origin`; nothing
+validated `Host`). Binding `127.0.0.1` had been the mitigation. Tailscale **Serve** closes the gap
+for free (its proxy only routes the exact ts.net Host) — which is why it was the only sanctioned
+exposure.
+
+**Decision.** Add a third remote-access provider, `--expose=tailnet`, that binds aiDeck's **own
+socket** to its Tailscale IP, made safe by a **Host-header allowlist**:
+- `src/server/host-guard.ts` — rejects any request whose `Host` isn't loopback / the node's tailnet
+  name / its tailnet IP. Closes rebinding. Present-but-disallowed Host ⇒ 403; absent Host ⇒ allowed
+  (non-browser clients can't rebind and already have unauth access by design). Mounted **only** when
+  directly bound (loopback-only binds don't need it ⇒ zero behavior change for `off`/`tailscale`/
+  `external`).
+- `src/server/index.ts` — `startServer` binds a **second** listener on the Tailscale IP (same app
+  port) **in addition to** loopback; **never `0.0.0.0`** (which on WSL mirrored mode leaks to the
+  LAN). Best-effort: a failed extra bind degrades to loopback-only with a stderr warning.
+- `src/server/expose/index.ts` — `startTailnetDirect` resolves the node's name (`tailscale status`)
+  + IPv4 (`tailscale ip -4`); any tailscale problem degrades to local-only. No proxy, **no TLS**
+  (WireGuard already encrypts the tunnel) → endpoint is `http://<name>:<port>`.
+- `src/server/cors.ts` — now accepts multiple allowed remote hosts (tailnet name **and** IP origins).
+
+This **amends Iron Law #4** (CLAUDE.md updated first): default bind stays `127.0.0.1`, `0.0.0.0`
+stays forbidden, and the direct tailnet bind is permitted ONLY with the Host allowlist enforced. It
+does **not** add authentication — every tailnet device/process still has full read+write (same as
+Serve); acceptable only on a personal, single-user tailnet, and the CLI prints the no-auth warning.
+
+Rejected alternative: an `--expose=ssh` reverse-tunnel provider (`ssh -R` to a relay) — needs a
+relay/jump host, opens a listener there, adds process/teardown/key surface. The `ssh -L` hint
+([[decisions: SSH local-forward hint]]) already covers the zero-exposure case.
+
+### Verification
+New unit suites: `host-guard` (11) and `tailnet` provider cases in `expose` (3), plus multi-host
+`cors` (1). `tsc --noEmit` clean; full `vitest run` green (852, was 837). Real-host smoke (isolated
+`buildApp`, no lock): a socket bound directly to the node's `100.x` IP **accepts** peer-style
+requests (Host = tailnet name/IP → 200) and **403s a forged Host** (rebinding). Not published —
+same `[Unreleased]` gate ([[aideck-publish-gate]]).

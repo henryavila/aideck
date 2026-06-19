@@ -16,9 +16,9 @@ import { promisify } from 'node:util'
 
 const execFileAsync = promisify(nodeExecFile)
 
-export type ExposeProvider = 'off' | 'tailscale' | 'external'
+export type ExposeProvider = 'off' | 'tailscale' | 'tailnet' | 'external'
 
-const PROVIDERS: ReadonlySet<string> = new Set(['off', 'tailscale', 'external'])
+const PROVIDERS: ReadonlySet<string> = new Set(['off', 'tailscale', 'tailnet', 'external'])
 
 export const DEFAULT_EXPOSE_PORT = 8443
 
@@ -51,6 +51,9 @@ export interface ActiveExposure {
   remoteUrl: string | null
   /** Hostname of remoteUrl — used to allow its CORS origin. Null if local-only. */
   remoteHost: string | null
+  /** Set by the `tailnet` provider: aiDeck binds a second listener on this IP and
+   *  enforces a Host allowlist of {loopback, name, ip}. Null for other providers. */
+  tailnetBind?: { ip: string; name: string } | null
   /** Non-fatal notices (tailscale not running, mapping unverified, etc.). */
   warnings: string[]
   /** Tears down any proxy this module started. Safe to call always. */
@@ -135,11 +138,71 @@ export async function startExpose(opts: ExposeOptions): Promise<ActiveExposure> 
     }
   }
 
+  if (provider === 'tailnet') {
+    return startTailnetDirect({
+      localPort: opts.localPort,
+      execFile: opts.execFile ?? execFileAsync
+    })
+  }
+
   return startTailscale({
     localPort: opts.localPort,
     exposePort: normalizeExposePort(opts.exposePort),
     execFile: opts.execFile ?? execFileAsync
   })
+}
+
+/**
+ * Direct tailnet bind. Unlike Serve, no proxy and no TLS — WireGuard already
+ * encrypts the tunnel. We resolve the node's tailnet name + IPv4 so the caller
+ * (startServer) can bind a second listener on that IP and allow its Host/origin.
+ * Any tailscale problem degrades to local-only with a warning (never throws).
+ */
+async function startTailnetDirect(opts: { localPort: number; execFile: ExecFileFn }): Promise<ActiveExposure> {
+  const { localPort, execFile } = opts
+  const warnings: string[] = []
+
+  let status: { BackendState?: string; Self?: { DNSName?: string } }
+  try {
+    const { stdout } = await execFile('tailscale', ['status', '--json'])
+    status = JSON.parse(stdout)
+  } catch (cause) {
+    warnings.push(`tailscale is not available: ${errMsg(cause)}; continuing local-only`)
+    return localOnly('tailnet', warnings)
+  }
+
+  if (status.BackendState !== 'Running') {
+    warnings.push(`tailscale is not running (${status.BackendState ?? 'unknown'}); continuing local-only`)
+    return localOnly('tailnet', warnings)
+  }
+
+  const name = status.Self?.DNSName ? String(status.Self.DNSName).replace(/\.$/, '') : ''
+  if (!name) {
+    warnings.push('tailscale status did not include Self.DNSName; continuing local-only')
+    return localOnly('tailnet', warnings)
+  }
+
+  let ip = ''
+  try {
+    const { stdout } = await execFile('tailscale', ['ip', '-4'])
+    ip = stdout.split('\n').map((s) => s.trim()).find(Boolean) ?? ''
+  } catch (cause) {
+    warnings.push(`could not read 'tailscale ip -4': ${errMsg(cause)}; continuing local-only`)
+    return localOnly('tailnet', warnings)
+  }
+  if (!ip) {
+    warnings.push("'tailscale ip -4' returned no address; continuing local-only")
+    return localOnly('tailnet', warnings)
+  }
+
+  return {
+    provider: 'tailnet',
+    remoteUrl: `http://${name}:${localPort}`,
+    remoteHost: name,
+    tailnetBind: { ip, name },
+    warnings,
+    stop: NOOP_STOP
+  }
 }
 
 interface TailscaleOptions {

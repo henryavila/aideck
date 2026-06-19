@@ -37,4 +37,16 @@ describe('corsMiddleware', () => {
     const res = await appWith('box.ts.net').request('/x')
     expect(res.status).toBe(200)
   })
+
+  it('accepts an array of allowed hosts (tailnet name + IP)', async () => {
+    const app = new Hono()
+    app.use('*', corsMiddleware(['box.ts.net', '100.64.0.1']))
+    app.get('/x', (c) => c.text('ok'))
+    const byName = await app.request('/x', { headers: { origin: 'http://box.ts.net:7777' } })
+    expect(byName.status).toBe(200)
+    const byIp = await app.request('/x', { headers: { origin: 'http://100.64.0.1:7777' } })
+    expect(byIp.status).toBe(200)
+    const foreign = await app.request('/x', { headers: { origin: 'https://evil.example.com' } })
+    expect(foreign.status).toBe(403)
+  })
 })

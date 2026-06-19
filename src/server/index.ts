@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { createEventBus, type EventBus } from './event-bus.js'
 import { createWatcher } from './watcher.js'
 import { corsMiddleware } from './cors.js'
+import { hostGuard } from './host-guard.js'
 import { createApiRouter } from './routes/api.js'
 import { createApiV2Router } from './routes/api-v2.js'
 import { createSseRouter } from './routes/sse.js'
@@ -31,9 +32,13 @@ export interface ServerOptions {
    *  home directory. */
   aideckBaseDir?: string
   /** When the server is exposed remotely (expose layer), the resolved remote
-   *  hostname. Its CORS origin is accepted in addition to localhost. The socket
-   *  itself still binds 127.0.0.1 only — exposure is an out-of-process proxy. */
+   *  hostname. Its CORS origin is accepted in addition to localhost. With the
+   *  Serve/external providers the socket still binds 127.0.0.1 only. */
   remoteHost?: string
+  /** Direct tailnet bind (Iron Law #4, exception 2): aiDeck binds a SECOND
+   *  listener on its own Tailscale IP (never 0.0.0.0) in addition to loopback,
+   *  and enforces a Host allowlist of {loopback, name, ip}. */
+  tailnetBind?: { ip: string; name: string } | null
 }
 
 /**
@@ -48,6 +53,8 @@ export interface RunningServer {
   consumers: ConsumerRegistry
   consumerWatcher: ConsumerWatcher | null
   server: ServerType | null
+  /** Second listener bound to the Tailscale IP when `tailnetBind` is set; else null. */
+  extraServer: ServerType | null
   port: number
   stop(): Promise<void>
 }
@@ -86,7 +93,16 @@ export function buildApp(opts: ServerOptions): BuiltApp {
     : createConsumerWatcher({ consumersDir: consumers.consumersDir(), eventBus })
 
   const app = new Hono()
-  app.use('*', corsMiddleware(opts.remoteHost))
+  // Host allowlist runs FIRST and only when directly bound to a routable address —
+  // it closes DNS-rebinding, which is what makes the tailnet bind safe. On a
+  // loopback-only bind it is unnecessary and stays unmounted (zero behavior change).
+  if (opts.tailnetBind) {
+    app.use('*', hostGuard([opts.tailnetBind.name, opts.tailnetBind.ip]))
+  }
+  const corsHosts = [opts.remoteHost, opts.tailnetBind?.name, opts.tailnetBind?.ip].filter(
+    (h): h is string => typeof h === 'string' && h.length > 0
+  )
+  app.use('*', corsMiddleware(corsHosts))
 
   // v2 API router mounted FIRST — gets priority on shared paths (/api/health, /api/consumers)
   app.route('/', createApiV2Router({
@@ -150,16 +166,33 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
     hostname: LOCALHOST,
     port
   })
+
+  // Direct tailnet bind: a SECOND listener on the node's own Tailscale IP (never
+  // 0.0.0.0), same app port. Best-effort — a bind failure (e.g. the interface
+  // went away) degrades to loopback-only with a stderr warning, never crashing
+  // the primary listener. Reachability is gated by the Host allowlist mounted above.
+  let extraServer: ServerType | null = null
+  if (opts.tailnetBind) {
+    const { ip } = opts.tailnetBind
+    extraServer = serve({ fetch: built.app.fetch, hostname: ip, port })
+    ;(extraServer as { on?: (ev: string, cb: (e: unknown) => void) => void }).on?.('error', (cause) => {
+      const msg = cause instanceof Error ? cause.message : String(cause)
+      process.stderr.write(`aideck: tailnet bind ${ip}:${port} failed (${msg}); loopback-only\n`)
+    })
+  }
+
   return {
     app: built.app,
     eventBus: built.eventBus,
     consumers: built.consumers,
     consumerWatcher: built.consumerWatcher,
     server,
+    extraServer,
     port,
     async stop() {
       if (built.consumerWatcher) await built.consumerWatcher.stop()
       await closeServerGracefully(server)
+      if (extraServer) await closeServerGracefully(extraServer)
       await releaseLock()
     }
   }

@@ -32,8 +32,10 @@ OPTIONS
                           off        local-only (127.0.0.1), unchanged.
                           tailscale  run 'tailscale serve' (private tailnet, HTTPS).
                                      Never Tailscale Funnel — the tailnet stays private.
+                          tailnet    bind a 2nd listener on this node's Tailscale IP
+                                     (never 0.0.0.0), guarded by a Host allowlist.
                           external   you run your own proxy; just record its URL.
-                          aiDeck always binds 127.0.0.1; the proxy runs out-of-process.
+                          off/tailscale/external keep the socket on 127.0.0.1.
   --expose-port=<N>       Public HTTPS port for the tailnet endpoint (default 8443).
   --remote-base-url=<url> Required for --expose=external; the https:// origin your
                           proxy serves (e.g. https://host.example.ts.net).

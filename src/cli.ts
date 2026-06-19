@@ -31,6 +31,7 @@ async function dispatchServe(
   const { InstanceAlreadyRunningError } = await import('./server/lockfile.js')
   const { reconcileInstance } = await import('./server/instance-reconcile.js')
   const { startExpose, ExposeConfigError } = await import('./server/expose/index.js')
+  const { buildSshTunnelHint } = await import('./server/expose/ssh-hint.js')
   const { runShutdownSequence } = await import('./cli/shutdown-sequence.js')
   const { tryRegister, findProjectRoot } = await import('./cli/up.js')
   const { stat } = await import('node:fs/promises')
@@ -93,7 +94,8 @@ async function dispatchServe(
         port,
         staticDir,
         version: readVersion(),
-        remoteHost: exposed.remoteHost ?? undefined
+        remoteHost: exposed.remoteHost ?? undefined,
+        tailnetBind: exposed.tailnetBind ?? undefined
       })
     } catch (cause) {
       await exposed.stop() // tear down any proxy we configured before bind failed
@@ -108,6 +110,19 @@ async function dispatchServe(
     if (exposed.remoteUrl) {
       stdout.write(`aideck serve: remote (private tailnet) ${exposed.remoteUrl}\n`)
       stdout.write('aideck serve: WARNING — reachable by tailnet peers (reads AND writes, no auth)\n')
+    }
+    // SSH local-forward hint: the universal, no-new-surface remote path. aiDeck
+    // stays on 127.0.0.1; the user's own SSH session does the tunneling. Detect
+    // the real sshd port (never assume 22).
+    try {
+      const ssh = await buildSshTunnelHint({ localPort: running.port })
+      for (const warning of ssh.warnings) {
+        stderr.write(`aideck serve: ${warning}\n`)
+      }
+      stdout.write(`aideck serve: remote (ssh tunnel) ${ssh.command}\n`)
+      stdout.write(`aideck serve: then open ${ssh.openUrl} (replace ${ssh.host} with your SSH host if it differs)\n`)
+    } catch {
+      // hint is best-effort; never block serve on it
     }
     let stopping = false
     const shutdown = async (signal: string) => {

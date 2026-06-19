@@ -42,20 +42,31 @@ Every canonical payload includes `schemaVersion: '0.1'`. Parser refuses mismatch
 
 ### 4. No telemetry. Bind localhost only.
 
-- HTTP server binds to `127.0.0.1` ONLY (never 0.0.0.0)
+- HTTP server binds to `127.0.0.1` by default; **never `0.0.0.0`** (that can leak to the LAN —
+  e.g. WSL mirrored networking)
 - No analytics, no error reporting to external services
 - No "phone home" for version checks
 - All operations are local-only
 
 Privacy and trust are foundational. This is non-negotiable.
 
-**Remote access (exception, narrow):** the dashboard may be reached from another device
-through an **out-of-process private-tailnet proxy** (Tailscale **Serve**), opted into via
-`aideck serve --expose=tailscale`. The aiDeck socket still binds `127.0.0.1` only — the
-proxy is a separate process that terminates a tailnet-private HTTPS connection and forwards
-to loopback. Permitted because the traffic stays inside the user's private tailnet with no
-telemetry. **Tailscale Funnel (public internet) is forbidden**, and aiDeck never widens its
-own bind. See `docs/remote-access.md` and the `src/server/expose/` module.
+**Remote access — two narrow, opt-in exceptions.** Both keep traffic inside the user's private
+tailnet, add no telemetry, and **never bind `0.0.0.0`**:
+
+1. **Serve proxy (`--expose=tailscale`)** — an out-of-process Tailscale **Serve** terminates a
+   tailnet-private HTTPS connection and forwards to loopback. aiDeck's own socket stays
+   `127.0.0.1` only. **Tailscale Funnel (public internet) is forbidden.**
+
+2. **Direct tailnet bind (`--expose=tailnet`)** — aiDeck binds a *second* listener on **its own
+   Tailscale IP** (never `0.0.0.0`) while keeping the loopback listener. Permitted ONLY because a
+   **Host-header allowlist** (`src/server/host-guard.ts`) is enforced: the server accepts
+   requests whose `Host` is loopback or the node's own tailnet name/IP and rejects anything
+   else, closing the DNS-rebinding vector that bind-localhost otherwise relied on. It does
+   **not** add authentication — every device/process on the tailnet still has full read+write
+   (same exposure as Serve), acceptable only on a personal, single-user tailnet. The CLI prints
+   a `reachable by tailnet peers (reads AND writes, no auth)` warning on every exposed start.
+
+See `docs/remote-access.md` and the `src/server/expose/` module.
 
 ### 5. v0.1 scope is fixed.
 
