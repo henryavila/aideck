@@ -13,6 +13,7 @@ import { createProjectRegistry, type ProjectRegistry } from './project-registry.
 import { createConsumerRegistry, type ConsumerRegistry } from './consumer-registry.js'
 import { createConsumerWatcher, type ConsumerWatcher } from './consumer-watcher.js'
 import { acquireLock, releaseLock } from './lockfile.js'
+import { closeServerGracefully } from './graceful-shutdown.js'
 
 export interface ServerOptions {
   rootDir: string
@@ -158,7 +159,7 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
     port,
     async stop() {
       if (built.consumerWatcher) await built.consumerWatcher.stop()
-      await new Promise<void>((resolve) => server.close(() => resolve()))
+      await closeServerGracefully(server)
       await releaseLock()
     }
   }

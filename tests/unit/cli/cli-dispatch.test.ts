@@ -45,6 +45,7 @@ describe('CLI dispatch', () => {
 
     expect(streams.out).toContain('validate-file')
     expect(streams.out).toContain('init-consumer')
+    expect(streams.out).toContain('restart')
     expect(code).toBe(0)
   })
 

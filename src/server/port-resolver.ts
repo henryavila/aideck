@@ -30,6 +30,16 @@ export async function isPortFree(port: number, hostname = '127.0.0.1'): Promise<
   })
 }
 
+/** Poll until a port becomes bindable (e.g. after killing an orphan that held it). */
+export async function waitForPortFree(port: number, timeoutMs: number, hostname = '127.0.0.1'): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    if (await isPortFree(port, hostname)) return true
+    await new Promise((r) => setTimeout(r, 100))
+  }
+  return false
+}
+
 export async function resolvePort(opts: ResolvePortOptions = {}): Promise<number> {
   const hostname = opts.hostname ?? '127.0.0.1'
   if (opts.isExplicit && opts.requested !== undefined) {

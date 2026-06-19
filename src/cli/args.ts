@@ -1,6 +1,6 @@
 import { parseArgs } from 'node:util'
 
-export type Subcommand = 'serve' | 'demo' | 'mcp' | 'env' | 'up' | 'down' | 'validate' | 'build-discover-run' | 'validate-file' | 'init-consumer'
+export type Subcommand = 'serve' | 'demo' | 'mcp' | 'env' | 'up' | 'down' | 'restart' | 'validate' | 'build-discover-run' | 'validate-file' | 'init-consumer'
 
 export interface ParsedArgs {
   subcommand?: Subcommand
@@ -33,7 +33,7 @@ export class ArgError extends Error {
   }
 }
 
-const SUBCOMMANDS: ReadonlySet<string> = new Set(['serve', 'demo', 'mcp', 'env', 'up', 'down', 'validate', 'build-discover-run', 'validate-file', 'init-consumer'])
+const SUBCOMMANDS: ReadonlySet<string> = new Set(['serve', 'demo', 'mcp', 'env', 'up', 'down', 'restart', 'validate', 'build-discover-run', 'validate-file', 'init-consumer'])
 
 export function parseCliArgs(argv: string[]): ParsedArgs {
   let parsed

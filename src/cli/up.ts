@@ -8,7 +8,7 @@ const POLL_INTERVAL_MS = 500
 const POLL_TIMEOUT_MS = 10_000
 const PROBE_TIMEOUT_MS = 3_000
 
-function findProjectRoot(from: string): string {
+export function findProjectRoot(from: string): string {
   let dir = resolve(from)
   while (true) {
     if (existsSync(join(dir, '.atomic-skills'))) return dir
@@ -27,7 +27,7 @@ function deriveProjectId(rootDir: string): string {
   return id || 'project'
 }
 
-async function tryRegister(url: string, rootDir: string): Promise<boolean> {
+export async function tryRegister(url: string, rootDir: string): Promise<boolean> {
   try {
     const projectId = deriveProjectId(rootDir)
     const controller = new AbortController()

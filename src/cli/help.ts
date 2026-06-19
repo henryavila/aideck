@@ -5,12 +5,15 @@ USAGE
 
 COMMANDS
   serve           Start HTTP server (dashboard + REST + SSE) on default port 7777
-                  (auto-fallback to 7778..7787 if 7777 is busy and --port not given)
+                  (auto-fallback to 7778..7787 if 7777 is busy and --port not given).
+                  Idempotent: if a healthy instance already holds the port it is
+                  reused (no second process); a stale/undead instance is reclaimed.
   demo            Run HTTP server with seeded fixtures (auto-opens browser)
   mcp             Run MCP server (stdio mode) — connect from Claude Code/Cursor via MCP config
   up              Ensure aideck is running (start if needed) and print the URL
                   Idempotent: reuses existing instance or starts a detached one.
   down            Stop a running aideck instance gracefully
+  restart         Stop the running instance (if any) and start a fresh one
   env             Print shell exports for AIDECK_URL/AIDECK_PORT (use: eval "$(aideck env)")
   validate-file   Validate a data file against its consumer's schema.json
                   Walks up from the file to find manifest.yaml, matches dataSource by path,

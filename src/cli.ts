@@ -26,10 +26,13 @@ async function dispatchServe(
   stderr: NodeJS.WritableStream
 ): Promise<number> {
   const { startServer } = await import('./server/index.js')
-  const { resolvePort, PortInUseError } = await import('./server/port-resolver.js')
+  const { resolvePort, PortInUseError, waitForPortFree } = await import('./server/port-resolver.js')
   const { writeEnvFile, removeEnvFile } = await import('./server/env-file.js')
   const { InstanceAlreadyRunningError } = await import('./server/lockfile.js')
+  const { reconcileInstance } = await import('./server/instance-reconcile.js')
   const { startExpose, ExposeConfigError } = await import('./server/expose/index.js')
+  const { runShutdownSequence } = await import('./cli/shutdown-sequence.js')
+  const { tryRegister, findProjectRoot } = await import('./cli/up.js')
   const { stat } = await import('node:fs/promises')
   const { resolve } = await import('node:path')
   try {
@@ -48,6 +51,27 @@ async function dispatchServe(
       }
       staticDir = abs
     }
+    // Resilience: reconcile against any instance already on the target port
+    // BEFORE binding. A healthy aiDeck → reuse it (no second process, no port
+    // hop). A stale/undead claim → reclaim the port. This is what stops two
+    // servers from splitting one port (see docs/decisions.md).
+    const targetPort = parsed.flags.port ?? 7777
+    const disposition = await reconcileInstance({ port: targetPort })
+    if (disposition.action === 'reuse') {
+      stdout.write(`aideck serve: already running at ${disposition.url} — reusing it\n`)
+      // Idempotent data refresh: register THIS project with the running instance
+      // instead of starting a competing server.
+      if (await tryRegister(disposition.url, findProjectRoot(process.cwd()))) {
+        stdout.write('aideck serve: registered this project with the running instance\n')
+      }
+      stdout.write(`${disposition.url}\n`)
+      return 0
+    }
+    if (disposition.action === 'reclaim') {
+      stderr.write(`aideck serve: reclaimed port ${targetPort} (${disposition.reason})\n`)
+      await waitForPortFree(targetPort, 3_000)
+    }
+
     const port = await resolvePort({
       requested: parsed.flags.port,
       isExplicit: parsed.portExplicit
@@ -90,9 +114,13 @@ async function dispatchServe(
       if (stopping) return
       stopping = true
       stdout.write(`aideck serve: received ${signal}, shutting down\n`)
-      await removeEnvFile()
-      await exposed.stop()
-      await running.stop()
+      // env file removed LAST — only once the server is actually down, so a
+      // bounded-but-slow stop never leaves an orphan invisible to `aideck down`.
+      await runShutdownSequence({
+        stopExposure: () => exposed.stop(),
+        stopServer: () => running.stop(),
+        removeEnvFile,
+      })
       process.exit(0)
     }
     process.on('SIGINT', () => void shutdown('SIGINT'))
@@ -291,6 +319,19 @@ async function dispatchDown(
   return runDown(stdout, stderr)
 }
 
+async function dispatchRestart(
+  parsed: ReturnType<typeof parseCliArgs>,
+  stdout: NodeJS.WritableStream,
+  stderr: NodeJS.WritableStream
+): Promise<number> {
+  const { runRestart } = await import('./cli/restart.js')
+  const { runDown } = await import('./cli/down.js')
+  return runRestart({
+    down: () => runDown(stdout, stderr),
+    serve: () => dispatchServe(parsed, stdout, stderr),
+  })
+}
+
 async function dispatchBuildDiscoverRun(
   parsed: ReturnType<typeof parseCliArgs>,
   stdout: NodeJS.WritableStream,
@@ -409,6 +450,8 @@ export async function runCli(opts: CliRunOptions = {}): Promise<number> {
       return dispatchUp(parsed, stdout, stderr)
     case 'down':
       return dispatchDown(stdout, stderr)
+    case 'restart':
+      return dispatchRestart(parsed, stdout, stderr)
     case 'validate':
       return dispatchValidate(parsed, stdout, stderr)
     case 'build-discover-run':

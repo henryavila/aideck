@@ -805,3 +805,45 @@ but the primitive is generic: the consumer decides what to hide, core privileges
 `tsc --noEmit` clean; **803/803 `npx vitest run` pass** (+5: sidebar nested hide, projects-mode
 expansion hide, project-row targets first visible page, tab-bar hide, hidden page still routable).
 The domain GATE (`nav-projects-domain-gate.test.ts`) stays green over the touched shell files.
+
+## 2026-06-19 — instance lifecycle resilience (split-port root cause + fix)
+
+**Incident.** The dashboard was unreachable from Windows (WSL host) while WSL-internal
+requests worked. Root cause: **two `aideck serve --port=7777` processes coexisting**. An
+older instance received SIGTERM, closed its listen socket, but **hung forever in
+`server.close()`** because that callback fires only once *every* connection drains — a
+long-lived relay/SSE connection never closed. The undead process kept the WSL localhost
+relay's forwarding connection pinned to itself, so Windows traffic (routed there) hung at
+0 bytes while fresh WSL-internal connections hit the healthy replacement. A plain
+`server.close()` with no force path is the defect at the center.
+
+Four lifecycle gaps, each fixed:
+
+- **A — Bounded shutdown.** New `src/server/graceful-shutdown.ts#closeServerGracefully`:
+  stop accepting, drop idle keep-alives immediately (`closeIdleConnections`), and
+  force-destroy lingering connections after a grace window (`closeAllConnections`, default
+  3 s). `RunningServer.stop()` uses it, so a SIGTERM'd instance **always exits** — the zombie
+  class is closed at the source.
+- **B — Cleanup order.** `src/cli/shutdown-sequence.ts#runShutdownSequence` removes the env
+  file **last**, only after the server is actually down (it used to be removed first). A
+  slow stop can no longer leave an orphan invisible to `aideck down`. Proxy teardown is
+  best-effort and never blocks the sequence.
+- **C+D — Reconcile before bind (idempotent `serve`).**
+  `src/server/instance-reconcile.ts#reconcileInstance` runs before binding the target port:
+  a **healthy** aiDeck → `reuse` (no second process, no port hop; registers the current
+  project to refresh data); a **stale/undead** claim → `reclaim` (SIGKILL the orphan if
+  alive, clear stale lock+env, take the same port); otherwise `free`. A genuine *foreign*
+  occupant is left untouched and surfaced by the bind, never killed. This is what stops two
+  servers from splitting one port and honors "reuse the running one, don't move ports".
+- **`restart` command.** `aideck restart` = robust `down` → `serve`
+  (`src/cli/restart.ts#runRestart`). Reliable now that shutdown is bounded.
+
+**Why not just `wsl --shutdown`?** That clears the symptom (relay state) but not the cause;
+the zombie would recur on the next SIGTERM. The fix removes the unbounded wait that created it.
+
+### Verification
+RED→GREEN per defect (the bounded-shutdown regression test reproduces the original hang: a
+held-open connection makes a naive `server.close()` time out at 5 s). New unit suites:
+`graceful-shutdown` (3), `shutdown-sequence` (2), `instance-reconcile` (5), `restart` (2),
+plus a `--help` assertion for `restart`. `tsc --noEmit` clean; full `vitest run` green.
+Not published — same `[Unreleased]` gate as the DS v2.1 work ([[aideck-publish-gate]]).
