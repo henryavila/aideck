@@ -38,7 +38,7 @@ const ROW = {
 }
 
 // statuses override exercises the useStatuses path; mode/bar exercises toneForValue.
-const CASES: { name: string; component: Component; config?: Record<string, unknown> }[] = [
+const CASES: { name: string; component: Component; config?: Record<string, unknown>; source?: Record<string, unknown>[] }[] = [
   { name: 'accordion', component: AccordionWidget, config: { statuses: { active: { tone: 'info' } } } },
   { name: 'badge', component: BadgeWidget, config: { statuses: { active: { tone: 'success' } } } },
   { name: 'card', component: CardWidget },
@@ -49,6 +49,9 @@ const CASES: { name: string; component: Component; config?: Record<string, unkno
   { name: 'table', component: TableWidget },
   { name: 'timeline', component: TimelineWidget },
   { name: 'tree-view', component: TreeViewWidget },
+  { name: 'tree-view (fork)', component: TreeViewWidget,
+    source: [{ id: 'plan-fork', label: 'plan-fork', slug: 'plan-fork', status: 'active', kind: 'spawned-plan', mode: 'pause' }],
+    config: { linkTo: 'plan/:slug', modeField: 'mode', kindField: 'kind' } },
   { name: 'sparkline', component: SparklineWidget, config: { mode: 'bar', valueField: 'value', domain: [0, 10] } },
   { name: 'progress-bar', component: ProgressBarWidget },
   // DS v2.1 widget extension.
@@ -81,7 +84,7 @@ describe('refactored widgets mount without runtime errors', () => {
       const router = makeRouter()
       await router.isReady()
       const wrapper = mount(c.component, {
-        props: { source: [ROW], config: c.config ?? {}, consumerId: 'x' },
+        props: { source: c.source ?? [ROW], config: c.config ?? {}, consumerId: 'x' },
         global: { plugins: [router] },
       })
       expect(wrapper.exists()).toBe(true)

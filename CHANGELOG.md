@@ -6,8 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-06-19
+
 ### Added
 
+- **Plan fork link (`Plan.spawnedFrom` + `PhaseDescriptor.spawnedPlans`).** Optional, additive fields modelling a parent/child plan relationship: a child plan carries `spawnedFrom` (`{ plan, phaseId, taskId?, mode: 'pause' | 'parallel' }`) pointing at the parent's anchor phase, and that phase lists the child slug(s) in `spawnedPlans`. Distinct from `supersedes` (replacement) — a fork is additive. Both are optional, so non-forked plans are unchanged. Declared in `planSchema`/`phaseDescriptorSchema` so inline frontmatter no longer hard-rejects (`spawnedFrom`) or silently strips (`spawnedPlans`).
+- **`TreeViewWidget` fork affordances.** Per-node `modeField`/`kindField` render a `mode` badge (pause/parallel) and a distinct "forked plan" glyph; optional `linkTo` makes nodes navigate (row-scoped `:token` interpolation, same contract as `table`/`phase-timeline`).
 - **`page.showInNav?: boolean`** — a generic shell primitive to keep a page reachable (by route and via `help` / `?` / `commandPalette`) while hiding it from the nav. Default (`undefined`/`true`) is unchanged; `false` omits the page from the sidebar, the projects-mode project expansion, and the in-page tab bar. The consumer decides what to hide; core privileges no page.
 
 ## [0.1.1] - 2026-06-07
