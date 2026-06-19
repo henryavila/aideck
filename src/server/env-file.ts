@@ -23,6 +23,8 @@ export interface EnvFileContent {
   url: string
   port: number
   pid?: number
+  /** Public URL when the dashboard is exposed remotely (e.g. via Tailscale Serve). */
+  remoteUrl?: string
 }
 
 /**
@@ -54,10 +56,11 @@ export async function writeEnvFile(content: EnvFileContent, override: EnvFileOve
   }
 
   const pidLine = content.pid ? `export AIDECK_PID=${content.pid}\n` : ''
+  const remoteLine = content.remoteUrl ? `export AIDECK_REMOTE_URL=${shellSingleQuote(content.remoteUrl)}\n` : ''
   const body = `# aiDeck environment — generated, do not edit
 export AIDECK_URL=${shellSingleQuote(content.url)}
 export AIDECK_PORT=${content.port}
-${pidLine}`
+${remoteLine}${pidLine}`
   const handle = await fs.open(path, constants.O_CREAT | constants.O_WRONLY | constants.O_EXCL, 0o600)
   try {
     await handle.writeFile(body, 'utf8')

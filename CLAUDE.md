@@ -49,6 +49,14 @@ Every canonical payload includes `schemaVersion: '0.1'`. Parser refuses mismatch
 
 Privacy and trust are foundational. This is non-negotiable.
 
+**Remote access (exception, narrow):** the dashboard may be reached from another device
+through an **out-of-process private-tailnet proxy** (Tailscale **Serve**), opted into via
+`aideck serve --expose=tailscale`. The aiDeck socket still binds `127.0.0.1` only — the
+proxy is a separate process that terminates a tailnet-private HTTPS connection and forwards
+to loopback. Permitted because the traffic stays inside the user's private tailnet with no
+telemetry. **Tailscale Funnel (public internet) is forbidden**, and aiDeck never widens its
+own bind. See `docs/remote-access.md` and the `src/server/expose/` module.
+
 ### 5. v0.1 scope is fixed.
 
 Do not implement features marked v0.2+ in feature-contracts.md, even if "it'd be easy". Scope creep delays v0.1. Park the idea (`emerged:` in our own dogfooded project-status, once we set it up here) and continue.

@@ -697,6 +697,40 @@ under G4 — is implemented as a single agnostic primitive, NOT a special domain
 `to-atomic-skills-v2-engine-contracts.md` updated: §A12 added, Panorama removed from §C (deferred),
 §B1 gains a Panorama build step.
 
+
+## 2026-06-17 (round 5) — remote access via Tailscale Serve (`--expose`)
+
+Henry accesses the host remotely (phone, via Tailscale) and needs the dashboard reachable
+off-box. We evaluated reusing `~/mdprobe` as a proxy and **rejected it**: mdprobe's expose
+layer only exposes its *own* server — there is no generic "expose any local port". The
+primitive it wraps is the real answer, so aiDeck grows its own thin expose layer.
+
+- **Mechanism — Tailscale Serve, never Funnel.** New `src/server/expose/index.ts` (TS port
+  of mdprobe's pattern) drives `tailscale serve --bg --https=<exposePort> <localPort>`,
+  reads back `tailscale serve status --json` to confirm the mapping, and resolves
+  `https://<Self.DNSName>:<exposePort>`. Funnel (public internet) is never invoked — the
+  tailnet stays private. Three providers: `off` (default), `tailscale`, `external` (user
+  owns the proxy; aiDeck just records the https base for CORS + the env-file).
+- **Iron Law #4 preserved.** aiDeck's socket still binds `127.0.0.1` only; exposure is an
+  out-of-process proxy. CLAUDE.md §4 reworded to permit private-tailnet Serve and explicitly
+  forbid Funnel. Operational failures (tailscale down, access denied) degrade to local-only
+  with a warning — they never throw.
+- **CORS.** `corsMiddleware(allowedRemoteHost?)` accepts exactly the resolved remote host's
+  origin in addition to localhost (no wildcard). Threaded via `ServerOptions.remoteHost`.
+  The Vue client was already proxy-safe (`api.ts` uses relative `BASE = ''`; SSE uses `/sse`).
+- **Security note (no extra gate, by decision).** When exposed, any tailnet peer can reach
+  reads AND writes (aiDeck has no auth). Acceptable for a personal single-user tailnet; the
+  CLI prints a loud warning. Per-write loopback gating was considered and deferred.
+- **Surface.** New flags `--expose`, `--expose-port` (default 8443), `--remote-base-url`.
+  `~/.aideck/env` gains `AIDECK_REMOTE_URL`. Status bar / chrome header now show the real
+  `window.location` host instead of a hard-coded `127.0.0.1`.
+
+### Verification
+`tsc --noEmit` clean; **782/782 `npx vitest run` pass** (+29: expose, cors, args, env-file).
+End-to-end (manual, on-box): `aideck serve --expose=tailscale` prints Local + Remote, the
+ts.net URL opens from a phone with live SSE, Ctrl-C tears the mapping down. Tracked as the
+standalone initiative `aideck-remote-access-tailscale`.
+
 ## 2026-06-19 — nav.style: 'projects' (generic project-centric shell)
 
 A third, additive `nav.style` for consumers whose `root: 'project'` dataSources register N

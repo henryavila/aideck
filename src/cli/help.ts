@@ -25,6 +25,15 @@ OPTIONS
                           (serve only). API and SSE routes always take priority; any
                           non-API request that does not match a file falls back to
                           <path>/index.html for client-side routing.
+  --expose=<provider>     Remote access for the dashboard (serve only). Default: off.
+                          off        local-only (127.0.0.1), unchanged.
+                          tailscale  run 'tailscale serve' (private tailnet, HTTPS).
+                                     Never Tailscale Funnel — the tailnet stays private.
+                          external   you run your own proxy; just record its URL.
+                          aiDeck always binds 127.0.0.1; the proxy runs out-of-process.
+  --expose-port=<N>       Public HTTPS port for the tailnet endpoint (default 8443).
+  --remote-base-url=<url> Required for --expose=external; the https:// origin your
+                          proxy serves (e.g. https://host.example.ts.net).
   --config=<path>         Path to config file (default: none)
   --id=<id>               Consumer ID (init-consumer)
   --title=<title>         Consumer display title (init-consumer)
@@ -35,6 +44,7 @@ OPTIONS
 EXAMPLES
   aideck demo
   aideck serve --port=8080
+  aideck serve --expose=tailscale          # reach the dashboard from your phone over Tailscale
   aideck serve --static-dir=../atomic-skills/dist/dashboard
   aideck mcp                 # run separately; HTTP and MCP are independent processes
   eval "$(aideck env)"       # source AIDECK_URL/AIDECK_PORT in current shell

@@ -34,7 +34,7 @@
 
     <span class="lh">
       <i />
-      <span class="lh-host">127.0.0.1</span>
+      <span class="lh-host">{{ host }}</span>
       <span class="lh-sep">·</span>
       <span class="lh-tag">no telemetry</span>
     </span>
@@ -53,6 +53,13 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
+
 defineProps<{ crumb: string[]; hasSidebar: boolean; hasHelp?: boolean; helpActive?: boolean }>()
 defineEmits<{ (e: 'open-palette'): void; (e: 'toggle-sidebar'): void; (e: 'open-help'): void }>()
+
+// Show the real hostname so remote (Tailscale) sessions aren't labeled 127.0.0.1.
+const host = computed(() =>
+  typeof window !== 'undefined' && window.location.hostname ? window.location.hostname : '127.0.0.1',
+)
 </script>

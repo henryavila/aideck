@@ -29,6 +29,10 @@ export interface ServerOptions {
    *  Defaults to `~/.aideck`. Overridable so tests/embedders don't read the real
    *  home directory. */
   aideckBaseDir?: string
+  /** When the server is exposed remotely (expose layer), the resolved remote
+   *  hostname. Its CORS origin is accepted in addition to localhost. The socket
+   *  itself still binds 127.0.0.1 only — exposure is an out-of-process proxy. */
+  remoteHost?: string
 }
 
 /**
@@ -81,7 +85,7 @@ export function buildApp(opts: ServerOptions): BuiltApp {
     : createConsumerWatcher({ consumersDir: consumers.consumersDir(), eventBus })
 
   const app = new Hono()
-  app.use('*', corsMiddleware())
+  app.use('*', corsMiddleware(opts.remoteHost))
 
   // v2 API router mounted FIRST — gets priority on shared paths (/api/health, /api/consumers)
   app.route('/', createApiV2Router({

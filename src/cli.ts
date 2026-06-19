@@ -29,6 +29,7 @@ async function dispatchServe(
   const { resolvePort, PortInUseError } = await import('./server/port-resolver.js')
   const { writeEnvFile, removeEnvFile } = await import('./server/env-file.js')
   const { InstanceAlreadyRunningError } = await import('./server/lockfile.js')
+  const { startExpose, ExposeConfigError } = await import('./server/expose/index.js')
   const { stat } = await import('node:fs/promises')
   const { resolve } = await import('node:path')
   try {
@@ -51,16 +52,46 @@ async function dispatchServe(
       requested: parsed.flags.port,
       isExplicit: parsed.portExplicit
     })
-    const running = await startServer({ rootDir: process.cwd(), port, staticDir, version: readVersion() })
+
+    // Configure remote access (if any) BEFORE binding so CORS knows the remote
+    // origin. aiDeck still binds 127.0.0.1; exposure is an out-of-process proxy.
+    const exposed = await startExpose({
+      provider: parsed.flags.expose ?? 'off',
+      localPort: port,
+      exposePort: parsed.flags.exposePort,
+      remoteBaseUrl: parsed.flags.remoteBaseUrl
+    })
+
+    let running
+    try {
+      running = await startServer({
+        rootDir: process.cwd(),
+        port,
+        staticDir,
+        version: readVersion(),
+        remoteHost: exposed.remoteHost ?? undefined
+      })
+    } catch (cause) {
+      await exposed.stop() // tear down any proxy we configured before bind failed
+      throw cause
+    }
     const url = `http://127.0.0.1:${running.port}`
-    await writeEnvFile({ url, port: running.port, pid: process.pid })
+    await writeEnvFile({ url, port: running.port, pid: process.pid, remoteUrl: exposed.remoteUrl ?? undefined })
     stdout.write(`aideck serve: listening on ${url}${staticDir ? ` (static: ${staticDir})` : ''}\n`)
+    for (const warning of exposed.warnings) {
+      stderr.write(`aideck serve: ${warning}\n`)
+    }
+    if (exposed.remoteUrl) {
+      stdout.write(`aideck serve: remote (private tailnet) ${exposed.remoteUrl}\n`)
+      stdout.write('aideck serve: WARNING — reachable by tailnet peers (reads AND writes, no auth)\n')
+    }
     let stopping = false
     const shutdown = async (signal: string) => {
       if (stopping) return
       stopping = true
       stdout.write(`aideck serve: received ${signal}, shutting down\n`)
       await removeEnvFile()
+      await exposed.stop()
       await running.stop()
       process.exit(0)
     }
@@ -74,6 +105,10 @@ async function dispatchServe(
     }
     if (cause instanceof InstanceAlreadyRunningError) {
       stderr.write(`aideck serve: ${cause.message}. Stop it first with 'aideck down'\n`)
+      return 1
+    }
+    if (cause instanceof ExposeConfigError) {
+      stderr.write(`aideck serve: ${cause.message}${cause.hint ? `. ${cause.hint}` : ''}\n`)
       return 1
     }
     stderr.write(`aideck serve: ${cause instanceof Error ? cause.message : String(cause)}\n`)
