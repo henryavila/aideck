@@ -65,6 +65,58 @@ describe('stepper', () => {
     expect(w.text()).toContain('s1')
   })
 
+  it('vertical: circle shows the 1-based ordinal by default (domain-agnostic)', async () => {
+    // No circleField → the classic numbered timeline, regardless of idField.
+    const w = await mountW(StepperWidget, STEPS, { orientation: 'vertical', dependsOnField: 'deps' })
+    const circles = w.findAll('.stp-circle')
+    expect(circles).toHaveLength(3)
+    // success step still keeps its ordinal as content (badge carries the ✓).
+    expect(circles[0].text()).toContain('1')
+    expect(circles[1].text()).toContain('2')
+    expect(circles[2].text()).toContain('3')
+  })
+
+  it('vertical: circleField routes a row field into the circle (consumer choice)', async () => {
+    // Regression fix made configurable: the consumer (not aiDeck) decides the
+    // circle reads the step id, so it agrees with the `at <id>` meta + dependsOn.
+    const w = await mountW(StepperWidget, STEPS, {
+      orientation: 'vertical',
+      dependsOnField: 'deps',
+      circleField: 'id',
+    })
+    const circles = w.findAll('.stp-circle')
+    expect(circles[0].text()).toContain('s1')
+    expect(circles[1].text()).toContain('s2')
+    expect(circles[2].text()).toContain('s3')
+  })
+
+  it('vertical: done step keeps a ✓ adornment without hiding the circle text', async () => {
+    const w = await mountW(StepperWidget, STEPS, {
+      orientation: 'vertical',
+      dependsOnField: 'deps',
+      circleField: 'id',
+    })
+    const done = w.findAll('.stp-circle')[0]
+    expect(done.classes()).toContain('c-success')
+    expect(done.text()).toContain('s1') // identity still shown
+    const check = done.find('.stp-circle-check')
+    expect(check.exists()).toBe(true)
+    expect(check.text()).toBe('✓')
+    // non-done circles carry no check adornment
+    expect(w.findAll('.stp-circle')[1].find('.stp-circle-check').exists()).toBe(false)
+  })
+
+  it('vertical: circleField falls back to ordinal when the row field is empty', async () => {
+    const w = await mountW(
+      StepperWidget,
+      [{ id: 'x1', label: 'A', status: 'todo' }, { label: 'B', status: 'todo' }],
+      { orientation: 'vertical', circleField: 'id' },
+    )
+    const circles = w.findAll('.stp-circle')
+    expect(circles[0].text()).toContain('x1')
+    expect(circles[1].text()).toContain('2') // no id → ordinal
+  })
+
   it('dense: bare tone dots, no frame head', async () => {
     const w = await mountW(StepperWidget, STEPS, { variant: 'dense' })
     expect(w.findAll('.stp-dot')).toHaveLength(3)

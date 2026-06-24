@@ -67,7 +67,8 @@
       >
         <div class="stp-rail" aria-hidden="true">
           <span class="stp-circle" :class="['c-' + step.tone, { 'is-current': step.current }]">
-            {{ step.tone === 'success' ? '✓' : i + 1 }}
+            {{ step.circleText }}
+            <span v-if="step.tone === 'success'" class="stp-circle-check" aria-hidden="true">✓</span>
           </span>
           <span v-if="i < steps.length - 1" class="stp-line" />
         </div>
@@ -104,6 +105,7 @@ import { useStatuses } from '../../composables/useStatuses.js'
 interface StepVM {
   key: string
   id: string
+  circleText: string
   label: string
   tone: Tone
   statusLabel: string
@@ -149,6 +151,14 @@ const statusLabelField = computed(() => String(props.config.statusLabelField ?? 
 const currentField = computed(() =>
   props.config.currentField ? String(props.config.currentField) : undefined,
 )
+// Vertical timeline only: which row field fills the rail circle. Unset → the
+// 1-based ordinal (the classic "step N" timeline). A consumer that wants the
+// circle to read its own identifier (so it agrees with the `at <id>` meta and
+// the dependsOn ids) points this at that field, e.g. circleField: id. The
+// widget stays domain-agnostic — it never assumes an "F0/F1" vocabulary.
+const circleField = computed(() =>
+  props.config.circleField ? String(props.config.circleField) : undefined,
+)
 const currentId = computed(() =>
   props.config.currentId !== undefined && props.config.currentId !== null
     ? String(props.config.currentId)
@@ -193,10 +203,13 @@ const steps = computed<StepVM[]>(() =>
       (currentField.value ? Boolean(row[currentField.value]) : false) ||
       (currentId.value !== undefined && id === currentId.value)
     const statusLabel = toStr(row[statusLabelField.value]) || info?.label || '—'
+    // Circle text: the configured field if set+non-empty, else the ordinal.
+    const circleText = (circleField.value ? toStr(row[circleField.value]) : '') || `${i + 1}`
 
     return {
       key: `${id}::${i}`,
       id,
+      circleText,
       label: toStr(row[labelField.value]) || id,
       tone,
       statusLabel,
@@ -419,6 +432,7 @@ const doneSummary = computed<string | undefined>(() => {
   align-items: center;
 }
 .stp-circle {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -442,6 +456,25 @@ const doneSummary = computed<string | undefined>(() => {
 .stp-circle.c-neutral { color: var(--fg-muted);       border-color: var(--status-neutral-line); background: var(--bg-elevated); }
 .stp-circle.is-current {
   box-shadow: 0 0 0 2px var(--bg-surface), 0 0 0 3px var(--status-info);
+}
+/* Done marker as a corner badge: keeps the satisfying ✓ without overwriting the
+   step id, so a completed step still shows which phase it is. */
+.stp-circle-check {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--status-success);
+  color: var(--fg-on-accent);
+  font-size: 8px;
+  font-weight: 700;
+  line-height: 1;
+  border: 1.5px solid var(--bg-surface);
 }
 .stp-line {
   flex: 1 1 auto;
