@@ -34,8 +34,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch, onBeforeUnmount } from 'vue'
-import { RouterLink, useRoute } from 'vue-router'
+import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { resolveRowLink } from '../../utils/link.js'
 import { statusInfo, type Tone } from '../../utils/status.js'
 import { useStatuses } from '../../composables/useStatuses.js'
@@ -69,11 +69,26 @@ const statusLabelField = computed(() => cfgStr('statusLabelField', 'statusLabel'
 const idField = computed(() => cfgStr('idField', 'id'))
 const paramField = computed(() => cfgStr('paramField', 'slug'))
 const linkTo = computed(() => (typeof props.config.linkTo === 'string' && props.config.linkTo ? props.config.linkTo : undefined))
+// When self-selecting (no route selection yet), prefer the first record whose
+// statusField equals this value — e.g. the consumer's "active" plan — instead of
+// the first in source order. Empty ⇒ no preference (first record wins).
+const defaultStatus = computed(() => cfgStr('defaultStatus', ''))
 
 const records = computed(() => props.source)
 
 function hrefFor(rec: Record<string, unknown>): string | undefined {
   return linkTo.value ? resolveRowLink(linkTo.value, rec, props.consumerId ?? '') : undefined
+}
+
+// The record to fall back to when the route names none: the first whose status
+// matches `defaultStatus` (if set and present), else the first record.
+function pickDefault(rows: Record<string, unknown>[]): Record<string, unknown> {
+  const want = defaultStatus.value
+  if (want) {
+    const match = rows.find((r) => field(r, statusField.value) === want)
+    if (match) return match
+  }
+  return rows[0]
 }
 
 function safeDecode(s: string): string {
@@ -107,8 +122,29 @@ const current = computed<Record<string, unknown> | undefined>(() => {
     if (byId) return byId
   }
 
-  return rows[0]
+  return pickDefault(rows)
 })
+
+const router = useRouter()
+
+// Self-select: when this switcher drives a detail route (linkTo) but the route
+// carries no selection yet — e.g. the page was opened from the sidebar as
+// /plan?project=x with no :slug — navigate to the FIRST record so the
+// param-bound detail widgets populate instead of landing empty. Runs after mount
+// and whenever the records arrive (async load) or the route loses its selection.
+// Generic: no domain knowledge; any record-switcher with a linkTo self-selects.
+function ensureSelection() {
+  if (!linkTo.value) return
+  const rows = records.value
+  if (!rows.length) return
+  const param = route.params[paramField.value]
+  const selected = Array.isArray(param) ? param[0] : param
+  if (selected != null && selected !== '') return
+  const href = hrefFor(pickDefault(rows))
+  if (href && safeDecode(href) !== safeDecode(route.path)) router.replace(href)
+}
+onMounted(ensureSelection)
+watch([records, () => route.fullPath], ensureSelection)
 
 function tone(rec: Record<string, unknown>): Tone {
   return statusInfo(field(rec, statusField.value), statuses.value).tone

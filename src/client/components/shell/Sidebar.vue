@@ -89,20 +89,26 @@
       </template>
     </template>
 
-    <div class="grp" style="margin-top: 12px"><span>data sources</span></div>
-    <div class="fs-tree">
-      <div class="fs-row"><span class="fs-name fs-root">~/.aideck/</span></div>
-      <div class="fs-row lvl-2"><span class="fs-name fs-root">consumers/</span></div>
-      <div
-        v-for="(c, i) in consumers"
-        :key="c.id"
-        class="fs-row lvl-3"
-        :class="dirClass(i)"
-      >
-        <span class="fs-name">{{ c.id }}/</span>
-        <span class="fs-meta">{{ c.dataSourceCount }} srcs</span>
+    <!-- The data-sources file-tree is a developer affordance for the
+         consumer-centric (tabs|sidebar) modes. The project-centric shell
+         (nav.style: 'projects') is the polished end-user view, so the raw
+         ~/.aideck/consumers tree (which also leaks sibling consumers) stays out. -->
+    <template v-if="navStyle !== 'projects'">
+      <div class="grp" style="margin-top: 12px"><span>data sources</span></div>
+      <div class="fs-tree">
+        <div class="fs-row"><span class="fs-name fs-root">~/.aideck/</span></div>
+        <div class="fs-row lvl-2"><span class="fs-name fs-root">consumers/</span></div>
+        <div
+          v-for="(c, i) in consumers"
+          :key="c.id"
+          class="fs-row lvl-3"
+          :class="dirClass(i)"
+        >
+          <span class="fs-name">{{ c.id }}/</span>
+          <span class="fs-meta">{{ c.dataSourceCount }} srcs</span>
+        </div>
       </div>
-    </div>
+    </template>
 
     <div class="side-foot">
       <span style="flex: 1">collapse</span>

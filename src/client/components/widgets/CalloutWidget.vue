@@ -1,7 +1,11 @@
 <template>
   <WidgetFrame frameless>
-    <!-- Empty state: no eyebrow/title/body resolved → muted note, no banner. -->
+    <!-- Empty state: nothing resolved at all → muted note, no banner. -->
     <span v-if="!eyebrow && !title && !body" class="callout-empty">// no callout</span>
+    <!-- Eyebrow-only (a label with no title/body) is not content — collapse to
+         nothing rather than render a hanging header. E.g. a "PRÓXIMA AÇÃO" callout
+         on a done phase, whose next-action body is empty. -->
+    <template v-else-if="!title && !body" />
 
     <component
       :is="linkHref ? RouterLink : 'div'"

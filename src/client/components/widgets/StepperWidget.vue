@@ -36,9 +36,13 @@
       <ol class="stp-h">
         <li v-for="(step, i) in steps" :key="step.key" class="stp-h-item">
           <span v-if="i > 0" class="stp-conn" :class="{ 'is-success': step.tone === 'success' }" aria-hidden="true" />
-          <span class="stp-pill" :class="['c-' + step.tone, { 'is-current': step.current }]">
-            {{ step.id }}
-          </span>
+          <component
+            :is="step.href ? RouterLink : 'span'"
+            :to="step.href || undefined"
+            class="stp-pill"
+            :class="['c-' + step.tone, { 'is-current': step.current, 'is-link': !!step.href }]"
+            :title="step.dotTitle"
+          >{{ step.id }}</component>
         </li>
       </ol>
     </template>
@@ -86,7 +90,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { RouterLink } from 'vue-router'
+import { RouterLink, useRoute } from 'vue-router'
 import WidgetFrame from '../WidgetFrame.vue'
 import { resolveRowLink } from '../../utils/link.js'
 import { statusInfo, type Tone } from '../../utils/status.js'
@@ -152,6 +156,17 @@ const currentId = computed(() =>
 )
 const selectable = computed(() => props.config.selectable === true)
 const linkTo = computed(() => props.config.linkTo as string | undefined)
+// Optional: seed the initial selection from a route query param (deep-link to a
+// specific step, e.g. ?phase=F2). The consumer names the key; aiDeck stays generic.
+const selectParam = computed(() => (props.config.selectParam ? String(props.config.selectParam) : undefined))
+
+const route = useRoute()
+function queryStepId(): string | undefined {
+  if (!selectParam.value) return undefined
+  const q = route.query[selectParam.value]
+  const v = Array.isArray(q) ? q[0] : q
+  return v == null ? undefined : String(v)
+}
 
 // Coerce an unknown record value into a trimmed display string ('' when absent).
 function toStr(v: unknown): string {
@@ -201,18 +216,34 @@ function onSelect(id: string): void {
   emit('select', id)
 }
 
-// Default the selection (and the bus value) to the current step, so a dependent
-// widget shows the current item before the user clicks. Re-seeds if the current
-// step changes and the user hasn't picked another.
+// Default the selection (and the bus value) so a dependent widget shows an item
+// before the user clicks. Precedence: a deep-link query (?<selectParam>=id) wins
+// and re-applies whenever it changes; otherwise the current step; otherwise the
+// first. A query that hasn't changed never overrides a step the user clicked.
+const lastQueryId = ref<string | undefined>(undefined)
 watch(
-  () => [selectable.value, steps.value] as const,
+  () => [selectable.value, steps.value, queryStepId()] as const,
   () => {
     if (!selectable.value) return
+    const qid = queryStepId()
+    const queryHits = qid !== undefined && steps.value.some((s) => s.id === qid)
+    // Deep-link changed → honor it (initial load, or a new ?param navigation).
+    if (queryHits && qid !== lastQueryId.value) {
+      lastQueryId.value = qid
+      if (selectedId.value !== qid) {
+        selectedId.value = qid
+        emit('select', qid as string)
+      }
+      return
+    }
+    // Keep a still-valid existing selection (don't fight user clicks on refresh).
     if (selectedId.value && steps.value.some((s) => s.id === selectedId.value)) return
-    const current = steps.value.find((s) => s.current) ?? steps.value[0]
-    if (current) {
-      selectedId.value = current.id
-      emit('select', current.id)
+    // Initial seed: query (if valid) → current → first.
+    const seed = (queryHits && qid) || (steps.value.find((s) => s.current) ?? steps.value[0])?.id
+    if (seed) {
+      lastQueryId.value = qid
+      selectedId.value = seed
+      emit('select', seed)
     }
   },
   { immediate: true }
@@ -338,6 +369,17 @@ const doneSummary = computed<string | undefined>(() => {
 }
 .stp-pill.is-current {
   box-shadow: 0 0 0 2px var(--bg-surface), 0 0 0 3px var(--status-info);
+}
+/* Linked pill (config.linkTo): drill straight to this step. Reset anchor chrome
+   and signal clickability with a ring on hover/focus. */
+.stp-pill.is-link {
+  cursor: pointer;
+  text-decoration: none;
+}
+.stp-pill.is-link:hover,
+.stp-pill.is-link:focus-visible {
+  box-shadow: 0 0 0 2px var(--bg-surface), 0 0 0 3px var(--status-info);
+  outline: none;
 }
 
 /* ── Vertical: a timeline ────────────────────────────────────────── */

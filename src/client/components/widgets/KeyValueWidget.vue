@@ -10,7 +10,7 @@
     <template v-for="(row, i) in rows" :key="i">
       <div class="kv2" :class="{ 'is-grid': grid }">
         <template v-for="field in visibleFields(row)" :key="field">
-          <span class="k">{{ field }}</span>
+          <span class="k">{{ fieldLabel(field) }}</span>
           <span v-if="field === 'status'" class="v">
             <span class="schip" :class="statusInfo(String(row[field]), statuses).tone">
               <span class="dot" />
@@ -57,6 +57,25 @@ function visibleFields(row: Record<string, unknown>): string[] {
   const fields = props.config.fields as string[] | undefined
   if (Array.isArray(fields) && fields.length > 0) return fields
   return Object.keys(row)
+}
+
+// Key labels: a `labels` map (field -> human label) wins; otherwise the raw
+// field id is humanized so a machine name like `currentPhaseText` never leaks
+// as-is. Generic: no field name is hardcoded.
+const labels = computed<Record<string, string>>(() => {
+  const l = props.config.labels
+  return l && typeof l === 'object' && !Array.isArray(l) ? (l as Record<string, string>) : {}
+})
+function fieldLabel(field: string): string {
+  return (
+    labels.value[field] ??
+    field
+      .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+      .replace(/[_-]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .replace(/^./, (c) => c.toUpperCase())
+  )
 }
 
 const MONO_FIELDS = new Set(['id', 'startDate', 'progress', 'commit', 'branch'])

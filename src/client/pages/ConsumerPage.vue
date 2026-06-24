@@ -6,9 +6,6 @@
         <span class="pt-sep"> · </span>
         <span class="pt-page">{{ currentPage.title }}</span>
       </h1>
-      <span class="meta">
-        <span>{{ currentPage.layout }} layout</span>
-      </span>
       <div class="actions">
         <select
           v-if="hasProjectScope && projects.length && !projectsMode"
@@ -38,8 +35,6 @@
         <span class="ct">{{ pageWidgetCount(page) }}</span>
       </router-link>
       <span class="tabs-tail">
-        <span>layout · {{ currentPage.layout }}</span>
-        <span style="color: var(--fg-faint)">·</span>
         <span>{{ navPages.length }} pages</span>
       </span>
     </div>

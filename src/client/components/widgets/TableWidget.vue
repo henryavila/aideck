@@ -12,7 +12,7 @@
     <table v-if="!isNarrow" class="tab tab-desktop">
       <thead>
         <tr>
-          <th v-for="col in columns" :key="col">{{ col }}</th>
+          <th v-for="col in columns" :key="col">{{ colLabel(col) }}</th>
         </tr>
       </thead>
       <tbody>
@@ -156,6 +156,26 @@ const columns = computed<string[]>(() => {
   if (props.source.length === 0) return []
   return Object.keys(props.source[0]).filter((k) => !SKIP_KEYS.has(k))
 })
+
+// Header labels: a `columnLabels` map (columnId -> human label) wins; otherwise
+// the raw field id is humanized (camelCase / snake / kebab -> spaced words) so a
+// machine name like `currentPhaseText` never leaks to the header as-is. Generic:
+// no column name is hardcoded; the consumer owns any nicer label.
+const columnLabels = computed<Record<string, string>>(() => {
+  const l = props.config.columnLabels
+  return l && typeof l === 'object' && !Array.isArray(l) ? (l as Record<string, string>) : {}
+})
+function humanize(s: string): string {
+  return s
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/^./, (c) => c.toUpperCase())
+}
+function colLabel(col: string): string {
+  return columnLabels.value[col] ?? humanize(col)
+}
 
 const meta = computed(() => {
   const ref = props.config.sourceRef as string | undefined
