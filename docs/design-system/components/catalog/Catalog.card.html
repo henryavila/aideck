@@ -1,0 +1,61 @@
+<!-- @dsCard group="Widgets" name="Catalog (component)" subtitle="mountable · master-detail · 5 states" viewport="760x1640" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Catalog — mountable component</title>
+<link rel="stylesheet" href="../../preview/_card.css">
+<style>
+  html, body { height: auto; overflow: visible; }
+  .frame-label { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--fg-subtle); font-feature-settings:'calt' 0; margin: 18px 0 7px; display:flex; gap:8px; align-items:baseline; }
+  .frame-label b { color: var(--fg-muted); font-weight: 500; }
+  .frame-label .api { margin-left:auto; color: var(--accent-link); text-transform:none; letter-spacing:0; }
+  .hero { height: 460px; }
+  .st { height: 248px; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="specimen-head">
+    <div class="title">Catalog · mountable component</div>
+    <div class="sub">window.AiDeckDesignSystem_9ef1e6.Catalog</div>
+  </div>
+
+  <div class="frame-label"><b>default</b> · canonical frame — search · facets · master · detail · refs graph <span class="api">&lt;x-import component-from-global-scope="…Catalog"&gt;</span></div>
+  <div id="m-hero" class="hero"></div>
+
+  <div class="frame-label"><b>loading</b> · skeleton shimmer, no spinner</div>
+  <div id="m-loading" class="st"></div>
+
+  <div class="frame-label"><b>empty</b> · terse — no illustration</div>
+  <div id="m-empty" class="st"></div>
+
+  <div class="frame-label"><b>error</b> · coral border + structured suggestion</div>
+  <div id="m-error" class="st"></div>
+
+  <div class="frame-label"><b>live</b> · .is-live scanline (SSE-connected)</div>
+  <div id="m-live" class="st"></div>
+</div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="../../_ds_bundle.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="catalog.demo-data.js"></script>
+<script type="text/babel">
+  const { Catalog } = window.AiDeckDesignSystem_9ef1e6;
+  const { RECORDS, SECTIONS } = window.__CatalogDemo;
+  const mount = (id, props) =>
+    ReactDOM.createRoot(document.getElementById(id)).render(
+      <Catalog records={RECORDS} sections={SECTIONS} facetField="facets"
+               searchFields={['id','oneLiner','summary']} {...props} />
+    );
+
+  mount('m-hero',    {});
+  mount('m-loading', { state:'loading' });
+  mount('m-empty',   { state:'empty', records:[], emptyText:'// no records declared — add one to the manifest' });
+  mount('m-error',   { state:'error', error:'data/skills.jsonl — line 4: unexpected token', suggestion:'fix the trailing comma and reload' });
+  mount('m-live',    { state:'live' });
+</script>
+</body>
+</html>
