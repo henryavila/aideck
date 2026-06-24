@@ -1,10 +1,10 @@
 import chokidar, { type FSWatcher } from 'chokidar'
 import { readFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { relative } from 'node:path'
 import type { EventBus } from './event-bus.js'
+import type { ConsumerRegistry } from './consumer-registry.js'
 import { classifyFile, atomicSkillsRoot, type EntityKind as FileEntityKind } from './writers/paths.js'
-import { parseDiscoverRunFile } from './parsers/discover-run.js'
-import { parseInitiativeFile, parsePlanFile } from './parsers/project-status.js'
+import { classifyByManifests } from './watch-classify.js'
 import { parseJsonlString } from './parsers/jsonl.js'
 import {
   parseAnnotation,
@@ -17,6 +17,10 @@ export interface WatcherOptions {
   awaitWriteFinishMs?: number
   ignoreInitial?: boolean
   projectId?: string
+  /** Registered consumers whose manifest globs classify changed entity/data
+   *  files. Without it, only the universal annotations/highlights/inbox
+   *  subdirs emit events. */
+  consumers?: ConsumerRegistry
 }
 
 export interface Watcher {
@@ -53,33 +57,6 @@ export function createWatcher(opts: WatcherOptions): Watcher {
   const readyPromise = new Promise<void>((resolve) => {
     readyResolver = resolve
   })
-
-  async function handleMdAdd(path: string, kind: 'plan' | 'initiative', consumer: string, slug: string, changeType: 'add' | 'change'): Promise<void> {
-    const parsed = kind === 'plan'
-      ? await parsePlanFile(path)
-      : await parseInitiativeFile(path)
-    if (parsed.ok) {
-      opts.eventBus.emit({
-        kind: 'state-change',
-        consumer,
-        slug,
-        entityKind: kind,
-        changeType,
-        entity: parsed.value,
-        ...projectTag
-      })
-    } else {
-      opts.eventBus.emit({
-        kind: 'error',
-        consumer,
-        path,
-        code: parsed.error.code,
-        message: parsed.error.message,
-        suggestion: parsed.error.suggestion,
-        ...projectTag
-      })
-    }
-  }
 
   async function handleJsonlChange(path: string, kind: FileEntityKind, consumer: string): Promise<void> {
     let raw: string
@@ -170,46 +147,35 @@ export function createWatcher(opts: WatcherOptions): Watcher {
   async function dispatch(path: string, changeType: 'add' | 'change' | 'unlink'): Promise<void> {
     const cls = classifyFile(path, opts.rootDir)
     if (!cls) return
-    if (cls.kind === 'plan' || cls.kind === 'initiative') {
-      if (changeType === 'unlink') {
-        opts.eventBus.emit({
-          kind: 'state-change',
-          consumer: cls.consumer,
-          slug: cls.slug ?? '',
-          entityKind: cls.kind,
-          changeType,
-          ...projectTag
-        })
-      } else {
-        await handleMdAdd(path, cls.kind, cls.consumer, cls.slug ?? '', changeType)
-      }
-    } else if (cls.kind === 'discover-run') {
-      if (changeType === 'unlink') {
-        opts.eventBus.emit({
-          kind: 'state-change',
-          consumer: cls.consumer,
-          slug: '',
-          entityKind: 'discover-run',
-          changeType,
-          ...projectTag
-        })
-      } else {
-        const res = await parseDiscoverRunFile(path)
-        opts.eventBus.emit({
-          kind: 'state-change',
-          consumer: cls.consumer,
-          slug: res.ok ? res.value.runId : '',
-          entityKind: 'discover-run',
-          changeType,
-          ...projectTag
-        })
-      }
-    } else if (cls.kind === 'annotations-jsonl' || cls.kind === 'highlights-jsonl' || cls.kind === 'inbox-jsonl') {
+
+    // Universal append-only subdirs (annotations/highlights/inbox) — generic,
+    // attributed by the explicit `<consumer>/` path segment.
+    if (cls.kind === 'annotations-jsonl' || cls.kind === 'highlights-jsonl' || cls.kind === 'inbox-jsonl') {
       if (changeType === 'unlink') {
         jsonlState.delete(path)
         return
       }
       await handleJsonlChange(path, cls.kind, cls.consumer)
+      return
+    }
+
+    // Entity/data files — classified by matching the changed path against each
+    // registered consumer's manifest globs (aiDeck core hardcodes no domain
+    // path conventions). One `data_changed` per matched consumer triggers a
+    // live re-fetch on the dashboard.
+    const rel = relative(opts.rootDir, path)
+    const matches = opts.consumers ? classifyByManifests(rel, opts.consumers.list()) : []
+    const firstByConsumer = new Map<string, string>()
+    for (const m of matches) {
+      if (!firstByConsumer.has(m.consumer)) firstByConsumer.set(m.consumer, m.dataSourceId)
+    }
+    for (const [consumer, dataSourceId] of firstByConsumer) {
+      opts.eventBus.emit({
+        kind: 'data_changed',
+        consumer,
+        payload: { file: path, dataSourceId },
+        ...projectTag
+      })
     }
   }
 

@@ -11,7 +11,7 @@
       </span>
       <div class="actions">
         <select
-          v-if="hasProjectScope && projects.length"
+          v-if="hasProjectScope && projects.length && !projectsMode"
           class="project-select"
           :value="selectedProjectId"
           aria-label="Select project"
@@ -23,23 +23,24 @@
       </div>
     </div>
 
-    <div v-if="pages.length > 1" class="tabs-bar" role="tablist">
+    <div v-if="navPages.length > 1 && !sidebarNav && !projectsMode" class="tabs-bar" role="tablist">
       <router-link
-        v-for="page in pages"
+        v-for="page in navPages"
         :key="page.slug"
-        :to="`/${consumerId}/${page.slug}`"
+        :to="page.route ?? `/${consumerId}/${page.slug}`"
         class="tb"
         :class="{ on: currentPage.slug === page.slug }"
         role="tab"
         :aria-selected="currentPage.slug === page.slug"
       >
+        <span v-if="showIcons" class="tb-ico"><Icon :icon="page.icon" /></span>
         <span>{{ page.title }}</span>
         <span class="ct">{{ pageWidgetCount(page) }}</span>
       </router-link>
       <span class="tabs-tail">
         <span>layout · {{ currentPage.layout }}</span>
         <span style="color: var(--fg-faint)">·</span>
-        <span>{{ pages.length }} pages</span>
+        <span>{{ navPages.length }} pages</span>
       </span>
     </div>
 
@@ -83,10 +84,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, provide, watch } from 'vue'
+import { ref, computed, provide, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { fetchConsumerManifest, fetchProjects, type ProjectSummary } from '../api.js'
+import { fetchProjects, type ProjectSummary } from '../api.js'
 import { PROJECT_ID_KEY } from '../composables/useProjectScope.js'
+import { useActiveManifest } from '../composables/useActiveManifest.js'
+import { PAGE_STATE_KEY, type PageState } from '../composables/usePageState.js'
+import { STATUS_MAP_KEY } from '../utils/status.js'
+import Icon from '../components/shell/Icon.vue'
 import SectionsLayout from '../layouts/SectionsLayout.vue'
 import GridLayout from '../layouts/GridLayout.vue'
 import SingleLayout from '../layouts/SingleLayout.vue'
@@ -94,7 +99,6 @@ import type { PageDecl } from '../../server/manifest-schema.js'
 
 const route = useRoute()
 const router = useRouter()
-const manifest = ref<Record<string, unknown> | null>(null)
 
 // Project scope: when the consumer has root:'project' dataSources, widgets read
 // the project-scoped endpoint for the selected project. The ref is provided to
@@ -108,16 +112,49 @@ const selectedProjectId = ref<string | undefined>(
     : undefined) ?? (typeof route.query.project === 'string' ? route.query.project : undefined)
 )
 provide(PROJECT_ID_KEY, selectedProjectId)
-// Keep the scope in sync when navigating between detail pages client-side.
+// Keep the scope in sync when navigating between detail pages client-side, from
+// either the drill-down path param or the ?project= query (the projects shell
+// switches scope via the sidebar by changing the query).
 watch(
   () => route.params.projectId,
   (pid) => {
     if (typeof pid === 'string' && pid) selectedProjectId.value = pid
   }
 )
+watch(
+  () => route.query.project,
+  (proj) => {
+    if (typeof proj === 'string' && proj) selectedProjectId.value = proj
+  }
+)
 
 const consumerId = computed(() => String(route.params.consumerId))
 const pageSlug = computed(() => route.params.pageSlug as string | undefined)
+
+// Shared with the chrome/sidebar so nav and page body agree on one manifest.
+const { manifest, nav, statusMap, reload } = useActiveManifest(consumerId)
+// Manifest-level statusMap → default status vocabulary for every descendant widget.
+provide(STATUS_MAP_KEY, statusMap)
+
+// Cross-widget interaction state, scoped to the page and reset on navigation so
+// a selection never bleeds across consumers or pages.
+const pageState = ref<PageState>({})
+provide(PAGE_STATE_KEY, pageState)
+watch(
+  () => [consumerId.value, pageSlug.value],
+  () => {
+    pageState.value = {}
+  }
+)
+
+// nav.style: sidebar moves page navigation into the left Sidebar, so the in-page
+// tab bar is suppressed; tabs remain the default. nav.style: projects likewise
+// owns nav (landing + projects) in the sidebar, so it suppresses tabs + the
+// in-page project picker too.
+const sidebarNav = computed(() => nav.value.style === 'sidebar')
+const projectsMode = computed(() => nav.value.style === 'projects')
+const showIcons = computed(() => nav.value.showIcons === true)
+
 const dataSources = computed(
   () => (manifest.value?.dataSources as Array<{ root?: string }> | undefined) ?? []
 )
@@ -130,8 +167,18 @@ function selectProject(id: string): void {
 const consumerTitle = computed(() => (manifest.value?.title as string | undefined) ?? consumerId.value)
 
 const pages = computed(() => (manifest.value?.pages as PageDecl[]) ?? [])
+// The tab bar lists only nav-visible pages; a showInNav:false page stays routable
+// (currentPage still resolves it below) but gets no tab.
+const navPages = computed(() => pages.value.filter((p) => p.showInNav !== false))
 const currentPage = computed(() => {
   if (pageSlug.value) return pages.value.find((p) => p.slug === pageSlug.value)
+  // Consumer root: an explicit nav.landingPage wins (the projects-shell
+  // cross-project landing), else the default/first page.
+  const landing = nav.value.landingPage
+  if (landing) {
+    const found = pages.value.find((p) => p.slug === landing)
+    if (found) return found
+  }
   return pages.value.find((p) => p.default) ?? pages.value[0]
 })
 
@@ -143,22 +190,21 @@ function pageWidgetCount(page: PageDecl): number {
   return 1
 }
 
-async function loadManifest(): Promise<void> {
-  try {
-    manifest.value = await fetchConsumerManifest(consumerId.value)
-  } catch {
-    manifest.value = null
-    return
-  }
-  if (hasProjectScope.value) {
+// Project-scoped consumers seed their project list once the manifest resolves.
+watch(
+  manifest,
+  async (m) => {
+    if (!m || !hasProjectScope.value) return
     projects.value = await fetchProjects(consumerId.value)
     const ids = projects.value.map((p) => p.projectId)
     if (!selectedProjectId.value || !ids.includes(selectedProjectId.value)) {
       selectedProjectId.value = ids[0]
     }
-  }
-}
+  },
+  { immediate: true }
+)
 
-onMounted(loadManifest)
-watch(consumerId, loadManifest)
+function loadManifest(): void {
+  void reload()
+}
 </script>

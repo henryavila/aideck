@@ -40,11 +40,9 @@ export async function appendIntent(input: AppendIntentInput): Promise<IntentRece
   await appendJsonlLine(path, intent)
   if (input.eventBus) {
     input.eventBus.emit({
-      kind: 'state-change',
+      kind: 'data_changed',
       consumer: input.consumerId,
-      slug: input.intent.target.initiativeSlug,
-      entityKind: 'initiative',
-      changeType: 'change'
+      payload: { file: path }
     })
   }
   return { intentId, recordedAt }

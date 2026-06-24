@@ -53,7 +53,7 @@
         :class="`tone-${(i % 4) + 1}`"
       >
         <div class="cc-head">
-          <span class="cc-ico">{{ iconGlyph(c.icon) }}</span>
+          <span class="cc-ico"><Icon :icon="c.icon" /></span>
           <div class="cc-title">
             <span class="cc-name">{{ c.title }}</span>
             <span class="cc-id">id · {{ c.id }}</span>
@@ -79,18 +79,12 @@
 
 <script setup lang="ts">
 import { useConsumers } from '../composables/useConsumers.js'
+import Icon from '../components/shell/Icon.vue'
 
 const { consumers, loading, error } = useConsumers()
 
 function reload(): void {
   window.location.reload()
-}
-
-// Manifests may declare an icon as a glyph/emoji or an icon-font token
-// ("mdi:rocket"). We only render literal glyphs; tokens fall back.
-function iconGlyph(icon?: string): string {
-  if (!icon) return '◆'
-  return icon.includes(':') ? '◆' : icon
 }
 </script>
 

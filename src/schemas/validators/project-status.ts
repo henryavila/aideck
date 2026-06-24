@@ -91,6 +91,17 @@ export const planSupersedeRefSchema = z.object({
   remainsValid: z.array(z.string()).optional()
 })
 
+// Fork link (plan→plan parent/child). A child plan carries `spawnedFrom` pointing
+// at the parent plan + the anchor phase it was extracted from; the parent's anchor
+// phase lists the child slug in `spawnedPlans`. Distinct from `supersedes`
+// (replacement): a fork is additive — the parent consumes the child's result.
+export const spawnedFromSchema = z.object({
+  plan: z.string(),
+  phaseId: z.string(),
+  taskId: z.string().optional(),
+  mode: z.enum(['pause', 'parallel'])
+}).strict()
+
 export const provenanceSchema = z.object({
   surfacedAt: isoTimestampSchema,
   surfacedDuring: z.string().optional(),
@@ -122,7 +133,10 @@ export const phaseDescriptorSchema = z.object({
   externalImports: z.array(artifactRefSchema).optional(),
   exitGateType: z.enum(['standard', 'ui-gate', 'custom']).optional(),
   provenance: provenanceSchema.optional(),
-  context: contextSchema.optional()
+  context: contextSchema.optional(),
+  // Child plans forked from THIS phase (slugs). Bidirectional with the child's
+  // top-level `spawnedFrom`. Optional/additive — phases without forks omit it.
+  spawnedPlans: z.array(z.string()).optional()
 }).superRefine((phase, ctx) => {
   if (phase.provenance && !phase.context) {
     ctx.addIssue({
@@ -152,6 +166,7 @@ export const planSchema = z
     interPhaseGates: z.array(interPhaseGateSchema).optional(),
     tracks: z.array(trackSchema).optional(),
     supersedes: planSupersedeRefSchema.optional(),
+    spawnedFrom: spawnedFromSchema.optional(),
     references: z.array(artifactRefSchema).optional(),
     whatStaysValid: z.array(z.string()).optional()
   })

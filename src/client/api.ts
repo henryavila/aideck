@@ -65,3 +65,18 @@ export async function fetchDataSource(
   const data = await res.json()
   return data.records ?? []
 }
+
+/**
+ * Read a project-scoped dataSource across ALL registered projects at once. Each
+ * record is tagged with its `projectId`. Powers cross-project overview pages
+ * (a Panorama) — the opposite of the per-project scoped read above.
+ */
+export async function fetchDataSourceAllProjects(
+  consumerId: string,
+  dataSourceId: string
+): Promise<Record<string, unknown>[]> {
+  const res = await fetch(`${BASE}/api/consumers/${consumerId}/all-projects/data/${dataSourceId}`)
+  if (!res.ok) return []
+  const data = await res.json()
+  return data.records ?? []
+}

@@ -4,7 +4,7 @@ import type { ErrorResponse } from '../../schemas/common.js'
 import type { Initiative, Plan, ProjectStatusState } from '../../schemas/project-status.js'
 import { type Result, err, ok } from '../../schemas/validators/index.js'
 import { parseInitiativeFile, parsePlanFile } from '../parsers/project-status.js'
-import { atomicSkillsRoot, consumerRoot, DEFAULT_CONSUMER } from '../writers/paths.js'
+import { consumerRoot } from '../writers/paths.js'
 
 async function listMarkdownFiles(dir: string): Promise<string[]> {
   try {
@@ -16,18 +16,13 @@ async function listMarkdownFiles(dir: string): Promise<string[]> {
 }
 
 /**
- * Returns the directories to scan for a given consumer. The default
- * `project-status` consumer accepts BOTH the explicit layout
- * `<rootDir>/.atomic-skills/project-status/{plans,initiatives}/` and the
- * flat layout `<rootDir>/.atomic-skills/{plans,initiatives}/` because the
- * atomic-skills writer ships flat by default. Other consumers always use
- * the explicit layout. See classifyFile() in writers/paths.ts which
- * mirrors this convention for the watcher path.
+ * Returns the directories to scan for a given consumer. Every consumer uses the
+ * explicit layout `<rootDir>/.atomic-skills/<consumer>/{plans,initiatives}/`.
+ * (This legacy aggregate endpoint is superseded by the generic project-scoped
+ * data endpoints; see docs/handoffs/atomic-skills-manifest.md.)
  */
 function consumerEntityDirs(rootDir: string, consumerId: string): string[] {
-  const dirs = [consumerRoot(rootDir, consumerId)]
-  if (consumerId === DEFAULT_CONSUMER) dirs.push(atomicSkillsRoot(rootDir))
-  return dirs
+  return [consumerRoot(rootDir, consumerId)]
 }
 
 export async function buildAllForConsumer(

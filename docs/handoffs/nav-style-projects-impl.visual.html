@@ -1,0 +1,888 @@
+<!doctype html><html data-theme="dark"><meta charset=utf-8><title>nav.style:projects — sidebar proof</title><style>/* ─────────────────────────────────────────────────────────────────────
+   aiDeck Design System — Foundations (v2)
+   Dark-first only. Light theme is explicitly out of scope.
+
+   aiDeck is a GENERIC dashboard runtime: it reads consumer manifests
+   and projects 25 built-in widgets across 3 layout modes. Tokens here
+   are intentionally domain-agnostic — `status-success` not `phase-done`,
+   `chart-1..8` not `verifier-shell`.
+
+   Calibration target: a consumer with 5+ pages, each containing 10-20
+   widgets across sections, must fit a 13" laptop without horizontal
+   scroll, overflow, truncation, or pagination tricks. Density is a
+   feature, not a problem to be solved with whitespace.
+   ───────────────────────────────────────────────────────────────────── */
+
+/* Fonts — Inter (sans, UI + narrative) + JetBrains Mono (identifiers,
+   paths, code, all monospace surfaces). Both Google Fonts, both free. */
+
+:root {
+  /* ── Surfaces ─────────────────────────────────────────────────
+     Six steps so nested widgets/cards step up without clashing.
+     Cooler, deeper canvas → reads as premium dev-tool (Vercel,
+     Linear, Raycast). Hairline borders separate steps as primary
+     elevation signal; shadows are reserved for floating layers. */
+  --bg-sunken:      #07090d;   /* inputs, code blocks, deepest wells */
+  --bg-canvas:      #0a0d12;   /* page background */
+  --bg-surface:     #12161d;   /* widget cards, section panels */
+  --bg-elevated:    #1a1f28;   /* hover, popovers, dropdowns */
+  --bg-overlay:     #232936;   /* selected rows, focus halos */
+  --bg-highlight:   #2d3340;   /* highest — used sparingly */
+
+  /* ── Glass (premium translucent surfaces) ──────────────────────
+     For the chrome header, command palette, drawers, popovers.
+     Always paired with backdrop-filter: blur. Falls back gracefully
+     when blur is unsupported (still readable). */
+  --glass-thin:     rgba(18, 22, 29, 0.55);
+  --glass-medium:   rgba(18, 22, 29, 0.72);
+  --glass-thick:    rgba(10, 13, 18, 0.85);
+  --glass-border:   rgba(255, 255, 255, 0.06);
+  --glass-blur:     saturate(180%) blur(20px);
+  --glass-blur-sm:  saturate(160%) blur(10px);
+
+  /* ── Borders ──────────────────────────────────────────────────
+     Three weights. All hairlines are 1px — never thicker. */
+  --border-subtle:  #1a2029;   /* faint dividers inside a widget */
+  --border-default: #262d38;   /* widget outlines, cards, panels */
+  --border-strong:  #3d4656;   /* focus indication, selected */
+  --border-bright:  #555f72;   /* hover on interactive elements */
+
+  /* ── Foreground (text + icons) ────────────────────────────────
+     Five steps. Captions and metadata default to muted; only primary
+     content gets the brightest level. */
+  --fg-default:     #e9eef5;   /* primary text — body, headings */
+  --fg-muted:       #98a1ad;   /* secondary — captions, labels */
+  --fg-subtle:      #6b7585;   /* tertiary — metadata, placeholders */
+  --fg-faint:       #424a5a;   /* lowest — disabled, vertical rules */
+  --fg-on-accent:   #08090d;   /* text on a saturated chip fill */
+
+  /* ── Semantic status (consumer-agnostic) ──────────────────────
+     Five canonical states. Consumers map their domain vocabulary
+     onto these tokens — a Kanban "Done" column, a CI "passed" row,
+     a metric "trending up" indicator all reach for `success`. */
+  --status-success: #4cc28e;   /* emerald   — passed, done, healthy */
+  --status-warning: #e0a44a;   /* amber     — needs attention, blocked */
+  --status-error:   #ff5c5c;   /* coral red — failed, critical, broken */
+  --status-info:    #5fb1ff;   /* azure     — active, running, current */
+  --status-neutral: #8b95a3;   /* slate     — idle, pending, unknown */
+
+  /* Soft fills (alpha-mixed onto surface) — for chip & badge backgrounds.
+     `color-mix` computes alpha against the underlying surface so chips
+     nest correctly inside elevated cards. */
+  --status-success-bg: color-mix(in srgb, var(--status-success) 14%, var(--bg-surface));
+  --status-warning-bg: color-mix(in srgb, var(--status-warning) 14%, var(--bg-surface));
+  --status-error-bg:   color-mix(in srgb, var(--status-error)   16%, var(--bg-surface));
+  --status-info-bg:    color-mix(in srgb, var(--status-info)    14%, var(--bg-surface));
+  --status-neutral-bg: var(--bg-elevated);
+
+  /* Border-tinted versions, for outlined chips and inline badges */
+  --status-success-line: color-mix(in srgb, var(--status-success) 42%, var(--border-default));
+  --status-warning-line: color-mix(in srgb, var(--status-warning) 42%, var(--border-default));
+  --status-error-line:   color-mix(in srgb, var(--status-error)   48%, var(--border-default));
+  --status-info-line:    color-mix(in srgb, var(--status-info)    42%, var(--border-default));
+  --status-neutral-line: var(--border-default);
+
+  /* ── Chart palette ─────────────────────────────────────────────
+     8 distinguishable hues for multi-series data, ordered for
+     legibility on dark surfaces. Tuned in OKLCH for consistent
+     luminance — no series is louder than another. Use in order;
+     if a chart has 3 series, use --chart-1, -2, -3.
+     Modern + elegant, not crayon-box. */
+  --chart-1: #5fb1ff;   /* azure       — series A (primary) */
+  --chart-2: #4cc28e;   /* emerald     — series B */
+  --chart-3: #e668a8;   /* magenta     — series C */
+  --chart-4: #e0a44a;   /* amber       — series D */
+  --chart-5: #8b5cf6;   /* violet      — series E */
+  --chart-6: #2dd4bf;   /* teal        — series F */
+  --chart-7: #f0c757;   /* gold        — series G */
+  --chart-8: #f87171;   /* coral       — series H (kept last; reads as warning) */
+
+  /* Translucent versions for area fills & bar washes */
+  --chart-1-fill: color-mix(in srgb, var(--chart-1) 22%, transparent);
+  --chart-2-fill: color-mix(in srgb, var(--chart-2) 22%, transparent);
+  --chart-3-fill: color-mix(in srgb, var(--chart-3) 22%, transparent);
+  --chart-4-fill: color-mix(in srgb, var(--chart-4) 22%, transparent);
+  --chart-5-fill: color-mix(in srgb, var(--chart-5) 22%, transparent);
+  --chart-6-fill: color-mix(in srgb, var(--chart-6) 22%, transparent);
+  --chart-7-fill: color-mix(in srgb, var(--chart-7) 22%, transparent);
+  --chart-8-fill: color-mix(in srgb, var(--chart-8) 22%, transparent);
+
+  /* ── Functional accents (UI chrome) ───────────────────────────
+     Primary is `info` (azure) — it's the runtime's signature color.
+     The cyan square in the wordmark uses the same hue. */
+  --accent-primary: var(--status-info);
+  --accent-focus:   #88c4ff;     /* focus-visible ring */
+  --accent-link:    #88c4ff;
+
+  /* ── Typography stacks ────────────────────────────────────────
+     Inter for sans (UI, narrative, headings). JetBrains Mono for
+     identifiers, paths, commands, code, IDs — anywhere fixed-width
+     glyph alignment matters. Ligatures off for mono (developers
+     want to see exactly what's there). */
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system,
+               "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono",
+               "Menlo", "Consolas", monospace;
+  --font-display: var(--font-sans);
+
+  /* ── Type scale (dense — 10 → 56) ─────────────────────────────
+     Base body is 13–14px. View headers 24px. Page titles 28–32px.
+     Intentionally tighter than a marketing page: developers prefer
+     more rows over taller rows. */
+  --fs-2xs: 10px;    /* micro labels — use sparingly */
+  --fs-xs:  11px;    /* timestamps, IDs, metadata */
+  --fs-sm:  12px;    /* table cells, captions */
+  --fs-base:13px;    /* dense body default */
+  --fs-md:  14px;    /* primary body, UI controls */
+  --fs-lg:  16px;    /* widget titles */
+  --fs-xl:  20px;    /* section headers */
+  --fs-2xl: 24px;    /* page headers */
+  --fs-3xl: 32px;    /* page titles, stat-widget value */
+  --fs-4xl: 40px;    /* hero stat / dashboard headline */
+  --fs-5xl: 56px;    /* display — single-page hero only */
+
+  /* ── Line heights ─────────────────────────────────────────────  */
+  --lh-tight:  1.15;   /* headings, large numbers */
+  --lh-snug:   1.35;   /* UI text, widget body */
+  --lh-normal: 1.5;    /* body */
+  --lh-relaxed:1.65;   /* long-form narrative (markdown widget) */
+
+  /* ── Letter spacing ───────────────────────────────────────────  */
+  --tracking-tight:  -0.015em;
+  --tracking-normal: 0;
+  --tracking-wide:   0.04em;     /* uppercase eyebrows */
+  --tracking-wider:  0.08em;     /* status pills, all-caps labels */
+
+  /* ── Font weights (Inter) ─────────────────────────────────────  */
+  --fw-regular:  400;
+  --fw-medium:   500;
+  --fw-semibold: 600;
+  --fw-bold:     700;
+
+  /* ── Spacing scale (4px base) ─────────────────────────────────
+     Dense. Calibrated so a sections-layout page with 8 widgets
+     (mix of stat tiles and tables) fits the visible fold of a
+     13" laptop without horizontal scroll. */
+  --space-0:  0;
+  --space-1:  2px;
+  --space-2:  4px;
+  --space-3:  6px;
+  --space-4:  8px;
+  --space-5:  10px;
+  --space-6:  12px;
+  --space-7:  14px;
+  --space-8:  16px;
+  --space-10: 20px;
+  --space-12: 24px;
+  --space-14: 28px;
+  --space-16: 32px;
+  --space-20: 40px;
+  --space-24: 48px;
+  --space-32: 64px;
+
+  /* ── Radii ─────────────────────────────────────────────────────
+     Modest. Default for widgets and buttons is 8px. Pills (status
+     chips) are 999px. This is DevTools — not consumer-app pillows. */
+  --radius-none: 0;
+  --radius-xs:   2px;
+  --radius-sm:   4px;
+  --radius-md:   6px;       /* inline chips, small controls */
+  --radius-lg:   8px;       /* default widget, button */
+  --radius-xl:   12px;      /* large panels, drawer */
+  --radius-2xl:  16px;      /* hero stat tile, modal */
+  --radius-pill: 999px;
+
+  /* ── Borders ──────────────────────────────────────────────────  */
+  --border-width: 1px;
+
+  /* ── Elevation ────────────────────────────────────────────────
+     Dark surfaces get a SUBTLE inner highlight (1px top, 4-7% white)
+     to mimic top-light. Drop shadows used only for floating layers
+     (menus, popovers, drawer). Hairline borders + surface step are
+     the primary elevation signal. */
+  --highlight-inset:        inset 0 1px 0 rgba(255, 255, 255, 0.045);
+  --highlight-inset-strong: inset 0 1px 0 rgba(255, 255, 255, 0.075);
+  --shadow-none:    none;
+  --shadow-ambient: 0 1px 0 rgba(0, 0, 0, 0.4),
+                    var(--highlight-inset);
+  --shadow-sm:      0 2px 4px -2px rgba(0, 0, 0, 0.5),
+                    var(--highlight-inset);
+  --shadow-md:      0 8px 24px -8px rgba(0, 0, 0, 0.6),
+                    0 2px 6px -2px rgba(0, 0, 0, 0.4),
+                    var(--highlight-inset);
+  --shadow-lg:      0 24px 48px -16px rgba(0, 0, 0, 0.7),
+                    0 8px 16px -4px rgba(0, 0, 0, 0.45),
+                    var(--highlight-inset-strong);
+  --shadow-xl:      0 40px 80px -24px rgba(0, 0, 0, 0.8),
+                    0 16px 32px -8px rgba(0, 0, 0, 0.5),
+                    var(--highlight-inset-strong);
+  --shadow-focus:   0 0 0 2px var(--bg-canvas),
+                    0 0 0 4px var(--accent-focus);
+  --shadow-glow-info: 0 0 0 1px color-mix(in srgb, var(--status-info) 50%, transparent),
+                      0 0 32px -8px color-mix(in srgb, var(--status-info) 50%, transparent),
+                      var(--highlight-inset);
+
+  /* ── Motion ───────────────────────────────────────────────────
+     Quick & quiet. No bouncy springs — this is a cockpit. */
+  --ease-out:    cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --duration-instant: 80ms;
+  --duration-fast:    120ms;
+  --duration-normal:  200ms;
+  --duration-slow:    320ms;
+
+  /* ── Textures ─────────────────────────────────────────────────
+     Two canonical textures. Grid is the default canvas background —
+     it gives the runtime its engineered, graph-paper feel. Scan
+     overlays "live data is streaming" surfaces (SSE-connected widgets).
+     Both respect prefers-reduced-motion. */
+  --texture-grid: radial-gradient(circle at 1px 1px,
+    rgba(255, 255, 255, 0.085) 1px, transparent 0);
+  --texture-grid-size: 28px 28px;
+
+  --texture-scan: repeating-linear-gradient(0deg,
+    transparent 0,
+    transparent 2px,
+    rgba(255, 255, 255, 0.045) 2px,
+    rgba(255, 255, 255, 0.045) 3px);
+
+  /* Larger feature-grid for hero / empty backdrops */
+  --texture-grid-lg: linear-gradient(
+      rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg,
+      rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  --texture-grid-lg-size: 64px 64px;
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   Semantic typography presets
+
+   Use these classes; do not hand-pick font-size + weight on every
+   element. Anything not covered (rare) is a sign the scale needs
+   extending — bring the proposal back to the design system, don't
+   one-off it.
+   ───────────────────────────────────────────────────────────────────── */
+
+.t-display {
+  font-family: var(--font-display);
+  font-size: var(--fs-4xl);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-tight);
+  letter-spacing: var(--tracking-tight);
+  color: var(--fg-default);
+}
+
+.t-display-mono {
+  font-family: var(--font-mono);
+  font-size: var(--fs-4xl);
+  font-weight: var(--fw-medium);
+  line-height: 1;
+  letter-spacing: -0.04em;
+  color: var(--fg-default);
+  font-feature-settings: "calt" 0;
+}
+
+.t-h1 {
+  font-family: var(--font-sans);
+  font-size: var(--fs-3xl);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-tight);
+  letter-spacing: var(--tracking-tight);
+  color: var(--fg-default);
+}
+
+.t-h2 {
+  font-family: var(--font-sans);
+  font-size: var(--fs-2xl);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-snug);
+  letter-spacing: var(--tracking-tight);
+  color: var(--fg-default);
+}
+
+.t-h3 {
+  font-family: var(--font-sans);
+  font-size: var(--fs-xl);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-snug);
+  color: var(--fg-default);
+}
+
+.t-h4 {
+  font-family: var(--font-sans);
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-snug);
+  color: var(--fg-default);
+}
+
+.t-body {
+  font-family: var(--font-sans);
+  font-size: var(--fs-md);
+  font-weight: var(--fw-regular);
+  line-height: var(--lh-normal);
+  color: var(--fg-default);
+}
+
+.t-body-sm {
+  font-family: var(--font-sans);
+  font-size: var(--fs-base);
+  line-height: var(--lh-normal);
+  color: var(--fg-default);
+}
+
+.t-caption {
+  font-family: var(--font-sans);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-snug);
+  color: var(--fg-muted);
+}
+
+.t-meta {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-snug);
+  color: var(--fg-subtle);
+  letter-spacing: 0;
+  font-feature-settings: "calt" 0;
+}
+
+.t-eyebrow {
+  font-family: var(--font-sans);
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-semibold);
+  line-height: 1;
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+  color: var(--fg-muted);
+}
+
+.t-code {
+  font-family: var(--font-mono);
+  font-size: var(--fs-base);
+  font-feature-settings: "calt" 0;
+  color: var(--fg-default);
+}
+
+.t-code-inline {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+  padding: 0.08em 0.4em;
+  background: var(--bg-sunken);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xs);
+  color: var(--fg-default);
+  font-feature-settings: "calt" 0;
+}
+
+.t-link {
+  color: var(--accent-link);
+  text-decoration: none;
+  border-bottom: 1px dotted color-mix(in srgb, var(--accent-link) 50%, transparent);
+}
+.t-link:hover { border-bottom-style: solid; }
+
+/* Tabular numbers — for stats, tables, anything numeric.
+   JetBrains Mono is fixed-pitch; this only helps Inter. */
+.t-num {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   Reset + base
+   ───────────────────────────────────────────────────────────────────── */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg-canvas);
+  color: var(--fg-default);
+  font-family: var(--font-sans);
+  font-size: var(--fs-md);
+  line-height: var(--lh-normal);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+  border-radius: var(--radius-sm);
+}
+
+::selection {
+  background: color-mix(in srgb, var(--accent-primary) 35%, transparent);
+  color: var(--fg-default);
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   Texture utility classes
+   ───────────────────────────────────────────────────────────────────── */
+
+/* Default canvas: graph-paper dots. Apply on body or page wrapper. */
+.has-texture-grid {
+  background-image: var(--texture-grid);
+  background-size: var(--texture-grid-size);
+  background-attachment: fixed;
+}
+
+/* Heavier feature-grid for empty states, hero backdrops, login walls */
+.has-texture-grid-lg {
+  background-image: var(--texture-grid-lg);
+  background-size: var(--texture-grid-lg-size);
+}
+
+/* SSE-live widget — slow scan sweep. Apply to a relative-positioned
+   widget body; emits a ::after layer above the content. */
+.is-live::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--texture-scan);
+  background-size: 100% 6px;
+  pointer-events: none;
+  border-radius: inherit;
+  animation: aideck-scan-shift 12s linear infinite;
+  opacity: 0.45;
+  mix-blend-mode: lighten;
+}
+.is-live { position: relative; }
+
+@keyframes aideck-scan-shift {
+  from { background-position: 0 0; }
+  to   { background-position: 0 240px; }
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   Glass utility — chrome header, drawers, command palette, popovers.
+
+   The translucent dark-surface look is intentional and load-bearing:
+   it tells the user the chrome floats above content (the data is
+   what matters; chrome is utility). Always paired with backdrop-filter.
+   ───────────────────────────────────────────────────────────────────── */
+
+.glass {
+  background: var(--glass-medium);
+  -webkit-backdrop-filter: var(--glass-blur);
+          backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+}
+.glass-thin {
+  background: var(--glass-thin);
+  -webkit-backdrop-filter: var(--glass-blur-sm);
+          backdrop-filter: var(--glass-blur-sm);
+  border: 1px solid var(--glass-border);
+}
+.glass-thick {
+  background: var(--glass-thick);
+  -webkit-backdrop-filter: var(--glass-blur);
+          backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   Skeleton shimmer — loading state for any widget body.
+   Apply `.skeleton` to a div sized to the placeholder shape.
+   ───────────────────────────────────────────────────────────────────── */
+
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: var(--bg-elevated);
+  border-radius: var(--radius-sm);
+}
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.04) 50%,
+    transparent 100%);
+  animation: aideck-shimmer 1.6s ease-in-out infinite;
+}
+@keyframes aideck-shimmer {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(100%);  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   Reduced motion — silence all kinetic textures.
+   ───────────────────────────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+  .is-live::after,
+  .skeleton::after { animation: none; }
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   Base normalization — complements the reset in tokens.css.
+   Permanent (unlike aliases.css). Keeps bare elements inheriting the
+   design system's typography so component classes do the styling.
+   ───────────────────────────────────────────────────────────────── */
+a { color: inherit; text-decoration: none; }
+button { font: inherit; color: inherit; background: none; border: none; cursor: pointer; }
+input, textarea, select { font: inherit; color: inherit; }
+
+/* ─────────────────────────────────────────────────────────────────
+   aiDeck — layout shell
+   Chrome header · optional demo banner · sidebar · main · status bar
+   ───────────────────────────────────────────────────────────────── */
+
+html, body { height: 100%; overflow: hidden; }
+
+body {
+  background:
+    radial-gradient(900px 600px at 12% 0%,
+      color-mix(in srgb, var(--chart-1) 5%, transparent), transparent 70%),
+    radial-gradient(820px 520px at 88% 100%,
+      color-mix(in srgb, var(--chart-3) 4%, transparent), transparent 70%),
+    var(--bg-canvas);
+}
+body::before {
+  content: "";
+  position: fixed; inset: 0;
+  background-image: var(--texture-grid);
+  background-size: var(--texture-grid-size);
+  pointer-events: none;
+  z-index: 0;
+}
+
+#app { position: relative; z-index: 1; height: 100%; }
+
+.app {
+  display: grid;
+  grid-template-rows: 48px auto 1fr 26px;
+  height: 100%;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+  min-width: 0;
+}
+
+/* Flex/grid items that hold variable-width content can shrink below
+   their intrinsic min-content size on narrow viewports.            */
+.chrome > *,
+.banner > *,
+.statusbar > * { min-width: 0; }
+.shell { min-width: 0; }
+.main  { min-width: 0; }
+
+/* ── Chrome header ───────────────────────────────────────────────── */
+.chrome {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 12px 0 14px;
+  background: var(--glass-medium);
+  -webkit-backdrop-filter: var(--glass-blur);
+          backdrop-filter: var(--glass-blur);
+  border-bottom: 1px solid var(--glass-border);
+  position: relative;
+  z-index: 10;
+}
+
+.wm {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--font-sans);
+  font-size: 14px; font-weight: 600;
+  color: var(--fg-default);
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+.wm-ai   { color: var(--fg-muted); font-weight: 500; }
+.wm-deck { color: var(--fg-default); }
+.wm-dot {
+  width: 8px; height: 8px;
+  background: var(--status-info);
+  display: inline-block; border-radius: 1px;
+  margin-left: 2px;
+  box-shadow: 0 0 10px color-mix(in srgb, var(--status-info) 60%, transparent);
+  animation: wm-pulse 3s ease-in-out infinite;
+}
+@keyframes wm-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.55; }
+}
+
+.crumb {
+  display: flex; align-items: center; gap: 6px;
+  font-family: var(--font-sans); font-size: 12px;
+  color: var(--fg-muted);
+  min-width: 0;
+}
+.crumb .sep { color: var(--fg-faint); font-family: var(--font-mono); font-feature-settings: 'calt' 0; }
+.crumb .now { color: var(--fg-default); font-weight: 500; }
+
+.pal {
+  display: flex; align-items: center; gap: 8px;
+  height: 28px; padding: 0 8px 0 10px;
+  min-width: 280px;
+  background: var(--glass-thin);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  font-family: var(--font-sans); font-size: 12px;
+  color: var(--fg-muted);
+  cursor: pointer;
+  transition: border-color 120ms var(--ease-out), background 120ms var(--ease-out);
+}
+.pal:hover { border-color: var(--border-default); background: var(--bg-elevated); }
+.pal .pal-icon {
+  font-family: var(--font-mono);
+  font-feature-settings: 'calt' 0;
+  color: var(--fg-subtle);
+  font-size: 13px;
+}
+.pal .ph { color: var(--fg-subtle); flex: 1; }
+.kbd {
+  display: inline-flex; align-items: center; justify-content: center;
+  height: 17px; min-width: 17px; padding: 0 4px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: 3px;
+  font-family: var(--font-mono); font-size: 10px;
+  color: var(--fg-muted);
+  font-feature-settings: 'calt' 0;
+}
+
+.lh {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 22px; padding: 0 10px 0 8px;
+  background: color-mix(in srgb, var(--status-success) 10%, transparent);
+  border: 1px solid var(--status-success-line);
+  border-radius: var(--radius-pill);
+  font-family: var(--font-mono); font-size: 10px;
+  color: var(--status-success);
+  font-feature-settings: 'calt' 0;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+.lh i {
+  width: 5px; height: 5px; border-radius: 50%;
+  background: var(--status-success);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--status-success) 80%, transparent);
+}
+.lh .lh-sep { color: var(--fg-faint); }
+.lh .lh-tag { color: color-mix(in srgb, var(--status-success) 70%, var(--fg-muted)); }
+
+.icon-btn {
+  width: 28px; height: 28px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--fg-muted);
+  cursor: pointer;
+  font-feature-settings: 'calt' 0;
+  transition: all 120ms var(--ease-out);
+}
+.icon-btn:hover {
+  background: var(--bg-elevated);
+  color: var(--fg-default);
+  border-color: var(--border-default);
+}
+
+/* ── Demo banner (slot between chrome and shell) ─────────────────── */
+.banner {
+  display: flex; align-items: center; gap: 10px;
+  height: 32px; padding: 0 16px;
+  background: var(--status-warning-bg);
+  border-bottom: 1px solid var(--status-warning-line);
+  font-family: var(--font-mono); font-size: 11px;
+  color: var(--status-warning);
+  font-feature-settings: 'calt' 0;
+  letter-spacing: 0.01em;
+}
+.banner .ic {
+  font-size: 12px;
+}
+.banner .b-emph { color: var(--fg-default); font-weight: 500; }
+.banner .b-muted { color: color-mix(in srgb, var(--status-warning) 70%, var(--fg-muted)); }
+.banner .b-cmd {
+  margin-left: auto;
+  display: inline-flex; align-items: center; gap: 6px;
+  color: color-mix(in srgb, var(--status-warning) 70%, var(--fg-muted));
+}
+
+/* ── Shell (sidebar + main) ──────────────────────────────────────── */
+.shell {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  min-height: 0;
+}
+.shell.no-side { grid-template-columns: 1fr; }
+
+.side {
+  border-right: 1px solid var(--border-subtle);
+  background: var(--glass-thin);
+  -webkit-backdrop-filter: var(--glass-blur-sm);
+          backdrop-filter: var(--glass-blur-sm);
+  overflow-y: auto;
+  padding: 10px 8px 14px;
+  display: flex; flex-direction: column;
+}
+
+.side .grp {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 8px 6px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--fg-subtle);
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  font-feature-settings: 'calt' 0;
+}
+.side .grp .count {
+  font-family: var(--font-mono); font-size: 9px;
+  color: var(--fg-faint);
+}
+
+/* Consumer rows (in sidebar) */
+.consumer-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 8px;
+  border-radius: 4px;
+  font-family: var(--font-sans); font-size: 12px;
+  color: var(--fg-muted);
+  cursor: pointer;
+  transition: background 120ms var(--ease-out), color 120ms var(--ease-out);
+}
+.consumer-row:hover { background: var(--bg-elevated); color: var(--fg-default); }
+.consumer-row.on {
+  background: var(--bg-overlay);
+  color: var(--fg-default);
+}
+.consumer-row .dot {
+  width: 6px; height: 6px; border-radius: 50%; flex: none;
+}
+.consumer-row .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.consumer-row .ct {
+  font-family: var(--font-mono); font-size: 10px;
+  color: var(--fg-subtle);
+  font-feature-settings: 'calt' 0;
+}
+.consumer-row.on .ct { color: var(--fg-muted); }
+
+.consumer-row .err-mark {
+  width: 12px; height: 12px;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--status-error);
+  font-family: var(--font-mono); font-size: 12px;
+  font-feature-settings: 'calt' 0;
+}
+
+/* Page rows — the active consumer's pages nested under it (nav.style: sidebar) */
+.page-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 4px 8px 4px 22px;
+  border-radius: 4px;
+  font-family: var(--font-sans); font-size: 12px;
+  color: var(--fg-subtle);
+  cursor: pointer;
+  transition: background 120ms var(--ease-out), color 120ms var(--ease-out);
+}
+.page-row:hover { background: var(--bg-elevated); color: var(--fg-default); }
+.page-row.on { color: var(--fg-default); }
+.page-row.on::before {
+  content: ''; position: absolute; left: 12px;
+  width: 2px; height: 14px; border-radius: 1px;
+  background: var(--accent, var(--fg-default));
+}
+.page-row { position: relative; }
+.page-row .page-ico { width: 14px; text-align: center; flex: none; font-size: 12px; }
+.page-row .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Data sources tree (sidebar) */
+.fs-tree {
+  padding: 4px 8px;
+  font-family: var(--font-mono); font-size: 10px;
+  color: var(--fg-subtle);
+  line-height: 1.85;
+  font-feature-settings: 'calt' 0;
+}
+.fs-tree .fs-root { color: var(--fg-muted); }
+.fs-tree .fs-row {
+  display: flex; gap: 6px; padding-left: 0;
+}
+.fs-tree .fs-row.lvl-2 { padding-left: 10px; }
+.fs-tree .fs-row.lvl-3 { padding-left: 22px; }
+.fs-tree .fs-row.lvl-4 { padding-left: 34px; }
+.fs-tree .fs-row.dir > .fs-name  { color: var(--chart-1); }
+.fs-tree .fs-row.dir-2 > .fs-name { color: var(--chart-3); }
+.fs-tree .fs-row.dir-3 > .fs-name { color: var(--chart-2); }
+.fs-tree .fs-row.dir-4 > .fs-name { color: var(--chart-5); }
+.fs-tree .fs-meta {
+  margin-left: auto;
+  color: var(--fg-faint);
+}
+
+/* Sidebar footer (collapse hint) */
+.side-foot {
+  margin-top: auto;
+  padding: 10px 10px 0;
+  display: flex; align-items: center; gap: 6px;
+  font-family: var(--font-mono); font-size: 9px;
+  color: var(--fg-faint);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-feature-settings: 'calt' 0;
+  border-top: 1px solid var(--border-subtle);
+  margin-left: -8px; margin-right: -8px;
+  padding-left: 14px; padding-right: 14px;
+  padding-top: 10px;
+}
+
+/* ── Main view ───────────────────────────────────────────────────── */
+.main {
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 22px 26px 28px;
+  min-width: 0;
+  position: relative;
+}
+
+/* ── Footer status bar ───────────────────────────────────────────── */
+.statusbar {
+  display: flex; align-items: center; gap: 14px;
+  padding: 0 14px;
+  background: var(--bg-canvas);
+  border-top: 1px solid var(--border-subtle);
+  font-family: var(--font-mono); font-size: 10px;
+  color: var(--fg-subtle);
+  font-feature-settings: 'calt' 0;
+  letter-spacing: 0.04em;
+}
+.statusbar .sb-item { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.statusbar .sb-item.success { color: var(--status-success); }
+.statusbar .sb-item .dot {
+  width: 5px; height: 5px; border-radius: 50%; background: currentColor;
+  box-shadow: 0 0 5px currentColor;
+}
+.statusbar .sep { color: var(--fg-faint); }
+.statusbar .grow { flex: 1; }
+.statusbar .sb-em { color: var(--fg-muted); }
+
+body{margin:0;padding:24px;background:var(--bg-base,#0b0d10)}.side{position:static;height:auto;max-width:280px;border:1px solid var(--border-subtle,#222)}</style><body><aside data-v-edcbb3da="" class="side">
+  <div data-v-edcbb3da="" class="side-mobile-head"><span data-v-edcbb3da="" class="side-mobile-title">Overview</span><button data-v-edcbb3da="" class="icon-btn" title="close" aria-label="close sidebar">×</button></div>
+  <!-- nav.style: projects — a project-centric shell. A fixed cross-project
+         landing pinned at the top, then the active consumer's registered projects
+         as the primary nav unit. No other consumers are listed here. --><a data-v-edcbb3da="" href="#/acme" class="consumer-row landing-row" title="Overview"><span data-v-edcbb3da="" class="landing-ico"><span data-v-edcbb3da="" class="icon-glyph">🛰️</span></span><span data-v-edcbb3da="" class="name">Overview</span></a>
+  <div data-v-edcbb3da="" class="grp" style="margin-top: 8px;"><span data-v-edcbb3da="">workspaces</span><span data-v-edcbb3da="" class="count">3</span></div><a data-v-edcbb3da="" href="#/acme/board?project=web" class="consumer-row" title="web"><span data-v-edcbb3da="" class="dot" style="background: var(--chart-1);"></span><span data-v-edcbb3da="" class="name">web</span></a><!-- the selected project expands to its per-project pages --><a data-v-edcbb3da="" href="#/acme/board?project=api" class="consumer-row on" title="api"><span data-v-edcbb3da="" class="dot" style="background: var(--chart-2);"></span><span data-v-edcbb3da="" class="name">api</span></a><!-- the selected project expands to its per-project pages --><a data-v-edcbb3da="" href="#/acme/board?project=api" class="page-row on" title="Board"><span data-v-edcbb3da="" class="page-ico"><i data-v-edcbb3da="" class="mdi mdi-view-dashboard" aria-hidden="true"></i></span><span data-v-edcbb3da="" class="name">Board</span></a><a data-v-edcbb3da="" href="#/acme/detail?project=api" class="page-row" title="Detail"><span data-v-edcbb3da="" class="page-ico"><span data-v-edcbb3da="" class="icon-glyph">◆</span></span><span data-v-edcbb3da="" class="name">Detail</span></a><a data-v-edcbb3da="" href="#/acme/board?project=mobile" class="consumer-row" title="mobile"><span data-v-edcbb3da="" class="dot" style="background: var(--chart-3);"></span><span data-v-edcbb3da="" class="name">mobile</span></a><!-- the selected project expands to its per-project pages -->
+  <div data-v-edcbb3da="" class="grp" style="margin-top: 12px;"><span data-v-edcbb3da="">data sources</span></div>
+  <div data-v-edcbb3da="" class="fs-tree">
+    <div data-v-edcbb3da="" class="fs-row"><span data-v-edcbb3da="" class="fs-name fs-root">~/.aideck/</span></div>
+    <div data-v-edcbb3da="" class="fs-row lvl-2"><span data-v-edcbb3da="" class="fs-name fs-root">consumers/</span></div>
+    <div data-v-edcbb3da="" class="fs-row lvl-3 dir"><span data-v-edcbb3da="" class="fs-name">acme/</span><span data-v-edcbb3da="" class="fs-meta">1 srcs</span></div>
+  </div>
+  <div data-v-edcbb3da="" class="side-foot"><span data-v-edcbb3da="" style="flex: 1 1 0%;">collapse</span><span data-v-edcbb3da="" class="kbd">⌘</span><span data-v-edcbb3da="" class="kbd">B</span></div>
+</aside></body></html>

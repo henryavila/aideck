@@ -48,6 +48,21 @@ Each consumer declares a directory under `.atomic-skills/` (or equivalent) conta
 
 Annotations and highlights are append-only logs. Skills tail them via aiDeck's MCP `aideck_inbox` tool to discover human input.
 
+## Live refresh is manifest-driven (no hardcoded conventions)
+
+aiDeck's runtime is **domain-agnostic**: it hardcodes no consumer path conventions
+(`plans/`, `initiatives/`, …). When a file changes under a registered project's
+`.atomic-skills/` tree, the watcher classifies it by matching the path against the
+**globs declared in each consumer's `manifest.yaml`** (`root: 'project'` dataSources) and
+emits a generic `data_changed` event keyed by the matched consumer. The dashboard re-fetches
+the affected dataSource. The only directory names aiDeck recognizes by itself are its own
+universal append-only subdirs (`annotations/`, `highlights/`, `inbox/`), attributed by the
+explicit `<consumer>/` path segment.
+
+Consequently every consumer — including `project-status` — must register a manifest
+declaring its dataSources. See `src/demo/consumer/manifest.yaml` for the vocabulary and
+`docs/handoffs/atomic-skills-manifest.md` for the project-status manifest.
+
 ## Read-only vs read-write
 
 By default, consumers expose their canonical files as **read-only** to aiDeck. aiDeck reads, parses, renders.

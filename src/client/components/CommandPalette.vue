@@ -68,10 +68,27 @@ import { ref, computed, watch, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { usePalette } from '../composables/usePalette.js'
 import { useDrawer } from '../composables/useDrawer.js'
-import { fetchConsumers, fetchConsumerManifest, type ConsumerSummary } from '../api.js'
+import { fetchConsumers, fetchConsumerManifest, fetchDataSource, type ConsumerSummary } from '../api.js'
 import { chartColor } from '../utils/status.js'
 
-type Kind = 'page' | 'consumer' | 'file' | 'command'
+type Kind = 'record' | 'page' | 'consumer' | 'file' | 'command'
+
+interface PaletteRecordDecl {
+  ref: string
+  titleField?: string
+  subtitleField?: string
+  route: string
+}
+
+// Resolve a route template's `:token`s against a record (and the consumer id):
+// `/:consumerId/plan/:slug` → `/atomic-skills/plan/ds-v2`.
+function resolveRecordRoute(template: string, consumerId: string, record: Record<string, unknown>): string {
+  return template.replace(/:(\w+)/g, (_m, key: string) => {
+    if (key === 'consumerId') return consumerId
+    const v = record[key]
+    return v === undefined || v === null ? '' : String(v)
+  })
+}
 
 interface IndexEntry {
   kind: Kind
@@ -163,6 +180,26 @@ async function buildIndex(): Promise<void> {
           to: `/${c.id}`,
         })
       }
+
+      // Opt-in record indexing: a consumer's `commandPalette.records` declares
+      // which collections to surface as ⌘K targets, and how to title/route each.
+      const palette = m.commandPalette as { records?: PaletteRecordDecl[] } | undefined
+      for (const spec of palette?.records ?? []) {
+        const records = await fetchDataSource(c.id, spec.ref)
+        for (const r of records) {
+          const name = String(r[spec.titleField ?? 'title'] ?? r.id ?? r.slug ?? '')
+          if (!name) continue
+          const subtitle = spec.subtitleField ? String(r[spec.subtitleField] ?? '') : `${c.id} / ${spec.ref}`
+          entries.push({
+            kind: 'record',
+            name,
+            path: subtitle,
+            glyph: '◆',
+            consumer: c.id,
+            to: resolveRecordRoute(spec.route, c.id, r),
+          })
+        }
+      }
     } catch {
       // skip consumers whose manifest fails to load
     }
@@ -227,6 +264,8 @@ function highlight(text: string, indices: number[]): string {
 }
 
 const GROUPS: { key: Kind; label: string; cap: (q: boolean) => number }[] = [
+  // Records first — the design orders per-record targets above pages.
+  { key: 'record', label: 'Records', cap: (q) => (q ? 8 : 5) },
   { key: 'page', label: 'Pages', cap: (q) => (q ? 8 : 6) },
   { key: 'consumer', label: 'Consumers', cap: (q) => (q ? 8 : 4) },
   { key: 'file', label: 'Files', cap: (q) => (q ? 8 : 4) },

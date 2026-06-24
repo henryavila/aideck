@@ -1,8 +1,8 @@
 ---
-lastUpdated: '2026-06-02T14:09:48Z'
+lastUpdated: '2026-06-17T18:50:00Z'
 schemaVersion: '0.1'
 activePlans: 0
-activeInitiatives: 0
+activeInitiatives: 1
 archivedCount: 7
 ---
 
@@ -41,7 +41,9 @@ _(none)_
 
 ## Active Initiatives (standalone)
 
-_(none)_
+| Slug | Status | Tasks | Branch | Next |
+|------|--------|-------|--------|------|
+| [aideck-remote-access-tailscale](initiatives/aideck-remote-access-tailscale.md) | in-progress | 7/8 (T-001..T-007 done) | feat/ds-v2.1-widgets | T-008 manual cross-device E2E |
 
 ## Recently Archived (last 10)
 

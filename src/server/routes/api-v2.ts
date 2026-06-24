@@ -4,6 +4,7 @@ import type { Context } from 'hono'
 import type { ConsumerRegistry } from '../consumer-registry.js'
 import type { ProjectRegistry } from '../project-registry.js'
 import { readDataSource } from '../data-source-reader.js'
+import { rootAncestor } from '../data-source-resolve.js'
 import type { DataSourceDecl } from '../manifest-schema.js'
 import { appendJsonlLine } from '../writers/jsonl-append.js'
 import { isWithinDir } from '../writers/path-guard.js'
@@ -161,21 +162,6 @@ export function createApiV2Router(deps: ApiV2Deps): Hono {
   // project's rootDir (the repo's git-tracked .atomic-skills/ tree, read in
   // place). `root: 'consumer'` sources still read from the consumer dir.
 
-  // A derived source (§2a) has no `root` of its own — its baseDir must follow
-  // the root *ancestor* it ultimately derives from (e.g. `phases` → `plans`,
-  // root: 'project'). Walk the derivesFrom chain (cycle-guarded) to that source.
-  function rootAncestor(decl: DataSourceDecl, all: DataSourceDecl[]): DataSourceDecl {
-    let cur = decl
-    const seen = new Set<string>()
-    while (cur.derivesFrom && !seen.has(cur.id)) {
-      seen.add(cur.id)
-      const parent = all.find((ds) => ds.id === cur.derivesFrom)
-      if (!parent) break
-      cur = parent
-    }
-    return cur
-  }
-
   function resolveProjectDataSource(
     c: Context
   ): { decl: DataSourceDecl; baseDir: string; allSources: DataSourceDecl[] } | Response {
@@ -251,6 +237,43 @@ export function createApiV2Router(deps: ApiV2Deps): Hono {
       )
     }
     return c.json({ record })
+  })
+
+  // ─── Cross-project data ───────────────────────────────────────────────
+  // Read a project-scoped dataSource across ALL registered projects, tagging
+  // each record with its `projectId`, for cross-project overview pages (a
+  // "Panorama"). A consumer-scoped source has no project fan-out — read once.
+  // A project that lacks this collection is skipped (not an error: a project may
+  // simply not have e.g. exit_gates), so one sparse project never breaks the view.
+  app.get('/api/consumers/:id/all-projects/data/:dataSourceId', async (c) => {
+    const id = c.req.param('id') ?? ''
+    const dataSourceId = c.req.param('dataSourceId') ?? ''
+    const consumer = deps.consumers.get(id)
+    if (!consumer) return errResp(c, 'consumer_not_found', `consumer "${id}" not found`, 404)
+    const allSources = consumer.manifest.dataSources
+    const decl = allSources.find((ds) => ds.id === dataSourceId)
+    if (!decl) {
+      return errResp(c, 'data_source_not_found', `data source "${dataSourceId}" not found in consumer "${id}"`, 404)
+    }
+
+    if (rootAncestor(decl, allSources).root !== 'project') {
+      const result = await readDataSource(consumer.dir, decl, allSources)
+      if (!result.ok) {
+        return errResp(c, result.error.code, result.error.message, 500, {
+          suggestion: result.error.suggestion,
+          details: result.error.details
+        })
+      }
+      return c.json({ records: result.value.records, count: result.value.records.length })
+    }
+
+    const merged: Record<string, unknown>[] = []
+    for (const project of deps.registry?.list() ?? []) {
+      const result = await readDataSource(project.rootDir, decl, allSources)
+      if (!result.ok) continue
+      for (const record of result.value.records) merged.push({ ...record, projectId: project.projectId })
+    }
+    return c.json({ records: merged, count: merged.length })
   })
 
   app.post('/api/consumers/:id/write/:target{.+}', async (c) => {

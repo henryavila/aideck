@@ -1,13 +1,14 @@
 // @vitest-environment node
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join, resolve } from 'node:path'
+import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { buildApp } from '../../../src/server/index.js'
-import type { RuntimeEvent, StateChangeEvent } from '../../../src/server/events/types.js'
+import type { RuntimeEvent } from '../../../src/server/events/types.js'
 
 let projA: string
 let projB: string
+let aideckDir: string
 
 const PLAN_MD = (slug: string) => `---
 schemaVersion: '0.1'
@@ -24,17 +25,42 @@ phases: []
 # ${slug}
 `
 
+// A project-status consumer manifest whose project-rooted glob matches the plan
+// files written below — this is what makes the watcher emit data_changed.
+const PS_MANIFEST = `schemaVersion: '0.1'
+id: project-status
+mcpNamespace: project_status
+title: 'Project Status'
+dataSources:
+  - id: plans
+    path: '.atomic-skills/*/plans/**/*.md'
+    format: frontmatter
+    root: project
+pages: []
+`
+
+async function seedAideckDir(): Promise<string> {
+  const dir = await mkdtemp(join(tmpdir(), 'aideck-home-'))
+  const consumerDir = join(dir, 'consumers', 'project-status')
+  await mkdir(consumerDir, { recursive: true })
+  await writeFile(join(consumerDir, 'manifest.yaml'), PS_MANIFEST)
+  return dir
+}
+
 beforeEach(async () => {
   projA = await mkdtemp(join(tmpdir(), 'aideck-mw-a-'))
   await mkdir(join(projA, '.atomic-skills', 'project-status', 'plans'), { recursive: true })
 
   projB = await mkdtemp(join(tmpdir(), 'aideck-mw-b-'))
   await mkdir(join(projB, '.atomic-skills', 'project-status', 'plans'), { recursive: true })
+
+  aideckDir = await seedAideckDir()
 })
 
 afterEach(async () => {
   await rm(projA, { recursive: true, force: true })
   await rm(projB, { recursive: true, force: true })
+  await rm(aideckDir, { recursive: true, force: true })
 })
 
 function waitForEvent(
@@ -71,11 +97,21 @@ function post(app: ReturnType<typeof buildApp>['app'], path: string, body: unkno
   }))
 }
 
+async function buildWithConsumers(rootDir: string) {
+  const built = buildApp({ rootDir, skipWatcher: false, demo: false, version: 'test', aideckBaseDir: aideckDir })
+  await built.consumers.scan()
+  return built
+}
+
+function isDataChangedFor(e: RuntimeEvent, projectId: string): boolean {
+  return e.kind === 'data_changed' && 'projectId' in e && e.projectId === projectId
+}
+
 // ─── F1-G1: multi-watcher: independent events per project ──────────────
 
 describe('multi-watcher', () => {
   it('registers 2 projects with watchers; events are tagged with projectId', async () => {
-    const built = buildApp({ rootDir: projA, skipWatcher: false, demo: false, version: 'test' })
+    const built = await buildWithConsumers(projA)
 
     const regA = await post(built.app, '/api/projects/register', { rootDir: projA, projectId: 'alpha' })
     expect(regA.status).toBe(201)
@@ -90,23 +126,18 @@ describe('multi-watcher', () => {
     if (entryB?.watcher) await entryB.watcher.ready()
 
     // Write a plan to project A only
-    const eventPromise = waitForEvent(built.eventBus, (e) =>
-      e.kind === 'state-change' && 'projectId' in e && e.projectId === 'alpha'
-    )
+    const eventPromise = waitForEvent(built.eventBus, (e) => isDataChangedFor(e, 'alpha'))
     await writeFile(join(projA, '.atomic-skills', 'project-status', 'plans', 'test-a.md'), PLAN_MD('test-a'))
 
     const events = await eventPromise
 
-    const stateChanges = events.filter((e): e is StateChangeEvent => e.kind === 'state-change')
-    const alphaEvents = stateChanges.filter((e) => e.projectId === 'alpha')
-    const betaEvents = stateChanges.filter((e) => e.projectId === 'beta')
+    const alphaEvents = events.filter((e) => isDataChangedFor(e, 'alpha'))
+    const betaEvents = events.filter((e) => isDataChangedFor(e, 'beta'))
 
     expect(alphaEvents.length).toBeGreaterThanOrEqual(1)
     expect(betaEvents.length).toBe(0)
 
-    // Cleanup watchers
     await built.registry.clear()
-    // v0.1 global watcher removed; per-project watchers cleaned up by registry.clear()
   }, 10000)
 })
 
@@ -114,7 +145,7 @@ describe('multi-watcher', () => {
 
 describe('unregister watcher', () => {
   it('unregistering a project stops its watcher without affecting the other', async () => {
-    const built = buildApp({ rootDir: projA, skipWatcher: false, demo: false, version: 'test' })
+    const built = await buildWithConsumers(projA)
 
     await post(built.app, '/api/projects/register', { rootDir: projA, projectId: 'alpha' })
     await post(built.app, '/api/projects/register', { rootDir: projB, projectId: 'beta' })
@@ -132,25 +163,22 @@ describe('unregister watcher', () => {
     expect(built.registry.get('alpha')).toBeUndefined()
 
     // Write to projB and verify events still come through
-    const eventPromise = waitForEvent(built.eventBus, (e) =>
-      e.kind === 'state-change' && 'projectId' in e && e.projectId === 'beta'
-    )
+    const eventPromise = waitForEvent(built.eventBus, (e) => isDataChangedFor(e, 'beta'))
     await writeFile(join(projB, '.atomic-skills', 'project-status', 'plans', 'test-b.md'), PLAN_MD('test-b'))
     const events = await eventPromise
 
-    const betaEvents = events.filter((e) => e.kind === 'state-change' && 'projectId' in e && e.projectId === 'beta')
+    const betaEvents = events.filter((e) => isDataChangedFor(e, 'beta'))
     expect(betaEvents.length).toBeGreaterThanOrEqual(1)
 
     await built.registry.clear()
-    // v0.1 global watcher removed; per-project watchers cleaned up by registry.clear()
   }, 10000)
 })
 
-// ─── F1-G4: watcher error isolation ────────────────────────────────────
+// ─── F1-G4: watcher isolation ──────────────────────────────────────────
 
 describe('watcher isolation', () => {
-  it('watcher error in one project does not block events from another', async () => {
-    const built = buildApp({ rootDir: projA, skipWatcher: false, demo: false, version: 'test' })
+  it('a file change in one project does not block events from another', async () => {
+    const built = await buildWithConsumers(projA)
 
     await post(built.app, '/api/projects/register', { rootDir: projA, projectId: 'alpha' })
     await post(built.app, '/api/projects/register', { rootDir: projB, projectId: 'beta' })
@@ -160,21 +188,17 @@ describe('watcher isolation', () => {
     if (entryA?.watcher) await entryA.watcher.ready()
     if (entryB?.watcher) await entryB.watcher.ready()
 
-    // Write a malformed plan to projA to trigger a parse error
+    // A malformed plan in projA (watcher no longer parses entities — it just
+    // emits data_changed) must not block projB's events.
     await writeFile(join(projA, '.atomic-skills', 'project-status', 'plans', 'bad.md'), '---\ninvalid: yaml: "broken\n---\n# bad')
 
-    // Write a valid plan to projB
-    const eventPromise = waitForEvent(built.eventBus, (e) =>
-      e.kind === 'state-change' && 'projectId' in e && e.projectId === 'beta'
-    )
+    const eventPromise = waitForEvent(built.eventBus, (e) => isDataChangedFor(e, 'beta'))
     await writeFile(join(projB, '.atomic-skills', 'project-status', 'plans', 'good.md'), PLAN_MD('good'))
     const events = await eventPromise
 
-    // Beta's valid events should still arrive regardless of alpha's error
-    const betaChanges = events.filter((e) => e.kind === 'state-change' && 'projectId' in e && e.projectId === 'beta')
+    const betaChanges = events.filter((e) => isDataChangedFor(e, 'beta'))
     expect(betaChanges.length).toBeGreaterThanOrEqual(1)
 
     await built.registry.clear()
-    // v0.1 global watcher removed; per-project watchers cleaned up by registry.clear()
   }, 10000)
 })

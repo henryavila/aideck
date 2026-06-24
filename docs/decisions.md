@@ -426,3 +426,503 @@ The recommended refactor (deferred above) was then done, behavior-preserving:
 - **`useStatuses(props)`** (`composables/useStatuses.ts`) returns the `computed(() => props.config.statuses)` that had been copy-pasted into 10 widgets (Accordion, Badge, Card, Kanban, KeyValue, List, PhaseTimeline, Table, Timeline, TreeView). Each now calls it; `StatusOverrides` imports dropped where newly unused. CalloutWidget still legitimately omits it (resolves an internal `variant` enum, not consumer data).
 - **`toneForValue(value, bands, fallback='neutral')`** + `ToneBand` (`utils/status.ts`) replaces the hand-rolled "highest ascending band ≤ value" loop in Sparkline (fallback `neutral`), ProgressBar (`[30→warning,50→info,90→success]`, fallback `error`), and PhaseTimeline (`[1→warning,50→info,100→success]`, fallback `neutral`). Divergent cutoffs stay as per-widget band consts; only the loop is shared. Unit tests assert it reproduces each widget's prior thresholds exactly.
 - **Client has no typecheck** (both tsconfigs exclude `src/client`); the safety net was `vite build` (compile + import resolution) + new `status-util` unit tests + a `widget-smoke` test that mounts all 12 refactored widgets. `npx vitest run` passes apart from the documented flaky chokidar watcher/throttle suite (untouched here).
+
+---
+
+## 2026-06-16 — Watcher de-leak (hard-cut): manifest-driven classification
+
+### Context
+The last residual domain leak in the otherwise-agnostic runtime was the file watcher +
+path classifier (`src/server/watcher.ts`, `src/server/writers/paths.ts`). They hardcoded
+`project-status` concepts: `ENTITY_DIRS = {plans, initiatives, …}`, the §2d nested
+`projects/<id>/<slug>/plan.md` + `phases/` layout, `EntityKind = 'plan'|'initiative'|…`,
+`DEFAULT_CONSUMER = 'project-status'`, and the watcher parsed `Plan`/`Initiative` entities
+to ship on a `state-change` event. The §2d branch existed only so the **generic v2
+dashboard** got live-refresh for project-rooted dataSources — coupling the generic watcher
+to one consumer's domain.
+
+### Decision: hard-cut (user-chosen), manifest-glob-driven watching
+- The watcher now classifies a changed entity/data file by matching its path against each
+  **registered consumer's `root: 'project'` dataSource globs** (`classifyByManifests` in
+  `src/server/watch-classify.ts`, using a new pure `pathMatchesGlob` extracted from
+  `data-source-reader.ts`), and emits the already-generic `data_changed` event keyed by the
+  matched consumer. The client (`WidgetRenderer`) only ever filtered on `event.consumer`, so
+  `state-change`'s `entity`/`entityKind`/`slug` payload was dead weight — `StateChangeEvent`
+  is removed entirely. `intents.ts` emits `data_changed` too.
+- `paths.ts` keeps only generic helpers + a `classifyFile`/`extractConsumerId` that knows
+  the three **universal aiDeck subdirs** (`annotations`/`highlights`/`inbox`) under the
+  explicit `<consumer>/` layout. No flat-layout fallback, no `DEFAULT_CONSUMER`.
+- `/api/state` (`state.ts`) dropped its `DEFAULT_CONSUMER` flat dual-scan; it reads only the
+  explicit `<consumer>/{plans,initiatives}/` layout and is now legacy (superseded by the
+  generic project-scoped data endpoints).
+- The watcher gained access to the `ConsumerRegistry` via the factory in `index.ts`; a new
+  `ServerOptions.aideckBaseDir` seam lets tests/embedders point the consumer scan at a temp
+  dir instead of the real `~/.aideck`.
+
+### Cross-repo coordination (required)
+`project-status` is no longer a hardcoded first-class consumer for watching — it must ship a
+manifest like any other consumer. Wrote `docs/handoffs/atomic-skills-manifest.md` with the
+exact `manifest.yaml` (project-rooted globs matching the existing `.atomic-skills/` layout —
+no data moves) and a sequencing note: atomic-skills publishes + registers the manifest
+**before** this hard-cut lands, else project-status loses live-refresh.
+
+### Verification
+`tsc --noEmit` clean; **668/668 `npx vitest run` pass**. New tests: `pathMatchesGlob` +
+`classifyByManifests` (`watch-classify.test.ts`), watcher emits `data_changed` on a
+manifest-glob match and stays silent on an unmatched path. The `watcher.test`/`paths.test`/
+`intents.test`/`sse-project-filter`/`multi-watcher` suites were rewritten off `state-change`.
+The malformed-plan watcher test was dropped (the watcher no longer parses entities — parse
+errors surface at read time via the data endpoints).
+
+## 2026-06-16 — DS v2.1 widget extension: 6 new widgets + callout/progress enhancements
+
+### Context
+The `aiDeck DS` claude.ai/design project gained a v2.1 widget batch (`prompts/11-widgets-extension.md`,
+`ui_kits/dashboard/widgets-new.jsx`, and seven `preview/widget-*` cards). Implemented the new
+runtime widgets to match. Everything stays domain-agnostic per the canonical pattern: each widget
+reads consumer-supplied **field names** with neutral defaults, and resolves consumer **status values**
+to one of the 5 DS tones via `statusInfo(value, config.statuses)` (the §0.2 tone rule). No domain
+vocabulary enters a prop name, default, or value→meaning dictionary.
+
+### New widgets (registered in `WidgetRenderer.widgetMap`)
+- **`stepper`** (`StepperWidget.vue`) — compact ordered step sequence. `horizontal` pills + connectors,
+  `vertical` numbered timeline with `dependsOn` + optional selectable/`linkTo` rows, and a frameless
+  `dense` dot row for table cells. `currentId`/`currentField` draws the "you are here" info ring.
+- **`status-list`** (`StatusListWidget.vue`) — short items with a status chip or `annotation`;
+  `groupBy`/`groupOrder` sections with counts; `variant: checklist` renders ✓/×/· criteria with a mono `meta`.
+- **`headline-banner`** (`HeadlineBannerWidget.vue`) — big mono aggregate number + tone-coded lane strip
+  (one bar per record, faded when inactive). `count` falls back to `source.length`; a zero aggregate
+  renders "0", not an empty state.
+- **`collection-grid`** (`CollectionGridWidget.vue`) — auto-fit `minmax(minColWidth,1fr)` grid that repeats
+  a slot-composed card per record (reuses CardWidget's `header`/`body`/`footer` WidgetSlot pattern).
+  `attention:{when,gt|eq,tone}` paints a conditional border + ring; `live:{when}` adds `.is-live`.
+- **`record-switcher`** (`RecordSwitcherWidget.vue`) — detail-page `<h1>` trigger + scrollable dropdown;
+  selection is router navigation (`resolveRowLink(linkTo, …)`); "current" = the record whose resolved
+  link equals `route.path` (fallbacks: `idField`==`route.params[paramField]`, else first). Closes on
+  pick / outside-click / Escape.
+- **`catalog`** (`CatalogWidget.vue`) — full-height (single-layout) master-detail browser. Toolbar search +
+  facet chips (AND-filter, union of all records' `facetsField`); detail sections render only when present
+  (`summary`/`examples`/`pros·cons`/`subItems`/`fields`/`deps·outputs`/`refs`); `refs` chips re-select the
+  matching record (the navigable graph).
+
+### `stepper` key reassignment (supersedes the 2026-05 alias)
+The earlier "PhaseTimeline → generic `stepper`" note registered `stepper` as an **alias of**
+`PhaseTimelineWidget`. The DS v2.1 prompt #1 defines `stepper` as a **distinct** compact widget, explicitly
+contrasted with the exploded phase cards ("sequência macro + andamento micro = `stepper` + labeled
+`progress` lado a lado"). So `stepper` now maps to the new `StepperWidget`; the exploded phase cards keep
+their descriptive `phase-timeline` key. **Safe in practice**: a repo-wide grep found no consumer manifest,
+fixture, or demo binding `widget: stepper` — only the registry line, this log, and an example-vocabulary
+comment. The DS is authoritative for widget vocabulary (Iron Law: docs win), and the user asked for the DS
+as built.
+
+### Enhancements (additive, backward-compatible)
+- **`callout`** — added an uppercase tone-colored `eyebrow` (above body) and a direct `tone`
+  (`success|warning|error|info|neutral`) that overrides the legacy `variant→tone` mapping; `variant`
+  still works. Empty state now also considers `eyebrow`.
+- **`progress-bar`** — added `tone` (forced fill: a DS tone or a status value; per-row `colorField` still
+  wins), `valueText`/`valueTextField` (custom right-aligned head text, e.g. `5/12`), `caption`/`captionField`
+  (subtle line below), and `segmented` (max ≤ 40 discrete cells, value filled) for discrete counts.
+- **`card`** already supported `header`/`body`/`footer` slot composition (the record-card preset is a
+  consumer composition, not new code).
+
+### Deferred
+The `header-nav`/command-palette **`?`-help action** (open a consumer-declared `catalog` page from the
+chrome, active state while open) touches the app shell more deeply than a leaf widget and is left for a
+focused follow-up. The existing `CommandPalette.vue` is unchanged.
+
+### Verification
+`tsc --noEmit` clean; **699/699 `npx vitest run` pass** (was 668 — +31: 10 new smoke mounts in
+`widget-smoke.test.ts` and 21 success-gate assertions in `ds-v2.1-widgets.test.ts`). The `build.test.ts`
+`vite build` passes, so all six new SFCs compile, not just mount. New widgets live entirely under
+`src/client/components/widgets/`; the only shared edit is the `widgetMap` registry (+ the `stepper` repoint).
+
+## 2026-06-17 — DS v2.1 nav/chrome/status (agnostic), additive on schemaVersion 0.1
+
+Context: the atomic-skills redesign handoff (`docs/handoffs/atomic-skills-dashboard-redesign/`)
+proposed a v2.0 manifest grammar (`schemaVersion: "2.0"`, a `sources:` map, a `chrome` block,
+an aggregation engine, an `emits` bus, ~11 domain-named widgets). Validated against the live
+runtime and the code; decisions below.
+
+### Schema stays `0.1` — extend additively, no 2.0 bump
+The only truly breaking item in the v2.0 sample is `sources:` map vs `dataSources:` array
+(cosmetic). Bumping a major version for that trips Iron Law #3 (version mismatches are refused,
+never coerced) for no real gain. Every valuable capability is **additive** to 0.1 (optional
+fields). So consumers migrate by *adopting new optional fields*, not by a version jump — fastest
+path off the legacy manifest, and every consumer benefits. The `sources:`-map ergonomics are
+deferred (not worth the break).
+
+### Domain-named widgets are NOT built (de-leak upheld)
+`handoff-manifest-e-componentes.md §3` lists `front-card`, `parallelism-banner`, `project-grid`,
+`phase-timeline`, `skill-catalog`, `plan-picker`, etc. That doc predates the de-leak; the
+**converged** design (`manifest.sample.yaml` + `CONTRAST-aideck-gaps.md`) uses the generic v2.1
+widgets (`stat`, `collection-grid`, `callout`, `catalog`, `headline-banner`, `record-switcher`,
+`stepper`, `status-list`, `progress`) with domain pushed into config + `statusMap` + emitter-
+derived fields. Treated as design rationale, not a build list. aiDeck core privileges no domain
+vocabulary (Iron Law).
+
+### Shipped this turn (all additive, agnostic, backward-compatible)
+- **`nav.style: sidebar` is now live** (was dead config — silent false-green). When set, the
+  active consumer's pages render nested under it in `Sidebar.vue` (`.page-row`), and
+  `ConsumerPage.vue` suppresses the in-page tab bar. Default/`tabs` unchanged. Both the chrome
+  and the page body read ONE manifest via the new `useActiveManifest` composable (module-scoped
+  singleton → single fetch, shared reactivity; `__resetActiveManifest()` for test isolation).
+- **`help: <pageSlug>` top-level** + the chrome `?` is wired (`ChromeHeader` emits `open-help`;
+  `App.vue` routes to the help page; `helpActive`/`aria-pressed` when on it). The button is now
+  **hidden** when no help page is declared (was an always-present inert button). `help` is
+  refined to a declared page slug — a dangling slug is a parse error, not a dead button.
+- **Page `icon` + `nav.showIcons`** render in tabs and sidebar page rows (was a no-op). aiDeck
+  ships no icon font, so token icons (`mdi:*`) degrade to a neutral `◆` via the shared
+  `utils/icon.ts`; literal glyphs/emoji render. `showIcons` defaults **off** (no regression for
+  existing consumers). Page `route` override is now honored for tab/sidebar link targets.
+- **Top-level `statusMap`** (consumer status word → DS tone, bare `active: info` or full triple).
+  Threaded as a per-widget default via provide/inject (`STATUS_MAP_KEY`) merged under each
+  widget's `config.statuses` in `WidgetRenderer` — a widget's own `config.statuses` still wins.
+  **Zero widget changes** (they already read `config.statuses`). `normalizeStatusMap` in
+  `utils/status.ts`.
+- **`progress` widget alias** → `ProgressBarWidget` (`type: progress` rendered "Unknown widget").
+
+### Deferred to a Phase 2 (need their own design pass; specced in the atomic-skills handoff)
+Source aggregation (`agg: count|ratio|sum`, `where`, `of`); `repeat: { source }` fan-out; the
+cross-widget `emits`/`set` state bus; `fieldMap` role-binding; command-palette indexing records;
+a cross-project Panorama landing + ProjectRegistry; a richer `chrome:` block (the top-level
+`help:` is forward-compatible — it can later fold into `chrome.help`). An icon font for `mdi:*`.
+
+### Verification
+`tsc --noEmit` clean; **720/720 `npx vitest run` pass** (+21); `vite build` succeeds (SFCs
+compile). New: `useActiveManifest.ts`, `utils/icon.ts`; new tests for schema (`help`/`statusMap`/
+`nav`), `normalizeStatusMap`, `iconGlyph`, Sidebar nesting, and the chrome help button.
+
+## 2026-06-17 (round 2) — DS v2 engine extensions (agnostic, additive on 0.1)
+
+Owner direction: implement everything aiDeck-side that the atomic-skills redesign needs, keeping
+it generic; aiDeck **computes aggregations at read time** (vs the emitter precomputing). Scope =
+the agnostic engine; `emits` bus + cross-project Panorama remain deferred. Supersedes the round-1
+"Deferred to a Phase 2" note for the items below. Full contract + consumer migration steps live in
+`docs/handoffs/to-atomic-skills-v2-engine-contracts.md`.
+
+### Shipped (all additive, schemaVersion stays 0.1)
+- **Source aggregation `agg: count|ratio|sum` + `where` + `of` + `ratioFormat`** on a `source`
+  binding (`utils/aggregate.ts`, pure/tested). `where` operators: equality, boolean, `"*"` (exists),
+  `in`, `gt/gte/lt/lte`, `ne`, `exists` — multiple fields ANDed. The widget still receives its
+  records (lanes/lists intact); the scalar is injected into `config.value` (+ raw
+  `aggCount/aggTotal/aggRatio`); author `config.value` wins. This moves count/ratio computation out
+  of the consumer emitter — a pure regenerable read, not authoritative state (canonical-data-pattern).
+- **Array filters**: `filter: { status: [active, paused] }` = membership; scalar stays strict
+  equality (no regression).
+- **`fieldMap: { role: field }`** expands to flat `config.<role>Field` keys before render (author
+  `<role>Field` wins). Zero widget changes — sugar over the existing `*Field` convention.
+- **`repeat: { ref, filter?, param? }`** fans out one widget instance per record of another source
+  (each record = the instance scope; nested data via slots). The string group-by form is unchanged.
+- **`commandPalette.records[]`** (top-level): opt-in ⌘K record indexing with `titleField`/
+  `subtitleField`/`route` (`:consumerId` + `:field` tokens). Records rank above pages.
+
+### Delivery choices worth recording
+- Aggregation is delivered by **config injection**, not by replacing `source`, because widgets like
+  `headline-banner` need both the number AND the per-record list (lanes). The uniform mechanism is
+  `source.agg` (not a `count:{agg}` object inside config — the design sample's per-widget form was
+  reinterpreted to the binding form so it works for every widget).
+- `fieldMap`/`statusMap`/`agg` all layer in one `effectiveConfig` computed in `WidgetRenderer`,
+  author-overridable, skipped when absent (no churn to the common config object).
+
+### Still deferred (unchanged)
+`emits`/`set` cross-widget bus; cross-project Panorama + ProjectRegistry (default page remains the
+landing); rich `chrome:` block; an icon font for `mdi:*` tokens (consumers use emoji/glyph meanwhile).
+
+### Verification
+`tsc --noEmit` clean; **739/739 `npx vitest run` pass** (+19 over round 1); `vite build` green.
+New: `utils/aggregate.ts` + tests (`aggregate.test.ts`), schema grammar tests, and WidgetRenderer
+gate tests for agg injection and `repeat:{source}` fan-out.
+
+## 2026-06-17 (round 3) — cross-widget emits/state bus (closes the agnostic engine)
+
+Owner: "continue com a implementação completa." Implemented the last agnostic engine feature from
+the DS — same-page cross-widget selection without navigation. Cross-project Panorama remains the
+only deferred item (decision G4 stands: a consumer's default page is its landing).
+
+- **Page-state bus** (`composables/usePageState.ts`, `PAGE_STATE_KEY`): a reactive, page-scoped
+  `Record<string, unknown>`, provided by `ConsumerPage` and **reset on every navigation** (consumer
+  or page). Ephemeral UI state, never canonical data.
+- **`emits: { select: { set: <key>, value?: <field> } }`** on a widget binding: WidgetRenderer
+  listens for the widget's `select` event and writes `pageState[key]` (the selected id, or the named
+  field of the selected record).
+- **`source.param.match` gains `{ field, state }`** — match a record field against a page-state key,
+  alongside the existing `{ field, param }` (route) and bare-string forms. An unset key skips the
+  clause (reader shows all → graceful default). WidgetRenderer snapshots page state synchronously
+  before its first await so `watchEffect` tracks bus changes (same discipline as route params).
+- **`stepper` is the wired emitter**: `selectable` steps emit on click AND seed the bus with the
+  **current** step on load, so the dependent widget defaults to "current" before any click. Other
+  selecting widgets (record-switcher, catalog) keep their router/internal selection and can adopt
+  `@select` later with no contract change — the bus is opt-in per binding.
+
+Why a bus and not just routing: routing already covers cross-*page* drill-down; the bus covers
+*same-page* re-scoping (the DS's phase-timeline → focus-panel interaction) without a navigation.
+
+### Verification
+`tsc --noEmit` clean; **744/744 `npx vitest run` pass** (+3); `vite build` green. New: `usePageState.ts`,
+`emits-bus.test.ts`; schema + StepperWidget emit wiring. Handoff `to-atomic-skills-v2-engine-contracts.md`
+updated (emits moved from deferred → §A11 with full contract).
+
+## 2026-06-17 (round 3b) — landing page treatment (G4 in practice)
+
+A `default: true` page is the consumer's landing. Beyond rendering at `/:consumerId` (existing), the
+sidebar now (a) **pins the landing page to the top** of the nested page list regardless of its
+`pages:` array position (`pinLanding`), and (b) reads the landing row **active at the consumer root**
+(`activePageSlug = route.pageSlug ?? landingSlug`), closing the rough edge where the root URL showed
+the landing content with no highlighted row. Pure helpers `landingSlug`/`pinLanding` in
+`useActiveManifest.ts` (tested); wired in `App.vue` without touching `currentPageSlug` (so `helpActive`
+is unaffected). Still per-consumer — the cross-project Panorama remains the only deferred item.
+748 tests pass (1 pre-existing perf test flakes only under heavy parallel load; green in isolation).
+
+## 2026-06-17 (round 4) — cross-project read (reverses the G4 Panorama deferral)
+
+The atomic-skills owner confirmed the Panorama must aggregate **all projects at once** (they run
+several in parallel). That's a concrete need, so the cross-project capability — previously deferred
+under G4 — is implemented as a single agnostic primitive, NOT a special domain page.
+
+- **`source.scope: 'all-projects'`** (schema, default `'project'`): read a `root: project` dataSource
+  across every registered project, merged, each record tagged with `projectId`. New server endpoint
+  `GET /api/consumers/:id/all-projects/data/:ds` loops `registry.list()`, reads each `rootDir`, tags
+  + concatenates; a project lacking the collection is skipped (not an error). Client
+  `fetchDataSourceAllProjects` + `WidgetRenderer` route `scope: all-projects` to it (ignoring the
+  selected-project scope). A `root: consumer` source reads once.
+- **No new widgets, nothing new in the consumer emitter.** The Panorama composes from existing
+  pieces: cross-project totals via `agg`/`where` over `scope: all-projects`, per-project sections via
+  the string `repeat: projectId` (group-by), and `default: true` to make it the landing.
+- This is still **per-consumer** (atomic-skills' own projects) — not cross-*consumer*. That keeps it
+  within the canonical-data-pattern (pure read over the consumer's registered project roots).
+
+### Verification
+`tsc --noEmit` clean; **753/753 `npx vitest run` pass** (+9); `vite build` green. New server route test
+(merges 2 projects, tags projectId), client scope-routing test, schema scope tests. Handoff
+`to-atomic-skills-v2-engine-contracts.md` updated: §A12 added, Panorama removed from §C (deferred),
+§B1 gains a Panorama build step.
+
+
+## 2026-06-17 (round 5) — remote access via Tailscale Serve (`--expose`)
+
+Henry accesses the host remotely (phone, via Tailscale) and needs the dashboard reachable
+off-box. We evaluated reusing `~/mdprobe` as a proxy and **rejected it**: mdprobe's expose
+layer only exposes its *own* server — there is no generic "expose any local port". The
+primitive it wraps is the real answer, so aiDeck grows its own thin expose layer.
+
+- **Mechanism — Tailscale Serve, never Funnel.** New `src/server/expose/index.ts` (TS port
+  of mdprobe's pattern) drives `tailscale serve --bg --https=<exposePort> <localPort>`,
+  reads back `tailscale serve status --json` to confirm the mapping, and resolves
+  `https://<Self.DNSName>:<exposePort>`. Funnel (public internet) is never invoked — the
+  tailnet stays private. Three providers: `off` (default), `tailscale`, `external` (user
+  owns the proxy; aiDeck just records the https base for CORS + the env-file).
+- **Iron Law #4 preserved.** aiDeck's socket still binds `127.0.0.1` only; exposure is an
+  out-of-process proxy. CLAUDE.md §4 reworded to permit private-tailnet Serve and explicitly
+  forbid Funnel. Operational failures (tailscale down, access denied) degrade to local-only
+  with a warning — they never throw.
+- **CORS.** `corsMiddleware(allowedRemoteHost?)` accepts exactly the resolved remote host's
+  origin in addition to localhost (no wildcard). Threaded via `ServerOptions.remoteHost`.
+  The Vue client was already proxy-safe (`api.ts` uses relative `BASE = ''`; SSE uses `/sse`).
+- **Security note (no extra gate, by decision).** When exposed, any tailnet peer can reach
+  reads AND writes (aiDeck has no auth). Acceptable for a personal single-user tailnet; the
+  CLI prints a loud warning. Per-write loopback gating was considered and deferred.
+- **Surface.** New flags `--expose`, `--expose-port` (default 8443), `--remote-base-url`.
+  `~/.aideck/env` gains `AIDECK_REMOTE_URL`. Status bar / chrome header now show the real
+  `window.location` host instead of a hard-coded `127.0.0.1`.
+
+### Verification
+`tsc --noEmit` clean; **782/782 `npx vitest run` pass** (+29: expose, cors, args, env-file).
+End-to-end (manual, on-box): `aideck serve --expose=tailscale` prints Local + Remote, the
+ts.net URL opens from a phone with live SSE, Ctrl-C tears the mapping down. Tracked as the
+standalone initiative `aideck-remote-access-tailscale`.
+
+## 2026-06-19 — nav.style: 'projects' (generic project-centric shell)
+
+A third, additive `nav.style` for consumers whose `root: 'project'` dataSources register N
+projects and want a project-centric shell: a fixed cross-project landing pinned at the top of
+the sidebar + the registered projects listed as the primary nav unit (instead of the
+consumer-list). `tabs`/`sidebar` are unchanged.
+
+- **Zero domain leak (⛔ GATE).** aiDeck stays domain-agnostic: the feature uses only generic
+  primitives already present (`consumers`, `projects`/project-registry, `pages`, `scope`).
+  Every human label comes from the manifest — `nav.projectsLabel` (defaults to the generic
+  English `"projects"`), never a hardcoded consumer word. Enforced by
+  `tests/unit/client/nav-projects-domain-gate.test.ts`, which fails if any consumer-domain
+  token (`atomic-skills`, `initiative`, `panorama`, `foco`, `frente`, `gate`, `plan`, `phase`,
+  `task`) leaks into the generic shell surface.
+- **Why scan source, not `git diff main`.** The handoff asked the gate to grep the diff. This
+  branch already carries unrelated DS-v2 work whose diff legitimately mentions some of those
+  words in comments/examples, so a raw `git diff main` grep would be dominated by pre-existing
+  noise and flaky. The gate instead scans the *feature-owned generic shell files*
+  (`Sidebar.vue`, `App.vue`, `ConsumerPage.vue`, `useActiveManifest.ts`, `useProjects.ts`, and
+  the `navSchema` block) — the precise, CI-stable enforcement of the same invariant. Whole-word
+  matching so `aggregate`/`navigate` never trip on "gate".
+- **No new page-level primitive.** "Project pages" = every page *except* the landing
+  (`nonLandingPages`); the landing is `nav.landingPage` (else the `default: true` page,
+  `resolveLandingSlug`). No page-level `scope` field was added — the existing binding-level
+  `scope: project | all-projects` already expresses cross-project vs per-project data.
+- **Scope via URL.** Selecting a project navigates to its first project page with `?project=`
+  (reusing `selectedProjectId`); the selected project's row expands to its pages. The landing
+  (consumer root) carries no project query — it is cross-project. `ConsumerPage` now also
+  watches `route.query.project` so sidebar-driven switches sync the provided scope. Breadcrumb
+  in projects mode: `consumer / project / page` (project shown only on a scoped page).
+- **Schema guard.** `nav.landingPage` is refined to a declared page slug (mirrors the `help`
+  refine) — a dangling landing would silently route the root to nothing.
+
+### Verification
+`tsc --noEmit` clean; **798/798 `npx vitest run` pass** (+17: schema, sidebar projects, gate).
+End-to-end proof (real server + real registry + real `Sidebar.vue` render) confirmed the
+neutral `acme`/`workspaces` consumer: schema accepts `nav.style: projects`, the registry lists
+`web/api/mobile`, and the sidebar pins the landing + lists the projects + scopes pages on
+select. Styled artifact: `docs/handoffs/nav-style-projects-impl.visual.html`.
+
+## 2026-06-19 — page.showInNav (reachable-but-unlisted pages)
+
+Additive page-level primitive `showInNav?: boolean` (default `true`) on all three page
+layouts (`sections`/`grid`/`single`). A consumer can now declare a page that stays fully
+reachable — by direct route and via `help`/`?`/`commandPalette` — but does **not** appear in
+the shell nav. The motivating case is a "help" page opened only from the chrome `?` button,
+but the primitive is generic: the consumer decides what to hide, core privileges no page.
+
+- **Zero domain leak (⛔ GATE).** `showInNav` is a generic shell word; no consumer vocabulary
+  entered the schema, types, or shell components. The existing
+  `nav-projects-domain-gate.test.ts` already scans every file this change touches
+  (`Sidebar.vue`, `ConsumerPage.vue`, `useActiveManifest.ts`) plus the `navSchema` block, so it
+  enforces the invariant on the new code with no extension needed.
+- **Filter at the render surfaces, not in the data pipe.** The predicate (`showInNav !== false`)
+  lives in the two components that actually render nav rows — `Sidebar.vue` (`navPages` for
+  sidebar mode, `navProjectPages` for the projects-mode expansion) and `ConsumerPage.vue`
+  (`navPages` for the tab bar). `App.vue` keeps passing the full page list and the
+  `useActiveManifest` helpers (`nonLandingPages`/`pinLanding`) stay pure: their job is page
+  *identity/order*, not nav *visibility*. This also keeps `Sidebar.vue` self-contained and
+  unit-testable in isolation (the existing `sidebar-nav.test.ts` mounts it directly with props).
+- **Routing is never filtered.** `currentPage` in `ConsumerPage` still resolves against the full
+  page list, so a `showInNav:false` page renders fine on direct navigation; `help`/`?` and the
+  command palette are unaffected. Only the rendered nav rows / tabs are filtered.
+- **A nav row points at the first *visible* page.** The projects-mode project row targets
+  `navProjectPages[0]` (not the first declared page), so clicking a project never deep-links
+  into a hidden page. The tab bar's `> 1` visibility guard and its tail count also use the
+  filtered list, so a single visible page shows no pointless one-tab bar.
+- **Not published.** Ships only on `feat/ds-v2.1-widgets` under `## [Unreleased]`; no version
+  bump or `npm publish` until the owner manually validates the atomic-skills dashboard render.
+
+### Verification
+`tsc --noEmit` clean; **803/803 `npx vitest run` pass** (+5: sidebar nested hide, projects-mode
+expansion hide, project-row targets first visible page, tab-bar hide, hidden page still routable).
+The domain GATE (`nav-projects-domain-gate.test.ts`) stays green over the touched shell files.
+
+## 2026-06-19 — instance lifecycle resilience (split-port root cause + fix)
+
+**Incident.** The dashboard was unreachable from Windows (WSL host) while WSL-internal
+requests worked. Root cause: **two `aideck serve --port=7777` processes coexisting**. An
+older instance received SIGTERM, closed its listen socket, but **hung forever in
+`server.close()`** because that callback fires only once *every* connection drains — a
+long-lived relay/SSE connection never closed. The undead process kept the WSL localhost
+relay's forwarding connection pinned to itself, so Windows traffic (routed there) hung at
+0 bytes while fresh WSL-internal connections hit the healthy replacement. A plain
+`server.close()` with no force path is the defect at the center.
+
+Four lifecycle gaps, each fixed:
+
+- **A — Bounded shutdown.** New `src/server/graceful-shutdown.ts#closeServerGracefully`:
+  stop accepting, drop idle keep-alives immediately (`closeIdleConnections`), and
+  force-destroy lingering connections after a grace window (`closeAllConnections`, default
+  3 s). `RunningServer.stop()` uses it, so a SIGTERM'd instance **always exits** — the zombie
+  class is closed at the source.
+- **B — Cleanup order.** `src/cli/shutdown-sequence.ts#runShutdownSequence` removes the env
+  file **last**, only after the server is actually down (it used to be removed first). A
+  slow stop can no longer leave an orphan invisible to `aideck down`. Proxy teardown is
+  best-effort and never blocks the sequence.
+- **C+D — Reconcile before bind (idempotent `serve`).**
+  `src/server/instance-reconcile.ts#reconcileInstance` runs before binding the target port:
+  a **healthy** aiDeck → `reuse` (no second process, no port hop; registers the current
+  project to refresh data); a **stale/undead** claim → `reclaim` (SIGKILL the orphan if
+  alive, clear stale lock+env, take the same port); otherwise `free`. A genuine *foreign*
+  occupant is left untouched and surfaced by the bind, never killed. This is what stops two
+  servers from splitting one port and honors "reuse the running one, don't move ports".
+- **`restart` command.** `aideck restart` = robust `down` → `serve`
+  (`src/cli/restart.ts#runRestart`). Reliable now that shutdown is bounded.
+
+**Why not just `wsl --shutdown`?** That clears the symptom (relay state) but not the cause;
+the zombie would recur on the next SIGTERM. The fix removes the unbounded wait that created it.
+
+### Verification
+RED→GREEN per defect (the bounded-shutdown regression test reproduces the original hang: a
+held-open connection makes a naive `server.close()` time out at 5 s). New unit suites:
+`graceful-shutdown` (3), `shutdown-sequence` (2), `instance-reconcile` (5), `restart` (2),
+plus a `--help` assertion for `restart`. `tsc --noEmit` clean; full `vitest run` green.
+Not published — same `[Unreleased]` gate as the DS v2.1 work ([[aideck-publish-gate]]).
+
+## SSH local-forward hint — the zero-exposure remote path (detect the real sshd port)
+
+**Context.** On a WSL host, `tailscale serve` was correctly mapping
+`…ts.net:8443 → 127.0.0.1:7777` (cert valid, backend 200, route valid), but a tailnet peer
+could resolve the name yet **not open a TCP connection to :8443** — the serve listener is
+bound to the tailnet IP and inbound connections don't land in this WSL setup, whereas plain
+`sshd` on `0.0.0.0:2222` was reachable from the same peer. The SSH channel is the path that
+demonstrably works.
+
+**Decision.** `aideck serve` now always prints an SSH local-forward command
+(`src/server/expose/ssh-hint.ts`), independent of `--expose`. It is the most generic and most
+secure remote path: aiDeck stays bound to `127.0.0.1` (Iron Law #4), spawns no proxy, uses no
+relay, stores no credential, opens no new surface — the tunnel is the user's own authenticated
+SSH session. aiDeck only prints the command; it never executes it.
+
+The sshd port is **detected, never assumed to be 22**, in precedence order:
+1. `$SSH_CONNECTION` (4th field = the server port the current session arrived on),
+2. `Port` in `/etc/ssh/sshd_config` (+ `sshd_config.d/*.conf`),
+3. fall back to `22` **with a warning** that it's a guess.
+
+Considered and rejected: a full `--expose=ssh` reverse-tunnel provider (`ssh -R` to a relay).
+More powerful but less generic and less secure — needs a relay/jump host, opens a listener
+there, and adds process/teardown/key surface. The hint costs nothing and works anywhere SSH
+does.
+
+### Verification
+`tests/unit/server/ssh-hint.test.ts` (15) covers port parsing, precedence, default+warning,
+and command formatting (`-p` included only for non-default ports). `tsc --noEmit` clean; full
+`vitest run` green (837). Real-host check detected `2222` via `sshd-config`. Not published —
+same `[Unreleased]` gate ([[aideck-publish-gate]]).
+
+## Direct tailnet bind (`--expose=tailnet`) + Host-header allowlist — "expose for real", safely
+
+**Context.** On a WSL host `tailscale serve` mapped `…ts.net:8443 → 127.0.0.1:7777` correctly
+(cert valid, backend 200, route valid) but a tailnet peer could resolve the name yet **not open
+a TCP connection to :8443** — Serve's inbound didn't land in that WSL setup. Meanwhile plain
+`sshd` bound to `0.0.0.0:2222` was reachable from the same peer. The user asked, fairly, why not
+just expose aiDeck directly on the tailnet instead of relying on the Serve proxy.
+
+**Security reasoning (honest).** aiDeck has **no auth** and allows **writes**. The risk was never
+the tailnet itself (WireGuard-encrypted, single-user, ACL'd) — it's the **browser attack
+surface** against a no-auth read/write service. CORS already blocks cross-origin writes (browsers
+always send `Origin` on POST). The residual gap is **DNS rebinding**: a malicious page rebinds its
+hostname to the node's IP and reads data as "same-origin" (GET often omits `Origin`; nothing
+validated `Host`). Binding `127.0.0.1` had been the mitigation. Tailscale **Serve** closes the gap
+for free (its proxy only routes the exact ts.net Host) — which is why it was the only sanctioned
+exposure.
+
+**Decision.** Add a third remote-access provider, `--expose=tailnet`, that binds aiDeck's **own
+socket** to its Tailscale IP, made safe by a **Host-header allowlist**:
+- `src/server/host-guard.ts` — rejects any request whose `Host` isn't loopback / the node's tailnet
+  name / its tailnet IP. Closes rebinding. Present-but-disallowed Host ⇒ 403; absent Host ⇒ allowed
+  (non-browser clients can't rebind and already have unauth access by design). Mounted **only** when
+  directly bound (loopback-only binds don't need it ⇒ zero behavior change for `off`/`tailscale`/
+  `external`).
+- `src/server/index.ts` — `startServer` binds a **second** listener on the Tailscale IP (same app
+  port) **in addition to** loopback; **never `0.0.0.0`** (which on WSL mirrored mode leaks to the
+  LAN). Best-effort: a failed extra bind degrades to loopback-only with a stderr warning.
+- `src/server/expose/index.ts` — `startTailnetDirect` resolves the node's name (`tailscale status`)
+  + IPv4 (`tailscale ip -4`); any tailscale problem degrades to local-only. No proxy, **no TLS**
+  (WireGuard already encrypts the tunnel) → endpoint is `http://<name>:<port>`.
+- `src/server/cors.ts` — now accepts multiple allowed remote hosts (tailnet name **and** IP origins).
+
+This **amends Iron Law #4** (CLAUDE.md updated first): default bind stays `127.0.0.1`, `0.0.0.0`
+stays forbidden, and the direct tailnet bind is permitted ONLY with the Host allowlist enforced. It
+does **not** add authentication — every tailnet device/process still has full read+write (same as
+Serve); acceptable only on a personal, single-user tailnet, and the CLI prints the no-auth warning.
+
+Rejected alternative: an `--expose=ssh` reverse-tunnel provider (`ssh -R` to a relay) — needs a
+relay/jump host, opens a listener there, adds process/teardown/key surface. The `ssh -L` hint
+([[decisions: SSH local-forward hint]]) already covers the zero-exposure case.
+
+### Verification
+New unit suites: `host-guard` (11) and `tailnet` provider cases in `expose` (3), plus multi-host
+`cors` (1). `tsc --noEmit` clean; full `vitest run` green (852, was 837). Real-host smoke (isolated
+`buildApp`, no lock): a socket bound directly to the node's `100.x` IP **accepts** peer-style
+requests (Host = tailnet name/IP → 200) and **403s a forged Host** (rebinding). Not published —
+same `[Unreleased]` gate ([[aideck-publish-gate]]).

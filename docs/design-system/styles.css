@@ -1,0 +1,15 @@
+/* ─────────────────────────────────────────────────────────────────────
+   aiDeck Design System — root stylesheet (single entry point)
+
+   Consumers link THIS file. It pulls in the foundations (every design
+   token + the semantic type presets). The other two CSS files in the
+   repo are intentionally NOT imported here — they are scoped helpers,
+   not part of the global token surface:
+
+     • preview/_card.css        — specimen-card chrome (Design tab only)
+     • ui_kits/dashboard/kit.css — prototype-local layout + widget styles
+
+   Both already pull in the foundations themselves where they need them.
+   ───────────────────────────────────────────────────────────────────── */
+
+@import url('./colors_and_type.css');

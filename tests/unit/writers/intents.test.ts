@@ -45,7 +45,7 @@ describe('appendIntent', () => {
     expect(parsed.intentId).toBe(receipt.intentId)
   })
 
-  it('emits state-change event when eventBus is provided', async () => {
+  it('emits data_changed event when eventBus is provided', async () => {
     const bus = createEventBus()
     const events: unknown[] = []
     bus.subscribe((e) => events.push(e))
@@ -63,10 +63,10 @@ describe('appendIntent', () => {
     })
 
     expect(events).toHaveLength(1)
-    const e = events[0] as { kind: string; consumer: string; slug: string }
-    expect(e.kind).toBe('state-change')
+    const e = events[0] as { kind: string; consumer: string; payload: { file: string } }
+    expect(e.kind).toBe('data_changed')
     expect(e.consumer).toBe('project-status')
-    expect(e.slug).toBe('my-init')
+    expect(e.payload.file).toMatch(/inbox/)
   })
 
   it('does not emit event when eventBus is not provided', async () => {

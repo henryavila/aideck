@@ -37,6 +37,16 @@ describe('writeEnvFile', () => {
     expect(content.split('\n').filter((l) => l !== '').length).toBeGreaterThanOrEqual(3)
   })
 
+  it('writes AIDECK_REMOTE_URL only when a remote URL is provided', async () => {
+    await writeEnvFile({ url: 'http://127.0.0.1:7777', port: 7777 }, { dir: tmp })
+    expect(await readEnvFile({ dir: tmp })).not.toContain('AIDECK_REMOTE_URL')
+    await writeEnvFile(
+      { url: 'http://127.0.0.1:7777', port: 7777, remoteUrl: 'https://box.ts.net:8443' },
+      { dir: tmp }
+    )
+    expect(await readEnvFile({ dir: tmp })).toContain(`export AIDECK_REMOTE_URL='https://box.ts.net:8443'`)
+  })
+
   it('overwrites a pre-existing file via unlink + open(O_EXCL)', async () => {
     await writeEnvFile({ url: 'http://127.0.0.1:7777', port: 7777 }, { dir: tmp })
     await writeEnvFile({ url: 'http://127.0.0.1:7778', port: 7778 }, { dir: tmp })

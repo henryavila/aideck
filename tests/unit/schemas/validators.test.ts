@@ -128,6 +128,56 @@ describe('parsePlan — happy', () => {
   })
 })
 
+describe('parsePlan — fork (spawnedFrom / spawnedPlans)', () => {
+  it('accepts a child Plan with spawnedFrom (pause mode)', () => {
+    const raw = {
+      ...minimalPlan(),
+      slug: 'payment-state-machine',
+      spawnedFrom: { plan: 'checkout-redesign', phaseId: 'F2', mode: 'pause' }
+    }
+    const res = parsePlan(raw)
+    expect(res.ok).toBe(true)
+    if (res.ok) {
+      expect(res.value.spawnedFrom?.plan).toBe('checkout-redesign')
+      expect(res.value.spawnedFrom?.phaseId).toBe('F2')
+      expect(res.value.spawnedFrom?.mode).toBe('pause')
+    }
+  })
+
+  it('accepts spawnedFrom with optional taskId and parallel mode', () => {
+    const raw = {
+      ...minimalPlan(),
+      spawnedFrom: { plan: 'p', phaseId: 'F1', taskId: 'T-004', mode: 'parallel' }
+    }
+    const res = parsePlan(raw)
+    expect(res.ok).toBe(true)
+    if (res.ok) expect(res.value.spawnedFrom?.taskId).toBe('T-004')
+  })
+
+  it('rejects an invalid spawnedFrom.mode', () => {
+    const res = parsePlan({ ...minimalPlan(), spawnedFrom: { plan: 'p', phaseId: 'F1', mode: 'fork' } })
+    expect(res.ok).toBe(false)
+  })
+
+  it('rejects an unknown key inside spawnedFrom (strict)', () => {
+    const res = parsePlan({ ...minimalPlan(), spawnedFrom: { plan: 'p', phaseId: 'F1', mode: 'pause', bogus: 1 } })
+    expect(res.ok).toBe(false)
+  })
+
+  it('accepts a parent Plan whose anchor phase lists spawnedPlans', () => {
+    const phase = { ...samplePhase(), id: 'F2', spawnedPlans: ['payment-state-machine'] }
+    const res = parsePlan({ ...minimalPlan(), phases: [phase] })
+    expect(res.ok).toBe(true)
+    if (res.ok) expect(res.value.phases[0].spawnedPlans).toEqual(['payment-state-machine'])
+  })
+
+  it('leaves a plan without fork fields unchanged (additive/optional)', () => {
+    const res = parsePlan(minimalPlan())
+    expect(res.ok).toBe(true)
+    if (res.ok) expect(res.value.spawnedFrom).toBeUndefined()
+  })
+})
+
 describe('parseInitiative — happy', () => {
   it('accepts an Initiative with parentPlan', () => {
     const raw = {

@@ -7,8 +7,13 @@
       class="section"
       :class="{ collapsed: isCollapsed(i) }"
     >
-      <div class="sec-head">
+      <!-- Header only when the section is titled (a title-less section — e.g. a lone
+           headline banner — renders flush, matching the design). The collapse caret
+           is opt-in (section.collapsible); the sub-line is the manifest's descriptive
+           subtitle, not a widget count. -->
+      <div v-if="section.title || section.subtitle" class="sec-head">
         <span
+          v-if="section.collapsible"
           class="caret"
           role="button"
           tabindex="0"
@@ -16,7 +21,7 @@
           @keydown.enter="toggleSection(i)"
         >{{ isCollapsed(i) ? '▸' : '▾' }}</span>
         <h2 v-if="section.title">{{ section.title }}</h2>
-        <span class="sub">— {{ section.widgets.length }} widget{{ section.widgets.length === 1 ? '' : 's' }}</span>
+        <span v-if="section.subtitle" class="sub">{{ section.subtitle }}</span>
       </div>
       <div
         class="sec-grid"
@@ -46,6 +51,7 @@ import { fetchDataSource } from '../api.js'
 
 interface Section {
   title?: string
+  subtitle?: string
   collapsible?: boolean
   collapsed?: boolean
   columns?: number

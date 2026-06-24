@@ -3,6 +3,8 @@
 // DEFAULT seed: a consumer supplies its own vocabulary via a `statuses` config
 // map (see `statusInfo`), so aiDeck core never privileges one domain's words.
 
+import type { InjectionKey, Ref } from 'vue'
+
 export type Tone = 'success' | 'warning' | 'error' | 'info' | 'neutral'
 
 export interface StatusInfo {
@@ -14,6 +16,26 @@ export interface StatusInfo {
 // A consumer-supplied value -> partial status presentation. Threaded from a
 // widget's `config.statuses`; each field overrides the built-in default.
 export type StatusOverrides = Record<string, Partial<StatusInfo>>
+
+// Manifest-level `statusMap`, provided by the active consumer page and injected
+// by WidgetRenderer as a per-widget default (a widget's own `config.statuses`
+// still wins). Default is empty so widgets outside a consumer page are unaffected.
+export const STATUS_MAP_KEY: InjectionKey<Ref<StatusOverrides>> = Symbol('aideck.statusMap')
+
+/**
+ * Normalize a manifest `statusMap` into `StatusOverrides`. A value may be a bare
+ * tone string (`active: "info"`) or the full triple (`active: { tone, label,
+ * glyph }`); both collapse to a `Partial<StatusInfo>`. Unknown shapes are dropped.
+ */
+export function normalizeStatusMap(raw: unknown): StatusOverrides {
+  if (!raw || typeof raw !== 'object') return {}
+  const out: StatusOverrides = {}
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof value === 'string') out[key] = { tone: value as Tone }
+    else if (value && typeof value === 'object') out[key] = value as Partial<StatusInfo>
+  }
+  return out
+}
 
 const STATUS_MAP: Record<string, StatusInfo> = {
   active: { tone: 'info', label: 'active', glyph: '◉' },

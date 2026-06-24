@@ -60,6 +60,10 @@ export interface Plan extends SchemaVersioned {
   /** Previous plan that this one supersedes, partially or fully. */
   supersedes?: PlanSupersedeRef
 
+  /** Set on a CHILD plan forked out of a parent plan's phase. Bidirectional with
+   *  the parent phase's `spawnedPlans`. Additive — non-forked plans omit it. */
+  spawnedFrom?: SpawnedFrom
+
   /** Cross-document refs (PRD, RUNBOOK, ADRs, external repos, etc.) */
   references?: ArtifactRef[]
 
@@ -105,6 +109,10 @@ export interface PhaseDescriptor {
 
   provenance?: Provenance
   context?: Context
+
+  /** Slugs of child plans forked out of THIS phase. Bidirectional with each
+   *  child's `spawnedFrom`. Additive — phases without forks omit it. */
+  spawnedPlans?: string[]
 }
 
 export interface Provenance {
@@ -169,6 +177,16 @@ export interface PlanSupersedeRef {
   supersedeScope: 'full' | 'partial'
   partialAreas?: string[]
   remainsValid?: string[]
+}
+
+/** Fork link carried by a child plan. `mode` decides how the parent behaves while
+ *  the child runs: `pause` (parent waits) or `parallel` (both active, each in its
+ *  own worktree). */
+export interface SpawnedFrom {
+  plan: string
+  phaseId: string
+  taskId?: string
+  mode: 'pause' | 'parallel'
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

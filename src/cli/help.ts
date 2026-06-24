@@ -5,12 +5,15 @@ USAGE
 
 COMMANDS
   serve           Start HTTP server (dashboard + REST + SSE) on default port 7777
-                  (auto-fallback to 7778..7787 if 7777 is busy and --port not given)
+                  (auto-fallback to 7778..7787 if 7777 is busy and --port not given).
+                  Idempotent: if a healthy instance already holds the port it is
+                  reused (no second process); a stale/undead instance is reclaimed.
   demo            Run HTTP server with seeded fixtures (auto-opens browser)
   mcp             Run MCP server (stdio mode) — connect from Claude Code/Cursor via MCP config
   up              Ensure aideck is running (start if needed) and print the URL
                   Idempotent: reuses existing instance or starts a detached one.
   down            Stop a running aideck instance gracefully
+  restart         Stop the running instance (if any) and start a fresh one
   env             Print shell exports for AIDECK_URL/AIDECK_PORT (use: eval "$(aideck env)")
   validate-file   Validate a data file against its consumer's schema.json
                   Walks up from the file to find manifest.yaml, matches dataSource by path,
@@ -25,6 +28,17 @@ OPTIONS
                           (serve only). API and SSE routes always take priority; any
                           non-API request that does not match a file falls back to
                           <path>/index.html for client-side routing.
+  --expose=<provider>     Remote access for the dashboard (serve only). Default: off.
+                          off        local-only (127.0.0.1), unchanged.
+                          tailscale  run 'tailscale serve' (private tailnet, HTTPS).
+                                     Never Tailscale Funnel — the tailnet stays private.
+                          tailnet    bind a 2nd listener on this node's Tailscale IP
+                                     (never 0.0.0.0), guarded by a Host allowlist.
+                          external   you run your own proxy; just record its URL.
+                          off/tailscale/external keep the socket on 127.0.0.1.
+  --expose-port=<N>       Public HTTPS port for the tailnet endpoint (default 8443).
+  --remote-base-url=<url> Required for --expose=external; the https:// origin your
+                          proxy serves (e.g. https://host.example.ts.net).
   --config=<path>         Path to config file (default: none)
   --id=<id>               Consumer ID (init-consumer)
   --title=<title>         Consumer display title (init-consumer)
@@ -35,6 +49,7 @@ OPTIONS
 EXAMPLES
   aideck demo
   aideck serve --port=8080
+  aideck serve --expose=tailscale          # reach the dashboard from your phone over Tailscale
   aideck serve --static-dir=../atomic-skills/dist/dashboard
   aideck mcp                 # run separately; HTTP and MCP are independent processes
   eval "$(aideck env)"       # source AIDECK_URL/AIDECK_PORT in current shell

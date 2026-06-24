@@ -11,6 +11,9 @@ import '@fontsource/jetbrains-mono/400.css'
 import '@fontsource/jetbrains-mono/500.css'
 import '@fontsource/jetbrains-mono/600.css'
 import '@fontsource/jetbrains-mono/700.css'
+// Self-hosted Material Design Icons webfont — lets a consumer's `mdi:<name>` page
+// icons render as real glyphs (Iron Law #4: bundled, never a CDN).
+import '@mdi/font/css/materialdesignicons.css'
 
 // Design system — order matters (responsive overrides load last)
 import './styles/tokens.css'

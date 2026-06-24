@@ -30,6 +30,220 @@ describe('parseManifest', () => {
     }
   })
 
+  it('accepts nav.style sidebar with showIcons', () => {
+    const raw = { ...minimalManifest, nav: { style: 'sidebar', showIcons: true } }
+    const result = parseManifest(raw)
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.value.nav?.style).toBe('sidebar')
+  })
+
+  it('rejects an unknown nav.style', () => {
+    const raw = { ...minimalManifest, nav: { style: 'rail' } }
+    expect(parseManifest(raw).ok).toBe(false)
+  })
+
+  it('accepts nav.style projects with projectsLabel + landingPage', () => {
+    const raw = {
+      ...minimalManifest,
+      nav: { style: 'projects', projectsLabel: 'workspaces', landingPage: 'home' },
+      pages: [
+        { slug: 'home', title: 'Home', layout: 'sections', default: true, sections: [] },
+        { slug: 'detail', title: 'Detail', layout: 'sections', sections: [] }
+      ]
+    }
+    const result = parseManifest(raw)
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.value.nav?.style).toBe('projects')
+      expect(result.value.nav?.projectsLabel).toBe('workspaces')
+      expect(result.value.nav?.landingPage).toBe('home')
+    }
+  })
+
+  it('accepts nav.style projects without the optional label/landing', () => {
+    const raw = {
+      ...minimalManifest,
+      nav: { style: 'projects' },
+      pages: [{ slug: 'home', title: 'Home', layout: 'sections', default: true, sections: [] }]
+    }
+    expect(parseManifest(raw).ok).toBe(true)
+  })
+
+  it('rejects a nav.landingPage that names no declared page', () => {
+    const raw = {
+      ...minimalManifest,
+      nav: { style: 'projects', landingPage: 'ghost' },
+      pages: [{ slug: 'home', title: 'Home', layout: 'sections', default: true, sections: [] }]
+    }
+    const result = parseManifest(raw)
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.message).toContain('landingPage')
+  })
+
+  it('accepts a help slug that references a declared page', () => {
+    const raw = {
+      ...minimalManifest,
+      help: 'docs',
+      pages: [{ slug: 'docs', title: 'Docs', layout: 'single', widget: 'markdown' }]
+    }
+    const result = parseManifest(raw)
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.value.help).toBe('docs')
+  })
+
+  it('rejects a help slug that names no declared page (no silent dead button)', () => {
+    const raw = {
+      ...minimalManifest,
+      help: 'missing',
+      pages: [{ slug: 'docs', title: 'Docs', layout: 'single', widget: 'markdown' }]
+    }
+    const result = parseManifest(raw)
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.message).toContain('help')
+  })
+
+  it('accepts statusMap with bare-tone and full-triple values', () => {
+    const raw = {
+      ...minimalManifest,
+      statusMap: {
+        active: 'info',
+        blocked: { tone: 'error', label: 'travado', glyph: '⚑' }
+      }
+    }
+    const result = parseManifest(raw)
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.value.statusMap?.active).toBe('info')
+  })
+
+  it('rejects a statusMap value with an unknown tone', () => {
+    const raw = { ...minimalManifest, statusMap: { active: 'turquoise' } }
+    expect(parseManifest(raw).ok).toBe(false)
+  })
+
+  it('accepts a source binding with agg/where/of/ratioFormat', () => {
+    const raw = {
+      ...minimalManifest,
+      pages: [
+        {
+          slug: 'p',
+          title: 'P',
+          layout: 'grid',
+          default: true,
+          widgets: [
+            {
+              widget: 'stat',
+              source: {
+                ref: 'plans',
+                agg: 'ratio',
+                where: { status: 'active', n: { gt: 1 } },
+                of: 'status==done',
+                ratioFormat: 'fraction'
+              }
+            }
+          ]
+        }
+      ]
+    }
+    expect(parseManifest(raw).ok).toBe(true)
+  })
+
+  it('rejects an unknown agg kind', () => {
+    const raw = {
+      ...minimalManifest,
+      pages: [
+        {
+          slug: 'p', title: 'P', layout: 'grid', default: true,
+          widgets: [{ widget: 'stat', source: { ref: 'plans', agg: 'median' } }]
+        }
+      ]
+    }
+    expect(parseManifest(raw).ok).toBe(false)
+  })
+
+  it('accepts fieldMap and repeat:{source} on a widget binding', () => {
+    const raw = {
+      ...minimalManifest,
+      pages: [
+        {
+          slug: 'p', title: 'P', layout: 'grid', default: true,
+          widgets: [
+            {
+              widget: 'card',
+              fieldMap: { title: 'name', status: 'state' },
+              repeat: { ref: 'plans', filter: { status: 'active' } }
+            }
+          ]
+        }
+      ]
+    }
+    expect(parseManifest(raw).ok).toBe(true)
+  })
+
+  it('still accepts the string (group-by) form of repeat', () => {
+    const raw = {
+      ...minimalManifest,
+      pages: [
+        {
+          slug: 'p', title: 'P', layout: 'grid', default: true,
+          widgets: [{ widget: 'list', source: { ref: 'tasks' }, repeat: 'status' }]
+        }
+      ]
+    }
+    expect(parseManifest(raw).ok).toBe(true)
+  })
+
+  it('accepts emits on a binding and a {field,state} param match entry', () => {
+    const raw = {
+      ...minimalManifest,
+      pages: [
+        {
+          slug: 'p', title: 'P', layout: 'grid', default: true,
+          widgets: [
+            { widget: 'stepper', source: { ref: 'phases' }, emits: { select: { set: 'selectedPhase' } } },
+            { widget: 'table', source: { ref: 'inits', param: { match: [{ field: 'phaseId', state: 'selectedPhase' }] } } }
+          ]
+        }
+      ]
+    }
+    expect(parseManifest(raw).ok).toBe(true)
+  })
+
+  it('accepts source.scope: all-projects for a cross-project read', () => {
+    const raw = {
+      ...minimalManifest,
+      pages: [
+        {
+          slug: 'panorama', title: 'Panorama', layout: 'grid', default: true,
+          widgets: [{ widget: 'stat', source: { ref: 'plans', scope: 'all-projects', agg: 'count', where: { status: 'active' } } }]
+        }
+      ]
+    }
+    expect(parseManifest(raw).ok).toBe(true)
+  })
+
+  it('rejects an unknown source.scope', () => {
+    const raw = {
+      ...minimalManifest,
+      pages: [
+        {
+          slug: 'p', title: 'P', layout: 'grid', default: true,
+          widgets: [{ widget: 'stat', source: { ref: 'plans', scope: 'galaxy' } }]
+        }
+      ]
+    }
+    expect(parseManifest(raw).ok).toBe(false)
+  })
+
+  it('accepts a top-level commandPalette.records block', () => {
+    const raw = {
+      ...minimalManifest,
+      commandPalette: {
+        records: [{ ref: 'plans', titleField: 'title', route: '/:consumerId/plan/:slug' }]
+      }
+    }
+    expect(parseManifest(raw).ok).toBe(true)
+  })
+
   it('rejects mcpNamespace with hyphens', () => {
     const raw = { ...minimalManifest, mcpNamespace: 'my-consumer' }
     const result = parseManifest(raw)

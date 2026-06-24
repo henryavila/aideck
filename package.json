@@ -1,6 +1,6 @@
 {
   "name": "@henryavila/aideck",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "AI-native dashboard runtime for developer workflows.",
   "type": "module",
   "bin": {
@@ -38,6 +38,7 @@
   },
   "dependencies": {
     "@hono/node-server": "^1.13.0",
+    "@mdi/font": "^7.4.47",
     "@modelcontextprotocol/sdk": "^1.0.0",
     "chokidar": "^4.0.0",
     "hono": "^4.6.0",

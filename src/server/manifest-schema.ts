@@ -78,9 +78,41 @@ const responsiveOverrideSchema = z.object({
   visible: z.boolean().optional()
 })
 
+// A `where` clause value: a literal (equality / `"*"` = exists) or an operator
+// object. Multiple fields in a `where` map are ANDed. Used to scope aggregates.
+const whereClauseSchema = z.union([
+  z.string(),
+  z.number(),
+  z.boolean(),
+  z.object({
+    in: z.array(z.unknown()).optional(),
+    gt: z.number().optional(),
+    gte: z.number().optional(),
+    lt: z.number().optional(),
+    lte: z.number().optional(),
+    ne: z.unknown().optional(),
+    exists: z.boolean().optional()
+  })
+])
+
 const sourceBindingSchema = z.object({
   ref: z.string().min(1),
   filter: z.record(z.unknown()).optional(),
+  // §8 aggregation (runtime-computed, pure read). `agg` reduces the records the
+  // binding resolves to a scalar; `where` scopes WHICH records the aggregate
+  // counts (defaults to the filtered set, independent of the records the widget
+  // still receives for lists/lanes). `of` is the ratio numerator predicate
+  // (`"field==value"` / `"field!=value"` / `"field"`) or, for `sum`, the numeric
+  // field. The result is injected into the widget config as `value` (+ raw
+  // `aggCount`/`aggTotal`/`aggRatio`); an author-set `config.value` wins.
+  agg: z.enum(['count', 'ratio', 'sum']).optional(),
+  where: z.record(whereClauseSchema).optional(),
+  of: z.string().min(1).optional(),
+  ratioFormat: z.enum(['percent', 'fraction', 'raw']).optional(),
+  // Read scope for a project-scoped source: 'project' (default — the selected
+  // project) or 'all-projects' (every registered project, merged, each record
+  // tagged with `projectId`). 'all-projects' powers a cross-project Panorama.
+  scope: z.enum(['project', 'all-projects']).optional(),
   // §2c drill-down. A string matches a single route param against r.id/r.slug.
   // `{ match: [...] }` matches each entry against a route param: a bare string
   // `"f"` means record[f] === route.params[f]; an object `{field, param}` maps a
@@ -94,7 +126,10 @@ const sourceBindingSchema = z.object({
           .array(
             z.union([
               z.string().min(1),
-              z.object({ field: z.string().min(1), param: z.string().min(1) })
+              z.object({ field: z.string().min(1), param: z.string().min(1) }),
+              // Read from page interaction state instead of a route param: match
+              // record[field] against pageState[state] (set by another widget's `emits`).
+              z.object({ field: z.string().min(1), state: z.string().min(1) })
             ])
           )
           .min(1)
@@ -108,6 +143,13 @@ const sourceBindingSchema = z.object({
  * makes the binding self-referential, so the schema is declared via `z.lazy()`
  * with this hand-written type — the same pattern as `handlerDeclSchema` below.
  */
+/** `repeat: { ref }` — fan out one widget instance per record of `ref`. */
+export interface RepeatSource {
+  ref: string
+  filter?: Record<string, unknown>
+  param?: z.infer<typeof sourceBindingSchema>['param']
+}
+
 export interface WidgetBinding {
   widget: string
   colSpan?: number
@@ -117,7 +159,15 @@ export interface WidgetBinding {
   maxColSpan?: number
   source?: z.infer<typeof sourceBindingSchema>
   config?: Record<string, unknown>
-  repeat?: string
+  // §0.3 role→field sugar: `{ title: name }` expands to `config.titleField = 'name'`
+  // before render (author-set `<role>Field` wins). Zero widget changes.
+  fieldMap?: Record<string, string>
+  // Cross-widget bus: map a widget event (e.g. `select`) to a page-state write.
+  // `{ select: { set: selectedPhase } }` → selecting writes pageState.selectedPhase.
+  emits?: Record<string, { set: string; value?: string }>
+  // A string groups the widget's own records by that field; an object fans out
+  // one instance per record of another source (each record is the instance scope).
+  repeat?: string | RepeatSource
   repeatDirection?: 'horizontal' | 'vertical'
   maxRepeatColumns?: number
   /** Sibling field whose value labels each repeat group, instead of the raw grouping key. */
@@ -144,7 +194,20 @@ const widgetBindingSchema: z.ZodType<WidgetBinding> = z.lazy(() =>
     maxColSpan: colSpanSchema.optional(),
     source: sourceBindingSchema.optional(),
     config: z.record(z.unknown()).optional(),
-    repeat: z.string().optional(),
+    fieldMap: z.record(z.string().min(1)).optional(),
+    emits: z
+      .record(z.object({ set: z.string().min(1), value: z.string().min(1).optional() }))
+      .optional(),
+    repeat: z
+      .union([
+        z.string(),
+        z.object({
+          ref: z.string().min(1),
+          filter: z.record(z.unknown()).optional(),
+          param: sourceBindingSchema.shape.param
+        })
+      ])
+      .optional(),
     repeatDirection: z.enum(['horizontal', 'vertical']).optional(),
     maxRepeatColumns: z.number().optional(),
     repeatLabelField: z.string().optional(),
@@ -163,6 +226,8 @@ const widgetBindingSchema: z.ZodType<WidgetBinding> = z.lazy(() =>
 
 const sectionSchema = z.object({
   title: z.string().optional(),
+  // Optional descriptive line shown next to the title (design: section sub-caption).
+  subtitle: z.string().optional(),
   collapsible: z.boolean().optional(),
   columns: z.number().int().min(1).optional(),
   gap: z.number().optional(),
@@ -183,6 +248,12 @@ const sectionsPageSchema = z.object({
   icon: z.string().optional(),
   default: z.boolean().optional(),
   route: z.string().optional(),
+  // Nav visibility (generic shell primitive). undefined/true = the page appears in
+  // the shell nav (sidebar / projects expansion / tab bar). `false` = hidden from
+  // nav but still routable and openable via `help`/`?`/commandPalette — a
+  // reachable-but-unlisted page. The consumer decides what to hide; core privileges
+  // no page.
+  showInNav: z.boolean().optional(),
   sections: z.array(sectionSchema).optional()
 })
 
@@ -193,6 +264,7 @@ const gridPageSchema = z.object({
   icon: z.string().optional(),
   default: z.boolean().optional(),
   route: z.string().optional(),
+  showInNav: z.boolean().optional(),
   columns: z.number().int().min(1).optional(),
   rowHeight: z.number().optional(),
   gap: z.number().optional(),
@@ -208,6 +280,7 @@ const singlePageSchema = z.object({
   icon: z.string().optional(),
   default: z.boolean().optional(),
   route: z.string().optional(),
+  showInNav: z.boolean().optional(),
   widget: z.string().optional(),
   source: sourceBindingSchema.optional(),
   config: z.record(z.unknown()).optional()
@@ -279,9 +352,60 @@ const customComponentSchema = z.object({
 })
 
 const navSchema = z.object({
-  style: z.enum(['tabs', 'sidebar']).optional(),
-  showIcons: z.boolean().optional()
+  // 'projects' = a project-centric shell: a fixed cross-project landing pinned at
+  // the top of the sidebar + the consumer's registered projects listed as the
+  // primary nav unit. A purely generic shell capability over the project-registry;
+  // any human label still comes from `projectsLabel` (never hardcoded).
+  style: z.enum(['tabs', 'sidebar', 'projects']).optional(),
+  showIcons: z.boolean().optional(),
+  // Human label for the projects group in the sidebar (style:'projects'). The
+  // consumer owns the word; the runtime defaults to a generic English label.
+  projectsLabel: z.string().min(1).optional(),
+  // Slug of the page used as the cross-project landing (style:'projects'). Defaults
+  // to the page with `default: true`. Refined below to a declared page slug.
+  landingPage: z.string().min(1).optional()
 })
+
+// One of the five design-system tones. A consumer's domain status words map onto
+// these; widgets only ever know tones, never a consumer's vocabulary.
+const toneSchema = z.enum(['success', 'warning', 'error', 'info', 'neutral'])
+
+/**
+ * Consumer status vocabulary -> presentation, declared once at the manifest top
+ * level instead of repeated in every widget's `config.statuses`. A value may be
+ * a bare tone (`active: info`) or the full triple (`active: { tone, label,
+ * glyph }`). Threaded to widgets as a default that a widget's own
+ * `config.statuses` still overrides. Domain words stay consumer-owned; aiDeck
+ * core privileges none of them.
+ */
+const statusMapSchema = z.record(
+  z.union([
+    toneSchema,
+    z.object({
+      tone: toneSchema.optional(),
+      label: z.string().optional(),
+      glyph: z.string().optional()
+    })
+  ])
+)
+export type StatusMapDecl = z.infer<typeof statusMapSchema>
+
+// Opt-in record indexing for the runtime command palette (⌘K). Each entry names
+// a dataSource to index, the field to title each record by, and a route template
+// (`:consumerId` + `:field` tokens resolved per record). Chrome, not a widget.
+const commandPaletteSchema = z.object({
+  records: z
+    .array(
+      z.object({
+        ref: z.string().min(1),
+        titleField: z.string().min(1).optional(),
+        subtitleField: z.string().min(1).optional(),
+        route: z.string().min(1)
+      })
+    )
+    .optional()
+})
+export type CommandPaletteDecl = z.infer<typeof commandPaletteSchema>
 
 export const manifestSchema = z.object({
   schemaVersion: z.literal('0.1'),
@@ -291,10 +415,30 @@ export const manifestSchema = z.object({
   icon: z.string().optional(),
   dataSources: z.array(dataSourceSchema),
   nav: navSchema.optional(),
+  // Slug of the page the chrome `?` button opens (a catalog/help page reached
+  // from chrome, not the normal page nav). Refined below to a real page slug.
+  help: z.string().min(1).optional(),
+  statusMap: statusMapSchema.optional(),
+  commandPalette: commandPaletteSchema.optional(),
   pages: z.array(pageSchema),
   tools: z.array(toolDeclarationSchema).optional(),
   components: z.array(customComponentSchema).optional()
 })
+  // `help` must name a declared page — a dangling help slug is a silent dead
+  // `?` button, exactly the kind of false-green the schema exists to prevent.
+  .refine((m) => m.help === undefined || m.pages.some((p) => p.slug === m.help), {
+    message: 'manifest.help must reference a declared page slug',
+    path: ['help']
+  })
+  // Same guard for the projects-mode landing: a dangling slug would silently
+  // route the consumer root to nothing.
+  .refine(
+    (m) => m.nav?.landingPage === undefined || m.pages.some((p) => p.slug === m.nav?.landingPage),
+    {
+      message: 'manifest.nav.landingPage must reference a declared page slug',
+      path: ['nav', 'landingPage']
+    }
+  )
 
 export type Manifest = z.infer<typeof manifestSchema>
 

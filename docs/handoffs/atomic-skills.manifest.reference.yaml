@@ -1,0 +1,234 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# REFERENCE manifest for the atomic-skills consumer on aiDeck (DS v2 engine).
+#
+# Purpose: show EVERY new capability in context so the atomic-skills agent can
+# adapt it to its real data layout. This validates against the live parser
+# (schemaVersion 0.1 — additive, NO 2.0 bump).
+#
+# Adapt before use:
+#   • dataSource `path`s below are plausible .atomic-skills/ layouts — map them
+#     to your real files.
+#   • field names in configs (title, status, nextAction, currentPhase, …) are the
+#     CONSUMER's vocabulary; rename to match your records. aiDeck core owns none.
+#   • derived rollups (tasksDone/Total, currentPhase, blocked, branch, lastUpdated,
+#     nextAction, parallelismAllowed) are still written by YOUR emitter — aiDeck
+#     aggregates (count/ratio/sum) but does not join or derive per-record fields.
+# ─────────────────────────────────────────────────────────────────────────────
+
+schemaVersion: '0.1'
+id: atomic-skills
+mcpNamespace: atomic_skills
+title: Atomic Skills
+icon: 'mdi:clipboard-check'
+
+# Pages navigate in the LEFT sidebar (not a top tab bar); page icons render.
+nav:
+  style: sidebar
+  showIcons: true
+
+# The chrome `?` button opens this page (and reads active while on it).
+help: ajuda
+
+# Your status words → DS tones, declared ONCE. Every status-rendering widget
+# inherits this; delete per-widget `config.statuses` repetition. A widget's own
+# config.statuses still wins per key.
+statusMap:
+  active: info
+  pending: neutral
+  paused: warning
+  blocked: error
+  done: success
+  archived: neutral
+  met: success
+  deferred: warning
+
+# ⌘K palette indexes these records across projects; results rank above pages.
+commandPalette:
+  records:
+    - ref: plans
+      titleField: title
+      subtitleField: branch
+      route: /:consumerId/plano/:projectId/:slug
+
+# ── Data sources ─────────────────────────────────────────────────────────────
+# `root: project` reads per registered project; on a cross-project read
+# (scope: all-projects) each record is tagged with `projectId`. Derived sources
+# (`derivesFrom` + `explode`) flatten nested arrays; `carry` copies parent fields.
+dataSources:
+  - id: plans
+    path: .atomic-skills/project-status/plans/*.md
+    format: frontmatter
+    root: project
+    captures: [planSlug]
+  - id: phases
+    derivesFrom: plans
+    explode: phases
+    carry: [planSlug]
+  - id: initiatives
+    path: .atomic-skills/project-status/initiatives/*.md
+    format: frontmatter
+    root: project
+    captures: [initiativeSlug]
+  - id: tasks
+    derivesFrom: initiatives
+    explode: tasks
+    carry: [phaseId, initiativeSlug]
+  - id: exit_gates
+    derivesFrom: initiatives
+    explode: exitGates
+    carry: [phaseId, initiativeSlug]
+  # consumer-scoped (not per project): the skills catalog for the help page.
+  - id: skills
+    path: data/skills.json
+    format: json
+    root: consumer
+
+# ── Pages ────────────────────────────────────────────────────────────────────
+pages:
+  # 1) PANORAMA — cross-project bird's-eye. default: true → landing at
+  #    /atomic-skills, pinned to the top of the sidebar. Every source uses
+  #    scope: all-projects, so it sums across ALL registered projects at once.
+  - slug: panorama
+    title: Panorama
+    icon: 'mdi:view-dashboard'
+    default: true
+    layout: sections
+    sections:
+      - widgets:
+          # cross-project totals — agg computed at read time (no emitter precompute)
+          - widget: stat
+            colSpan: 3
+            source: { ref: plans, scope: all-projects, agg: count, where: { status: active } }
+            config: { label: FRENTES ATIVAS, tone: info }
+          - widget: stat
+            colSpan: 3
+            source: { ref: plans, scope: all-projects, agg: count, where: { status: paused } }
+            config: { label: SUSPENSAS, tone: warning }
+          - widget: stat
+            colSpan: 3
+            source: { ref: tasks, scope: all-projects, agg: count, where: { blocked: true } }
+            config: { label: TASKS TRAVADAS, tone: error }
+          # ratio numerator via `of`; shows "31%" (use ratioFormat: fraction for "31/231")
+          - widget: stat
+            colSpan: 3
+            source: { ref: tasks, scope: all-projects, agg: ratio, of: 'status==done' }
+            config: { label: TASKS CONCLUÍDAS }
+      - title: Projetos
+        subtitle: o que cada projeto está rodando — uma seção por projeto
+        widgets:
+          # repeat: projectId (string group-by) → one grid per project, each
+          # listing that project's live fronts. Records carry projectId from the
+          # cross-project read. A card's title links into the plan detail.
+          - widget: collection-grid
+            colSpan: 12
+            source: { ref: plans, scope: all-projects, filter: { status: [active, paused] } }
+            repeat: projectId
+            config:
+              titleField: title
+              badgeField: status
+              fields: [currentPhase, nextAction]
+              attention: { when: blocked, gt: 0 }
+              linkTo: /:consumerId/plano/:projectId/:slug
+
+  # 2) FOCO AGORA — the selected project (project selector scopes these). One
+  #    card per active plan via repeat:{ ref } fan-out.
+  - slug: foco-agora
+    title: Foco agora
+    icon: 'mdi:target'
+    layout: sections
+    sections:
+      - title: Frentes em foco
+        subtitle: fase atual e próxima ação de cada frente viva
+        widgets:
+          - widget: card
+            repeat: { ref: plans, filter: { status: active } }
+            # role→field sugar (equivalent to titleField/subtitleField/statusField):
+            fieldMap: { title: title, subtitle: branch, status: status }
+            config:
+              fields: [currentPhase, nextAction]
+              live: { when: live }
+            slots:
+              footer:
+                - widget: progress
+                  source: { ref: tasks, filter: { planSlug: '$parent.slug' }, agg: ratio, of: 'status==done' }
+                  config: { label: TASKS }
+
+  # 3) VISÃO GERAL — per-project metrics strip + table of live fronts.
+  - slug: visao-geral
+    title: Visão geral
+    icon: 'mdi:format-list-checks'
+    layout: sections
+    sections:
+      - widgets:
+          - { widget: stat, colSpan: 3, source: { ref: plans,  agg: count, where: { status: active } }, config: { label: FRENTES ATIVAS, tone: info } }
+          - { widget: stat, colSpan: 3, source: { ref: phases, agg: count, where: { status: active } }, config: { label: FASES ATIVAS } }
+          - { widget: stat, colSpan: 3, source: { ref: exit_gates, agg: ratio, of: 'status==met' }, config: { label: EXIT GATES } }
+          - { widget: stat, colSpan: 3, source: { ref: tasks,  agg: count, where: { blockedBy: '*' } }, config: { label: TRAVADAS, tone: error } }
+      - title: Frentes vivas
+        widgets:
+          - widget: table
+            colSpan: 12
+            source: { ref: plans, filter: { status: [active, paused] } }
+            config:
+              columns: [title, status, currentPhase, nextAction, lastUpdated]
+              rowLink: /:consumerId/plano/:projectId/:slug
+
+  # 4) PLANO — detail (drill-in). The route carries projectId + slug; the stepper
+  #    SELECTS a phase (emits → page state) and the focus panel re-scopes to it.
+  - slug: plano
+    title: Detalhe do plano
+    icon: 'mdi:file-tree-outline'
+    layout: sections
+    sections:
+      - widgets:
+          # left: phase roadmap. selectable + emits → pageState.selectedPhase.
+          # Seeds the current phase on load, so the focus panel opens populated.
+          - widget: stepper
+            colSpan: 5
+            source: { ref: phases, param: { match: [{ field: planSlug, param: slug }] } }
+            emits: { select: { set: selectedPhase } }
+            config:
+              orientation: vertical
+              selectable: true
+              idField: id
+              labelField: title
+              statusField: status
+              currentField: isCurrent
+              dependsOnField: dependsOn
+      - widgets:
+          # right: the initiative of the SELECTED phase (default = current). Reads
+          # the bus via param { field, state }; updates when the stepper selects.
+          - widget: status-list
+            colSpan: 7
+            source:
+              ref: tasks
+              param: { match: [{ field: phaseId, state: selectedPhase }] }
+            config:
+              groupByField: status
+              titleField: title
+              statusField: status
+
+  # 5) CONCLUÍDOS — out of the way by default; only here.
+  - slug: concluidos
+    title: Concluídos
+    icon: 'mdi:check-all'
+    layout: single
+    widget: table
+    source: { ref: plans, filter: { status: [done, archived] } }
+    config:
+      columns: [title, status, phaseCount, lastUpdated]
+      rowLink: /:consumerId/plano/:projectId/:slug
+
+  # 6) AJUDA — the skills catalog (master-detail). Opened by the chrome `?`
+  #    (help: ajuda above), consumer-scoped (not per project).
+  - slug: ajuda
+    title: Ajuda
+    icon: 'mdi:help-circle-outline'
+    layout: single
+    widget: catalog
+    source: { ref: skills }
+    config:
+      titleField: title
+      subtitleField: oneLiner
+      facetsField: tags
+      summaryField: summary

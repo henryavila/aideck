@@ -1,6 +1,6 @@
 import { parseArgs } from 'node:util'
 
-export type Subcommand = 'serve' | 'demo' | 'mcp' | 'env' | 'up' | 'down' | 'validate' | 'build-discover-run' | 'validate-file' | 'init-consumer'
+export type Subcommand = 'serve' | 'demo' | 'mcp' | 'env' | 'up' | 'down' | 'restart' | 'validate' | 'build-discover-run' | 'validate-file' | 'init-consumer'
 
 export interface ParsedArgs {
   subcommand?: Subcommand
@@ -15,9 +15,16 @@ export interface ParsedArgs {
     id?: string
     title?: string
     mcpNamespace?: string
+    expose?: ExposeProvider
+    exposePort?: string
+    remoteBaseUrl?: string
   }
   portExplicit: boolean
 }
+
+export type ExposeProvider = 'off' | 'tailscale' | 'tailnet' | 'external'
+
+const EXPOSE_PROVIDERS: ReadonlySet<string> = new Set(['off', 'tailscale', 'tailnet', 'external'])
 
 export class ArgError extends Error {
   constructor(message: string, public readonly hint?: string) {
@@ -26,7 +33,7 @@ export class ArgError extends Error {
   }
 }
 
-const SUBCOMMANDS: ReadonlySet<string> = new Set(['serve', 'demo', 'mcp', 'env', 'up', 'down', 'validate', 'build-discover-run', 'validate-file', 'init-consumer'])
+const SUBCOMMANDS: ReadonlySet<string> = new Set(['serve', 'demo', 'mcp', 'env', 'up', 'down', 'restart', 'validate', 'build-discover-run', 'validate-file', 'init-consumer'])
 
 export function parseCliArgs(argv: string[]): ParsedArgs {
   let parsed
@@ -42,7 +49,10 @@ export function parseCliArgs(argv: string[]): ParsedArgs {
         version: { type: 'boolean', short: 'v' },
         id: { type: 'string' },
         title: { type: 'string' },
-        'mcp-namespace': { type: 'string' }
+        'mcp-namespace': { type: 'string' },
+        expose: { type: 'string' },
+        'expose-port': { type: 'string' },
+        'remote-base-url': { type: 'string' }
       },
       allowPositionals: true,
       strict: true
@@ -73,6 +83,17 @@ export function parseCliArgs(argv: string[]): ParsedArgs {
     }
   }
 
+  let expose: ExposeProvider | undefined
+  if (parsed.values.expose !== undefined) {
+    if (!EXPOSE_PROVIDERS.has(parsed.values.expose)) {
+      throw new ArgError(
+        `--expose=${parsed.values.expose} is not supported`,
+        `Expected one of: ${[...EXPOSE_PROVIDERS].join(', ')}`
+      )
+    }
+    expose = parsed.values.expose as ExposeProvider
+  }
+
   return {
     subcommand: sub as Subcommand | undefined,
     positionals: parsed.positionals.slice(1),
@@ -85,7 +106,10 @@ export function parseCliArgs(argv: string[]): ParsedArgs {
       version: parsed.values.version,
       id: parsed.values.id,
       title: parsed.values.title,
-      mcpNamespace: parsed.values['mcp-namespace']
+      mcpNamespace: parsed.values['mcp-namespace'],
+      expose,
+      exposePort: parsed.values['expose-port'],
+      remoteBaseUrl: parsed.values['remote-base-url']
     },
     portExplicit: parsed.values.port !== undefined
   }

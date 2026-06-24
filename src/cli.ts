@@ -26,9 +26,14 @@ async function dispatchServe(
   stderr: NodeJS.WritableStream
 ): Promise<number> {
   const { startServer } = await import('./server/index.js')
-  const { resolvePort, PortInUseError } = await import('./server/port-resolver.js')
+  const { resolvePort, PortInUseError, waitForPortFree } = await import('./server/port-resolver.js')
   const { writeEnvFile, removeEnvFile } = await import('./server/env-file.js')
   const { InstanceAlreadyRunningError } = await import('./server/lockfile.js')
+  const { reconcileInstance } = await import('./server/instance-reconcile.js')
+  const { startExpose, ExposeConfigError } = await import('./server/expose/index.js')
+  const { buildSshTunnelHint } = await import('./server/expose/ssh-hint.js')
+  const { runShutdownSequence } = await import('./cli/shutdown-sequence.js')
+  const { tryRegister, findProjectRoot } = await import('./cli/up.js')
   const { stat } = await import('node:fs/promises')
   const { resolve } = await import('node:path')
   try {
@@ -47,21 +52,90 @@ async function dispatchServe(
       }
       staticDir = abs
     }
+    // Resilience: reconcile against any instance already on the target port
+    // BEFORE binding. A healthy aiDeck → reuse it (no second process, no port
+    // hop). A stale/undead claim → reclaim the port. This is what stops two
+    // servers from splitting one port (see docs/decisions.md).
+    const targetPort = parsed.flags.port ?? 7777
+    const disposition = await reconcileInstance({ port: targetPort })
+    if (disposition.action === 'reuse') {
+      stdout.write(`aideck serve: already running at ${disposition.url} — reusing it\n`)
+      // Idempotent data refresh: register THIS project with the running instance
+      // instead of starting a competing server.
+      if (await tryRegister(disposition.url, findProjectRoot(process.cwd()))) {
+        stdout.write('aideck serve: registered this project with the running instance\n')
+      }
+      stdout.write(`${disposition.url}\n`)
+      return 0
+    }
+    if (disposition.action === 'reclaim') {
+      stderr.write(`aideck serve: reclaimed port ${targetPort} (${disposition.reason})\n`)
+      await waitForPortFree(targetPort, 3_000)
+    }
+
     const port = await resolvePort({
       requested: parsed.flags.port,
       isExplicit: parsed.portExplicit
     })
-    const running = await startServer({ rootDir: process.cwd(), port, staticDir, version: readVersion() })
+
+    // Configure remote access (if any) BEFORE binding so CORS knows the remote
+    // origin. aiDeck still binds 127.0.0.1; exposure is an out-of-process proxy.
+    const exposed = await startExpose({
+      provider: parsed.flags.expose ?? 'off',
+      localPort: port,
+      exposePort: parsed.flags.exposePort,
+      remoteBaseUrl: parsed.flags.remoteBaseUrl
+    })
+
+    let running
+    try {
+      running = await startServer({
+        rootDir: process.cwd(),
+        port,
+        staticDir,
+        version: readVersion(),
+        remoteHost: exposed.remoteHost ?? undefined,
+        tailnetBind: exposed.tailnetBind ?? undefined
+      })
+    } catch (cause) {
+      await exposed.stop() // tear down any proxy we configured before bind failed
+      throw cause
+    }
     const url = `http://127.0.0.1:${running.port}`
-    await writeEnvFile({ url, port: running.port, pid: process.pid })
+    await writeEnvFile({ url, port: running.port, pid: process.pid, remoteUrl: exposed.remoteUrl ?? undefined })
     stdout.write(`aideck serve: listening on ${url}${staticDir ? ` (static: ${staticDir})` : ''}\n`)
+    for (const warning of exposed.warnings) {
+      stderr.write(`aideck serve: ${warning}\n`)
+    }
+    if (exposed.remoteUrl) {
+      stdout.write(`aideck serve: remote (private tailnet) ${exposed.remoteUrl}\n`)
+      stdout.write('aideck serve: WARNING — reachable by tailnet peers (reads AND writes, no auth)\n')
+    }
+    // SSH local-forward hint: the universal, no-new-surface remote path. aiDeck
+    // stays on 127.0.0.1; the user's own SSH session does the tunneling. Detect
+    // the real sshd port (never assume 22).
+    try {
+      const ssh = await buildSshTunnelHint({ localPort: running.port })
+      for (const warning of ssh.warnings) {
+        stderr.write(`aideck serve: ${warning}\n`)
+      }
+      stdout.write(`aideck serve: remote (ssh tunnel) ${ssh.command}\n`)
+      stdout.write(`aideck serve: then open ${ssh.openUrl} (replace ${ssh.host} with your SSH host if it differs)\n`)
+    } catch {
+      // hint is best-effort; never block serve on it
+    }
     let stopping = false
     const shutdown = async (signal: string) => {
       if (stopping) return
       stopping = true
       stdout.write(`aideck serve: received ${signal}, shutting down\n`)
-      await removeEnvFile()
-      await running.stop()
+      // env file removed LAST — only once the server is actually down, so a
+      // bounded-but-slow stop never leaves an orphan invisible to `aideck down`.
+      await runShutdownSequence({
+        stopExposure: () => exposed.stop(),
+        stopServer: () => running.stop(),
+        removeEnvFile,
+      })
       process.exit(0)
     }
     process.on('SIGINT', () => void shutdown('SIGINT'))
@@ -74,6 +148,10 @@ async function dispatchServe(
     }
     if (cause instanceof InstanceAlreadyRunningError) {
       stderr.write(`aideck serve: ${cause.message}. Stop it first with 'aideck down'\n`)
+      return 1
+    }
+    if (cause instanceof ExposeConfigError) {
+      stderr.write(`aideck serve: ${cause.message}${cause.hint ? `. ${cause.hint}` : ''}\n`)
       return 1
     }
     stderr.write(`aideck serve: ${cause instanceof Error ? cause.message : String(cause)}\n`)
@@ -256,6 +334,19 @@ async function dispatchDown(
   return runDown(stdout, stderr)
 }
 
+async function dispatchRestart(
+  parsed: ReturnType<typeof parseCliArgs>,
+  stdout: NodeJS.WritableStream,
+  stderr: NodeJS.WritableStream
+): Promise<number> {
+  const { runRestart } = await import('./cli/restart.js')
+  const { runDown } = await import('./cli/down.js')
+  return runRestart({
+    down: () => runDown(stdout, stderr),
+    serve: () => dispatchServe(parsed, stdout, stderr),
+  })
+}
+
 async function dispatchBuildDiscoverRun(
   parsed: ReturnType<typeof parseCliArgs>,
   stdout: NodeJS.WritableStream,
@@ -374,6 +465,8 @@ export async function runCli(opts: CliRunOptions = {}): Promise<number> {
       return dispatchUp(parsed, stdout, stderr)
     case 'down':
       return dispatchDown(stdout, stderr)
+    case 'restart':
+      return dispatchRestart(parsed, stdout, stderr)
     case 'validate':
       return dispatchValidate(parsed, stdout, stderr)
     case 'build-discover-run':
