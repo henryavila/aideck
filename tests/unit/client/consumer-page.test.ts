@@ -2,14 +2,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createRouter, createWebHashHistory } from 'vue-router'
+import { defineComponent, h, inject, type Ref } from 'vue'
 import ConsumerPage from '../../../src/client/pages/ConsumerPage.vue'
 import { __resetActiveManifest } from '../../../src/client/composables/useActiveManifest.js'
+import { PROJECT_ID_KEY } from '../../../src/client/composables/useProjectScope.js'
 
 // Mock the API module
 vi.mock('../../../src/client/api.js', () => ({
   fetchConsumerManifest: vi.fn(),
   fetchConsumers: vi.fn().mockResolvedValue([]),
   fetchDataSource: vi.fn().mockResolvedValue([]),
+  fetchProjects: vi.fn().mockResolvedValue([]),
 }))
 
 function makeRouter(path: string) {
@@ -206,5 +209,72 @@ describe('ConsumerPage', () => {
     // manifest becomes null on error → loading-skeleton fallback (cannot
     // distinguish initial load from fetch failure with the summary API)
     expect(wrapper.find('.page-state.is-loading').exists()).toBe(true)
+  })
+
+  it('renders global landing with only the page title, not the consumer title', async () => {
+    const { fetchConsumerManifest, fetchProjects } = await import('../../../src/client/api.js')
+    vi.mocked(fetchConsumerManifest).mockResolvedValue({
+      id: 'atomic-skills',
+      schemaVersion: '0.1',
+      title: 'Atomic Skills',
+      nav: { style: 'projects', landingPage: 'panorama' },
+      dataSources: [{ id: 'projects', root: 'project' }],
+      pages: [
+        { slug: 'panorama', title: 'Panorama', layout: 'sections', default: true, sections: [] },
+      ],
+    })
+    vi.mocked(fetchProjects).mockResolvedValue([
+      { projectId: 'atomic-skills', rootDir: '/repos/atomic-skills' },
+    ])
+
+    const router = makeRouter('/placeholder')
+    await router.isReady()
+
+    const wrapper = mount(ConsumerPage, {
+      props: { consumerId: 'atomic-skills', pageSlug: 'panorama', globalLanding: true },
+      global: { plugins: [router] },
+    })
+    await flushPromises()
+
+    expect(wrapper.find('h1').text()).toBe('Panorama')
+    expect(wrapper.find('h1').text()).not.toContain('Atomic Skills')
+  })
+
+  it('does not provide a selected project on the global landing', async () => {
+    const { fetchConsumerManifest, fetchProjects } = await import('../../../src/client/api.js')
+    vi.mocked(fetchConsumerManifest).mockResolvedValue({
+      id: 'atomic-skills',
+      schemaVersion: '0.1',
+      title: 'Atomic Skills',
+      nav: { style: 'projects', landingPage: 'panorama' },
+      dataSources: [{ id: 'projects', root: 'project' }],
+      pages: [
+        { slug: 'panorama', title: 'Panorama', layout: 'sections', default: true, sections: [] },
+      ],
+    })
+    vi.mocked(fetchProjects).mockResolvedValue([
+      { projectId: 'atomic-skills', rootDir: '/repos/atomic-skills' },
+    ])
+    const ScopeProbe = defineComponent({
+      name: 'SectionsLayout',
+      setup() {
+        const projectId = inject(PROJECT_ID_KEY) as Ref<string | undefined>
+        return () => h('div', { class: 'scope-probe' }, projectId?.value ?? 'none')
+      },
+    })
+
+    const router = makeRouter('/placeholder')
+    await router.isReady()
+
+    const wrapper = mount(ConsumerPage, {
+      props: { consumerId: 'atomic-skills', pageSlug: 'panorama', globalLanding: true },
+      global: {
+        plugins: [router],
+        stubs: { SectionsLayout: ScopeProbe },
+      },
+    })
+    await flushPromises()
+
+    expect(wrapper.find('.scope-probe').text()).toBe('none')
   })
 })

@@ -10,7 +10,7 @@ import { createApiRouter } from './routes/api.js'
 import { createApiV2Router } from './routes/api-v2.js'
 import { createSseRouter } from './routes/sse.js'
 import { createSpaRouter } from './routes/spa.js'
-import { createProjectRegistry, type ProjectRegistry } from './project-registry.js'
+import { createProjectRegistry, validateRootDir, type ProjectRegistry } from './project-registry.js'
 import { createConsumerRegistry, type ConsumerRegistry } from './consumer-registry.js'
 import { createConsumerWatcher, type ConsumerWatcher } from './consumer-watcher.js'
 import { acquireLock, releaseLock } from './lockfile.js'
@@ -146,11 +146,25 @@ export function buildApp(opts: ServerOptions): BuiltApp {
   return { app, eventBus, consumers, consumerWatcher, startedAt, rootDir: opts.rootDir, registry }
 }
 
+export async function registerInitialProject(
+  registry: ProjectRegistry,
+  rootDir: string
+): Promise<void> {
+  const validation = await validateRootDir(rootDir)
+  if (!validation.ok || registry.getByRootDir(validation.canonical)) return
+
+  const entry = registry.register(validation.canonical)
+  if (entry.watcher) {
+    entry.watcher.start().catch(() => { /* watcher start failure is non-fatal */ })
+  }
+}
+
 export async function startServer(opts: ServerOptions): Promise<RunningServer> {
   const built = buildApp(opts)
 
   // Scan v2 consumers before starting (safe even if ~/.aideck/consumers/ doesn't exist)
   await built.consumers.scan()
+  await registerInitialProject(built.registry, opts.rootDir)
 
   if (built.consumerWatcher) {
     await built.consumerWatcher.start()

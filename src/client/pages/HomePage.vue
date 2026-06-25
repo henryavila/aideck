@@ -1,5 +1,13 @@
 <template>
-  <div class="home-view">
+  <div v-if="!loading && !error && homeLandingConsumer" class="home-view">
+    <ConsumerPage
+      :consumer-id="homeLandingConsumer.id"
+      :page-slug="homeLandingConsumer.landingPage"
+      global-landing
+    />
+  </div>
+
+  <div v-else class="home-view">
     <div class="home-head">
       <div>
         <div class="eyebrow">consumers</div>
@@ -48,7 +56,7 @@
       <router-link
         v-for="(c, i) in consumers"
         :key="c.id"
-        :to="`/${c.id}`"
+        :to="consumerTarget(c)"
         class="cc"
         :class="`tone-${(i % 4) + 1}`"
       >
@@ -78,10 +86,21 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useConsumers } from '../composables/useConsumers.js'
+import type { ConsumerSummary } from '../api.js'
 import Icon from '../components/shell/Icon.vue'
+import ConsumerPage from './ConsumerPage.vue'
 
 const { consumers, loading, error } = useConsumers()
+
+function consumerTarget(consumer: ConsumerSummary): string {
+  return consumer.landingPage ? `/${consumer.id}/${consumer.landingPage}` : `/${consumer.id}`
+}
+
+const homeLandingConsumer = computed(() =>
+  consumers.value.find((consumer) => consumer.navStyle === 'projects')
+)
 
 function reload(): void {
   window.location.reload()

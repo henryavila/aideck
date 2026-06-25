@@ -16,6 +16,8 @@ export interface ConsumerSummary {
   id: string
   title: string
   icon?: string
+  navStyle?: 'tabs' | 'sidebar' | 'projects'
+  landingPage?: string
   dataSourceCount: number
   pageCount: number
 }

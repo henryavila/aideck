@@ -12,6 +12,9 @@ id: test-consumer
 mcpNamespace: test_consumer
 title: Test Consumer
 icon: star
+nav:
+  style: projects
+  landingPage: overview
 dataSources:
   - id: items
     path: data/items.yaml
@@ -89,6 +92,8 @@ describe('createApiV2Router', () => {
       id: 'test-consumer',
       title: 'Test Consumer',
       icon: 'star',
+      navStyle: 'projects',
+      landingPage: 'overview',
       dataSourceCount: 1,
       pageCount: 1
     })

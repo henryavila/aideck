@@ -90,13 +90,21 @@ export function createApiV2Router(deps: ApiV2Deps): Hono {
   app.get('/api/consumers', (c) => {
     const list = deps.consumers.list()
     return c.json({
-      consumers: list.map((cs) => ({
-        id: cs.id,
-        title: cs.manifest.title,
-        ...(cs.manifest.icon !== undefined ? { icon: cs.manifest.icon } : {}),
-        dataSourceCount: cs.manifest.dataSources.length,
-        pageCount: cs.manifest.pages.length
-      }))
+      consumers: list.map((cs) => {
+        const landingPage =
+          cs.manifest.nav?.landingPage ??
+          cs.manifest.pages.find((page) => page.default)?.slug ??
+          cs.manifest.pages[0]?.slug
+        return {
+          id: cs.id,
+          title: cs.manifest.title,
+          ...(cs.manifest.icon !== undefined ? { icon: cs.manifest.icon } : {}),
+          ...(cs.manifest.nav?.style !== undefined ? { navStyle: cs.manifest.nav.style } : {}),
+          ...(landingPage !== undefined ? { landingPage } : {}),
+          dataSourceCount: cs.manifest.dataSources.length,
+          pageCount: cs.manifest.pages.length
+        }
+      })
     })
   })
 

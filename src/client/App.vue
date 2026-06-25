@@ -58,6 +58,7 @@ import { useLiveBus } from './composables/useLiveBus.js'
 import { useDrawer } from './composables/useDrawer.js'
 import { usePalette } from './composables/usePalette.js'
 import { fetchHealth } from './api.js'
+import { resolveSelectedProjectId } from './utils/projectScope.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -98,11 +99,18 @@ const projectsLabel = computed(() => nav.value.projectsLabel ?? 'projects')
 // Registered projects for the project-centric shell — fetched only in that mode.
 const { projects } = useProjects(currentConsumerId, projectsMode)
 
-// The scope reflected in the URL: ?project= (or a drill-down :projectId param).
-const selectedProjectId = computed(
-  () =>
-    (typeof route.query.project === 'string' ? route.query.project : undefined) ??
-    (typeof route.params.projectId === 'string' ? route.params.projectId : undefined)
+// The scope reflected in the URL. Some pages use a generic route segment, so the
+// shell resolves it against the registered projects before deciding expansion.
+const selectedProjectId = computed(() =>
+  resolveSelectedProjectId({
+    queryProject: route.query.project,
+    pathProjectId: route.params.projectId,
+    routeParam: route.params.routeParam,
+    pageSlug: currentPageSlug.value,
+    landingSlug: landingPageSlug.value,
+    pages: projectPages.value,
+    projects: projects.value
+  })
 )
 
 // Sidebar pages (only under nav.style: sidebar): the landing page is pinned to
