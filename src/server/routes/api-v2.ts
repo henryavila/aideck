@@ -21,7 +21,22 @@ function tagRegisteredProject(
   records: Record<string, unknown>[],
   projectId: string
 ): Record<string, unknown>[] {
-  return records.map((record) => ({ ...record, projectId }))
+  return records.map((record) =>
+    tagRegisteredProjectValue({ ...record, projectId }, projectId) as Record<string, unknown>
+  )
+}
+
+function tagRegisteredProjectValue(value: unknown, projectId: string): unknown {
+  if (Array.isArray(value)) return value.map((item) => tagRegisteredProjectValue(item, projectId))
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([key, child]) => [
+        key,
+        key === 'projectId' ? projectId : tagRegisteredProjectValue(child, projectId)
+      ])
+    )
+  }
+  return value
 }
 
 function errResp(
@@ -262,7 +277,9 @@ export function createApiV2Router(deps: ApiV2Deps): Hono {
       )
     }
     return c.json({
-      record: resolved.projectScoped ? { ...record, projectId: resolved.projectId } : record
+      record: resolved.projectScoped
+        ? tagRegisteredProjectValue({ ...record, projectId: resolved.projectId }, resolved.projectId)
+        : record
     })
   })
 

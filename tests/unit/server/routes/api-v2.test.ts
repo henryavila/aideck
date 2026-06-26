@@ -180,6 +180,10 @@ dataSources:
     derivesFrom: plans
     explode: phases
     carry: [projectId, planSlug]
+  - id: projectCards
+    path: .atomic-skills/.aideck/state/projects.json
+    format: json
+    root: project
 pages:
   - slug: overview
     title: Overview
@@ -205,9 +209,22 @@ pages:
 
     const repo = await mkdtemp(join(tmpdir(), 'proj-route-'))
     await mkdir(join(repo, '.atomic-skills', 'projects', 'internal', 'plan-a'), { recursive: true })
+    await mkdir(join(repo, '.atomic-skills', '.aideck', 'state'), { recursive: true })
     await writeFile(
       join(repo, '.atomic-skills', 'projects', 'internal', 'plan-a', 'plan.md'),
       `---\nslug: plan-a\ntitle: Plan A\nphases:\n  - id: F0\n    title: First\n    status: active\n---\n# Plan A\n`,
+      'utf8'
+    )
+    await writeFile(
+      join(repo, '.atomic-skills', '.aideck', 'state', 'projects.json'),
+      JSON.stringify([
+        {
+          id: 'internal',
+          projectId: 'internal',
+          name: 'Internal',
+          fronts: [{ projectId: 'internal', slug: 'plan-a', title: 'Plan A' }]
+        }
+      ]),
       'utf8'
     )
     const registry = createProjectRegistry()
@@ -256,6 +273,15 @@ pages:
       const phasesBody = await phasesRes.json() as { records: Array<{ projectId: string; planSlug: string; id: string }> }
       expect(phasesBody.records).toHaveLength(1)
       expect(phasesBody.records[0]).toMatchObject({ projectId: 'alpha', planSlug: 'plan-a', id: 'F0' })
+
+      const cardsRes = await app.request('/api/consumers/proj-consumer/projects/alpha/data/projectCards')
+      expect(cardsRes.status).toBe(200)
+      const cardsBody = await cardsRes.json() as {
+        records: Array<{ id: string; projectId: string; fronts: Array<{ projectId: string; slug: string }> }>
+      }
+      expect(cardsBody.records).toHaveLength(1)
+      expect(cardsBody.records[0]).toMatchObject({ id: 'internal', projectId: 'alpha' })
+      expect(cardsBody.records[0].fronts[0]).toMatchObject({ projectId: 'alpha', slug: 'plan-a' })
     } finally {
       await cleanup()
     }
