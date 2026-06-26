@@ -17,6 +17,13 @@ export interface ApiV2Deps {
   demo?: boolean
 }
 
+function tagRegisteredProject(
+  records: Record<string, unknown>[],
+  projectId: string
+): Record<string, unknown>[] {
+  return records.map((record) => ({ ...record, projectId }))
+}
+
 function errResp(
   c: Context,
   code: string,
@@ -172,7 +179,13 @@ export function createApiV2Router(deps: ApiV2Deps): Hono {
 
   function resolveProjectDataSource(
     c: Context
-  ): { decl: DataSourceDecl; baseDir: string; allSources: DataSourceDecl[] } | Response {
+  ): {
+    decl: DataSourceDecl
+    baseDir: string
+    allSources: DataSourceDecl[]
+    projectId: string
+    projectScoped: boolean
+  } | Response {
     const id = c.req.param('id') ?? ''
     const projectId = c.req.param('projectId') ?? ''
     const dataSourceId = c.req.param('dataSourceId') ?? ''
@@ -193,8 +206,9 @@ export function createApiV2Router(deps: ApiV2Deps): Hono {
       )
     }
     const baseSource = rootAncestor(decl, allSources)
-    const baseDir = baseSource.root === 'project' ? project.rootDir : consumer.dir
-    return { decl, baseDir, allSources }
+    const projectScoped = baseSource.root === 'project'
+    const baseDir = projectScoped ? project.rootDir : consumer.dir
+    return { decl, baseDir, allSources, projectId, projectScoped }
   }
 
   app.get('/api/consumers/:id/projects', (c) => {
@@ -216,7 +230,10 @@ export function createApiV2Router(deps: ApiV2Deps): Hono {
         details: result.error.details
       })
     }
-    return c.json({ records: result.value.records, count: result.value.records.length })
+    const records = resolved.projectScoped
+      ? tagRegisteredProject(result.value.records, resolved.projectId)
+      : result.value.records
+    return c.json({ records, count: records.length })
   })
 
   app.get('/api/consumers/:id/projects/:projectId/data/:dataSourceId/:slug', async (c) => {
@@ -244,7 +261,9 @@ export function createApiV2Router(deps: ApiV2Deps): Hono {
         404
       )
     }
-    return c.json({ record })
+    return c.json({
+      record: resolved.projectScoped ? { ...record, projectId: resolved.projectId } : record
+    })
   })
 
   // ─── Cross-project data ───────────────────────────────────────────────
@@ -279,7 +298,7 @@ export function createApiV2Router(deps: ApiV2Deps): Hono {
     for (const project of deps.registry?.list() ?? []) {
       const result = await readDataSource(project.rootDir, decl, allSources)
       if (!result.ok) continue
-      for (const record of result.value.records) merged.push({ ...record, projectId: project.projectId })
+      merged.push(...tagRegisteredProject(result.value.records, project.projectId))
     }
     return c.json({ records: merged, count: merged.length })
   })

@@ -196,6 +196,27 @@ pages:
     return createApiV2Router({ consumers, version: '0.0.0', startedAt: Date.now() })
   }
 
+  async function withRegisteredProjectConsumer() {
+    const dir = join(baseDir, 'consumers', 'proj-consumer')
+    await mkdir(dir, { recursive: true })
+    await writeFile(join(dir, 'manifest.yaml'), PROJECT_MANIFEST, 'utf8')
+    const consumers = createConsumerRegistry(baseDir)
+    await consumers.scan()
+
+    const repo = await mkdtemp(join(tmpdir(), 'proj-route-'))
+    await mkdir(join(repo, '.atomic-skills', 'projects', 'internal', 'plan-a'), { recursive: true })
+    await writeFile(
+      join(repo, '.atomic-skills', 'projects', 'internal', 'plan-a', 'plan.md'),
+      `---\nslug: plan-a\ntitle: Plan A\nphases:\n  - id: F0\n    title: First\n    status: active\n---\n# Plan A\n`,
+      'utf8'
+    )
+    const registry = createProjectRegistry()
+    registry.register(repo, 'alpha')
+
+    const app = createApiV2Router({ consumers, registry, version: '0.0.0', startedAt: Date.now() })
+    return { app, cleanup: () => rm(repo, { recursive: true, force: true }) }
+  }
+
   it("GET /data/:dsId — rejects a root:'project' source with a validation error (not 0 rows)", async () => {
     const app = await withProjectConsumer()
     const res = await app.request('/api/consumers/proj-consumer/data/plans')
@@ -219,6 +240,25 @@ pages:
     expect(res.status).toBe(400)
     const body = await res.json() as { error: { code: string } }
     expect(body.error.code).toBe('validation_error')
+  })
+
+  it("GET /projects/:projectId/data/:dsId — tags project-rooted records with the registered projectId", async () => {
+    const { app, cleanup } = await withRegisteredProjectConsumer()
+    try {
+      const plansRes = await app.request('/api/consumers/proj-consumer/projects/alpha/data/plans')
+      expect(plansRes.status).toBe(200)
+      const plansBody = await plansRes.json() as { records: Array<{ projectId: string; planSlug: string; slug: string }> }
+      expect(plansBody.records).toHaveLength(1)
+      expect(plansBody.records[0]).toMatchObject({ projectId: 'alpha', planSlug: 'plan-a', slug: 'plan-a' })
+
+      const phasesRes = await app.request('/api/consumers/proj-consumer/projects/alpha/data/phases')
+      expect(phasesRes.status).toBe(200)
+      const phasesBody = await phasesRes.json() as { records: Array<{ projectId: string; planSlug: string; id: string }> }
+      expect(phasesBody.records).toHaveLength(1)
+      expect(phasesBody.records[0]).toMatchObject({ projectId: 'alpha', planSlug: 'plan-a', id: 'F0' })
+    } finally {
+      await cleanup()
+    }
   })
 
   // ─── Cross-project read (Panorama primitive) ──────────────────────────
