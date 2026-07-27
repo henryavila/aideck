@@ -34,11 +34,17 @@ OPTIONS
                                      Never Tailscale Funnel — the tailnet stays private.
                           tailnet    bind a 2nd listener on this node's Tailscale IP
                                      (never 0.0.0.0), guarded by a Host allowlist.
-                          external   you run your own proxy; just record its URL.
-                          off/tailscale/external keep the socket on 127.0.0.1.
-  --expose-port=<N>       Public HTTPS port for the tailnet endpoint (default 8443).
+                          ngrok      spawn 'ngrok http' (PUBLIC internet HTTPS tunnel).
+                                     Requires ngrok CLI + authtoken; reuses an existing
+                                     agent tunnel when one already targets this port.
+                          external   you run your own proxy; just record its URL
+                                     (works for hand-started ngrok/caddy/cloudflare).
+                          off/tailscale/ngrok/external keep the socket on 127.0.0.1.
+  --expose-port=<N>       Public HTTPS port for the tailnet endpoint (default 8443;
+                          used by tailscale only — ignored by ngrok/tailnet/external).
   --remote-base-url=<url> Required for --expose=external; the https:// origin your
-                          proxy serves (e.g. https://host.example.ts.net).
+                          proxy serves (e.g. https://host.example.ts.net or an
+                          ngrok free URL you started yourself).
   --config=<path>         Path to config file (default: none)
   --id=<id>               Consumer ID (init-consumer)
   --title=<title>         Consumer display title (init-consumer)
@@ -50,6 +56,7 @@ EXAMPLES
   aideck demo
   aideck serve --port=8080
   aideck serve --expose=tailscale          # reach the dashboard from your phone over Tailscale
+  aideck serve --expose=ngrok              # public HTTPS tunnel via ngrok (internet-wide)
   aideck serve --static-dir=../atomic-skills/dist/dashboard
   aideck mcp                 # run separately; HTTP and MCP are independent processes
   eval "$(aideck env)"       # source AIDECK_URL/AIDECK_PORT in current shell

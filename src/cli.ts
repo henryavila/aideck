@@ -108,8 +108,23 @@ async function dispatchServe(
       stderr.write(`aideck serve: ${warning}\n`)
     }
     if (exposed.remoteUrl) {
-      stdout.write(`aideck serve: remote (private tailnet) ${exposed.remoteUrl}\n`)
-      stdout.write('aideck serve: WARNING — reachable by tailnet peers (reads AND writes, no auth)\n')
+      if (exposed.provider === 'ngrok') {
+        stdout.write(`aideck serve: remote (ngrok public) ${exposed.remoteUrl}\n`)
+        stdout.write(
+          'aideck serve: WARNING — reachable from the PUBLIC INTERNET (reads AND writes, no auth)\n'
+        )
+      } else if (exposed.provider === 'external') {
+        stdout.write(`aideck serve: remote (external proxy) ${exposed.remoteUrl}\n`)
+        stdout.write(
+          'aideck serve: WARNING — reachable via your proxy (reads AND writes, no auth)\n'
+        )
+      } else {
+        // tailscale / tailnet — private tailnet only
+        stdout.write(`aideck serve: remote (private tailnet) ${exposed.remoteUrl}\n`)
+        stdout.write(
+          'aideck serve: WARNING — reachable by tailnet peers (reads AND writes, no auth)\n'
+        )
+      }
     }
     // SSH local-forward hint: the universal, no-new-surface remote path. aiDeck
     // stays on 127.0.0.1; the user's own SSH session does the tunneling. Detect

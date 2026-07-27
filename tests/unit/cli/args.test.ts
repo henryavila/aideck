@@ -25,4 +25,9 @@ describe('parseCliArgs — expose flags', () => {
   it('rejects an unsupported expose provider', () => {
     expect(() => parseCliArgs(['serve', '--expose=funnel'])).toThrow(ArgError)
   })
+
+  it('accepts --expose=ngrok', () => {
+    const parsed = parseCliArgs(['serve', '--expose=ngrok'])
+    expect(parsed.flags.expose).toBe('ngrok')
+  })
 })

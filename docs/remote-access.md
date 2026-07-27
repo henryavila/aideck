@@ -1,11 +1,14 @@
 # Remote access (`aideck serve --expose`)
 
 aiDeck binds `127.0.0.1` only (Iron Law #4). To open the dashboard from another device —
-e.g. your phone — a **separate out-of-process proxy** terminates a private-tailnet HTTPS
-connection and forwards to the loopback port. aiDeck never widens its own bind.
+e.g. your phone — a **separate out-of-process proxy / tunnel** terminates the remote
+connection and forwards to the loopback port. aiDeck never widens its own bind to
+`0.0.0.0` (the sole exception is the direct `tailnet` listener on the node's own
+Tailscale IP, still never the LAN).
 
-We use **Tailscale Serve** (tailnet-private). **Tailscale Funnel (public internet) is never
-used** — the dashboard stays reachable only by devices on your tailnet.
+Default remote path is **Tailscale Serve** (tailnet-private). **Tailscale Funnel is never
+used.** For intentional public access, use **`--expose=ngrok`** (or `external` with a
+hand-started public proxy) and accept the PUBLIC INTERNET warning.
 
 ## TL;DR
 
@@ -17,6 +20,15 @@ aideck serve --expose=tailscale
 ```
 
 Open the `https://…ts.net:8443` URL on any device signed into the same tailnet.
+
+Public internet (ngrok) instead of a private tailnet:
+
+```bash
+aideck serve --expose=ngrok
+# aideck serve: listening on http://127.0.0.1:7777
+# aideck serve: remote (ngrok public) https://abc123.ngrok-free.app
+# aideck serve: WARNING — reachable from the PUBLIC INTERNET (reads AND writes, no auth)
+```
 
 ## Prerequisites
 
@@ -34,8 +46,8 @@ Open the `https://…ts.net:8443` URL on any device signed into the same tailnet
 
 | Flag | Default | Meaning |
 |------|---------|---------|
-| `--expose=<off\|tailscale\|tailnet\|external>` | `off` | Remote-access provider. |
-| `--expose-port=<N>` | `8443` | Public HTTPS port for the tailnet endpoint (`tailscale` only; ignored by `tailnet`). |
+| `--expose=<off\|tailscale\|tailnet\|ngrok\|external>` | `off` | Remote-access provider. |
+| `--expose-port=<N>` | `8443` | Public HTTPS port for the tailnet endpoint (`tailscale` only; ignored by `tailnet` / `ngrok` / `external`). |
 | `--remote-base-url=<url>` | — | Required for `external`; the `https://` origin your own proxy serves. |
 
 ### `tailnet` — direct bind, Host-validated (no proxy, no TLS hassle)
@@ -62,15 +74,72 @@ browser-attack vector that binding `127.0.0.1` otherwise mitigated. It does **no
 Open `http://<your-node>.<tailnet>.ts.net:<port>` from any device signed into the same tailnet
 (MagicDNS must resolve the name, or use the node's `100.x` Tailscale IP directly).
 
-### `external` — bring your own proxy
-
-If you already run a reverse proxy / tunnel (Caddy, Cloudflare Tunnel, ngrok, SSH `-R`, or a
-hand-rolled `tailscale serve`) pointing at aiDeck's loopback port, aiDeck won't spawn
-anything — it just records the public origin so the env-file and CORS know about it:
+### `ngrok` — public HTTPS tunnel (spawned by aiDeck)
 
 ```bash
+aideck serve --expose=ngrok
+# aideck serve: remote (ngrok public) https://abc123.ngrok-free.app
+# aideck serve: WARNING — reachable from the PUBLIC INTERNET (reads AND writes, no auth)
+```
+
+aiDeck still binds `127.0.0.1` only. It spawns `ngrok http 127.0.0.1:<port>`, polls the
+agent local API at `http://127.0.0.1:4040/api/tunnels` for the `https://` `public_url`,
+and records that origin for CORS + `AIDECK_REMOTE_URL`. On SIGINT/SIGTERM it SIGTERMs the
+child it started.
+
+**Prerequisites**
+
+- `ngrok` CLI on `PATH` (`ngrok version` works)
+- Authtoken configured once: `ngrok config add-authtoken <token>` (from your ngrok dashboard)
+  — or `NGROK_AUTHTOKEN` set in the environment
+
+When either is missing (or the tunnel fails to publish), aiDeck **stays local-only** and
+prints the exact install/config commands — it never aborts `serve` and never invents a
+token. Example (CLI missing on macOS):
+
+```
+aideck serve: ngrok is not installed or not on PATH (spawn ngrok ENOENT).
+aideck serve: Install the ngrok agent:
+aideck serve:   brew install ngrok/ngrok/ngrok
+aideck serve:   # any OS: https://ngrok.com/download
+aideck serve: Authenticate once (free account):
+aideck serve:   1. Sign up / log in:  https://dashboard.ngrok.com/signup
+aideck serve:   2. Copy your token:   https://dashboard.ngrok.com/get-started/your-authtoken
+aideck serve:   3. Save it locally:   ngrok config add-authtoken <YOUR_TOKEN>
+aideck serve:   4. Verify:            ngrok config check && ngrok diagnose
+aideck serve: Then re-run: aideck serve --expose=ngrok
+aideck serve: continuing local-only
+```
+
+**Reuse.** If an agent is already running with a tunnel that targets this local port,
+aiDeck reuses that `public_url` and does **not** spawn a second agent (stop is a no-op so
+a user-owned agent is never killed).
+
+**Security.** This is **public internet**, not a private tailnet. There is still **no
+auth** on the dashboard. Prefer `tailscale` / `tailnet` for personal multi-device access;
+use `ngrok` only when you intentionally need a shareable public URL (and tear it down as
+soon as you are done). Free-tier ngrok may show an interstitial browser warning page —
+that is an ngrok product behavior, not aiDeck.
+
+### `external` — bring your own proxy
+
+If you already run a reverse proxy / tunnel (Caddy, Cloudflare Tunnel, **hand-started
+ngrok**, SSH `-R`, or a hand-rolled `tailscale serve`) pointing at aiDeck's loopback
+port, aiDeck won't spawn anything — it just records the public origin so the env-file
+and CORS know about it:
+
+```bash
+# Hand-started ngrok in another terminal:
+#   ngrok http 7777
+# then:
+aideck serve --expose=external --remote-base-url=https://abc123.ngrok-free.app
+
+# Or any other proxy origin:
 aideck serve --expose=external --remote-base-url=https://dash.example.ts.net
 ```
+
+So yes: **`external` already covers ngrok when you run the tunnel yourself.** Prefer
+`--expose=ngrok` when you want aiDeck to spawn, discover, and tear down the agent.
 
 ## SSH tunnel — the zero-exposure fallback (always printed)
 
@@ -107,11 +176,16 @@ Swap the suggested host for your own SSH alias/tailnet name if it differs.
 
 ## Security
 
-aiDeck has **no authentication of its own**. While exposed, any device on your tailnet can
-both **read and write** (annotations, highlights, inbox). This is fine for a personal,
-single-user tailnet — which is the supported use case — but do not share a tailnet that
-contains untrusted peers while exposing aiDeck. The CLI prints a warning on every exposed
-start as a reminder.
+aiDeck has **no authentication of its own**. While exposed:
+
+- **`tailscale` / `tailnet`** — any device on your tailnet can both **read and write**
+  (annotations, highlights, inbox). Fine for a personal single-user tailnet; do not share
+  a tailnet with untrusted peers while exposing.
+- **`ngrok` / public `external`** — **anyone on the internet** who has the URL can
+  read and write. Prefer private providers unless you intentionally need a public URL;
+  tear the tunnel down when finished.
+
+The CLI prints a provider-specific warning on every exposed start as a reminder.
 
 ## Teardown
 
