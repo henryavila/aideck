@@ -20,7 +20,7 @@ import { projectNextAction } from '../projections/next-action.js'
 import { projectHelp } from '../projections/help.js'
 import type { EventBus } from '../event-bus.js'
 import type { ProjectRegistry } from '../project-registry.js'
-import { validateRootDir } from '../project-registry.js'
+import { isValidProjectId, validateRootDir } from '../project-registry.js'
 
 export interface ApiDeps {
   rootDir: string
@@ -344,6 +344,16 @@ export function createApiRouter(deps: ApiDeps): Hono {
 
     const existing = deps.registry.getByRootDir(validation.canonical)
     if (existing) {
+      const explicitId = typeof body.projectId === 'string' ? body.projectId : undefined
+      if (explicitId && isValidProjectId(explicitId) && explicitId !== existing.projectId) {
+        await deps.registry.unregister(existing.projectId)
+        const entry = deps.registry.register(validation.canonical, explicitId)
+        if (entry.watcher) {
+          entry.watcher.start().catch(() => { /* watcher start failure is non-fatal */ })
+        }
+        const { watcher: _w, ...proj } = entry
+        return c.json({ schemaVersion: '0.1', project: proj }, 200)
+      }
       const { watcher: _w, ...proj } = existing
       return c.json({ schemaVersion: '0.1', project: proj }, 200)
     }

@@ -29,6 +29,18 @@ describe('resolveSelectedProjectId', () => {
     ).toBe('mobile')
   })
 
+  it('ignores a stale query scope that is no longer registered', () => {
+    expect(
+      resolveSelectedProjectId({
+        queryProject: 'plan-dependencies',
+        pageSlug: 'work',
+        landingSlug: 'landing',
+        pages,
+        projects: [{ projectId: 'atomic-skills' }]
+      })
+    ).toBe('atomic-skills')
+  })
+
   it('uses the named path scope when there is no query scope', () => {
     expect(
       resolveSelectedProjectId({

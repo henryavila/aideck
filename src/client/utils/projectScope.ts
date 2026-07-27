@@ -20,12 +20,16 @@ function isScopedPage(input: ProjectScopeInput): boolean {
   return input.pages.some((page) => page.slug === input.pageSlug && page.showInNav !== false)
 }
 
+function isRegisteredProject(input: ProjectScopeInput, projectId: string): boolean {
+  return input.projects.length === 0 || input.projects.some((project) => project.projectId === projectId)
+}
+
 export function resolveSelectedProjectId(input: ProjectScopeInput): string | undefined {
   const queryProject = stringParam(input.queryProject)
-  if (queryProject) return queryProject
+  if (queryProject && isRegisteredProject(input, queryProject)) return queryProject
 
   const pathProjectId = stringParam(input.pathProjectId)
-  if (pathProjectId) return pathProjectId
+  if (pathProjectId && isRegisteredProject(input, pathProjectId)) return pathProjectId
 
   if (!isScopedPage(input)) return undefined
 

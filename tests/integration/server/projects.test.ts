@@ -129,13 +129,20 @@ describe('register validation', () => {
     expect(res.status).toBe(400)
   })
 
-  it('rejects duplicate rootDir with different explicit id', async () => {
+  it('rekeys an existing basename registration when the same rootDir is registered with an explicit id', async () => {
     const { app } = build()
-    await post(app, '/api/projects/register', { rootDir: tmp, projectId: 'alpha' })
-    const res = await post(app, '/api/projects/register', { rootDir: tmp, projectId: 'beta' })
+    const first = await post(app, '/api/projects/register', { rootDir: tmp })
+    const firstBody = await first.json() as { project: { projectId: string } }
+    expect(firstBody.project.projectId).not.toBe('atomic-skills')
+
+    const res = await post(app, '/api/projects/register', { rootDir: tmp, projectId: 'atomic-skills' })
     expect(res.status).toBe(200)
     const body = await res.json() as { project: { projectId: string } }
-    expect(body.project.projectId).toBe('alpha')
+    expect(body.project.projectId).toBe('atomic-skills')
+
+    const list = await app.fetch(new Request('http://127.0.0.1/api/projects'))
+    const listed = await list.json() as { projects: Array<{ projectId: string }> }
+    expect(listed.projects.map((p) => p.projectId)).toEqual(['atomic-skills'])
   })
 })
 
