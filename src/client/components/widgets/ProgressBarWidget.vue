@@ -18,7 +18,7 @@
         <span class="pbar-track" :class="'c-' + row.color"><i :style="{ width: row.pct + '%' }" /></span>
         <div v-if="row.caption" class="pbar-caption">{{ row.caption }}</div>
       </div>
-      <div class="pbar-stack-foot">
+      <div v-if="showFooter" class="pbar-stack-foot">
         <span>weighted avg</span>
         <span class="ok">{{ weightedAvg }}%</span>
         <span class="foot-tail">{{ rows.length }} of {{ rows.length }} {{ unit }}</span>
@@ -74,6 +74,8 @@ const showPct = computed(() => props.config.pct === true)
 const unit = computed(() => String(props.config.unit ?? 'items'))
 // DS v2.1: render the single bar as `max` discrete units instead of a fill.
 const segmented = computed(() => props.config.segmented === true)
+// The stacked summary footer can be hidden when rows use different units.
+const showFooter = computed(() => props.config.footer !== false)
 
 const labelField = computed(() => String(props.config.labelField ?? 'name'))
 const valueField = computed(() => String(props.config.valueField ?? 'value'))
@@ -134,9 +136,20 @@ const meta = computed(() => {
 })
 
 const weightedAvg = computed(() => {
-  if (!rows.value.length) return '0'
-  const sum = rows.value.reduce((acc, r) => acc + r.pct, 0)
-  return (sum / rows.value.length).toFixed(1)
+  const total = rows.value.reduce(
+    (acc, r) => {
+      // A row with no meaningful capacity contributes to neither sum.
+      if (!(r.max > 0) || !Number.isFinite(r.max)) return acc
+      const value = Math.min(r.max, Math.max(0, r.value))
+      return {
+        value: acc.value + (Number.isFinite(value) ? value : 0),
+        max: acc.max + r.max,
+      }
+    },
+    { value: 0, max: 0 },
+  )
+  if (total.max === 0) return '0.0'
+  return ((total.value / total.max) * 100).toFixed(1)
 })
 </script>
 
