@@ -246,4 +246,58 @@ describe('progress-bar enhancement', () => {
     expect(w.find('.pbar-caption').text()).toBe('note')
     expect(w.find('.pbar-track').classes()).toContain('c-warning')
   })
+
+  it('stacked footer weights by max: 1/1 and 0/99 is 1.0%, not the mean 50.0%', async () => {
+    const w = await mountW(ProgressBarWidget, [
+      { name: 'a', value: 1, max: 1 },
+      { name: 'b', value: 0, max: 99 },
+    ])
+    expect(w.find('.pbar-stack-foot .ok').text()).toBe('1.0%')
+  })
+
+  it('stacked footer clamps a value above max', async () => {
+    const w = await mountW(ProgressBarWidget, [
+      { name: 'a', value: 150, max: 100 },
+      { name: 'b', value: 50, max: 100 },
+    ])
+    expect(w.find('.pbar-stack-foot .ok').text()).toBe('75.0%')
+  })
+
+  it('stacked footer shows 0.0% when every max is 0', async () => {
+    const w = await mountW(ProgressBarWidget, [
+      { name: 'a', value: 3, max: 0 },
+      { name: 'b', value: 7, max: 0 },
+    ])
+    expect(w.find('.pbar-stack-foot .ok').text()).toBe('0.0%')
+  })
+
+  it('stacked footer counts negative or non-finite max as 0', async () => {
+    const w = await mountW(ProgressBarWidget, [
+      { name: 'a', value: 1, max: 1 },
+      { name: 'b', value: 5, max: -9 },
+      { name: 'c', value: 5, max: Number.NaN },
+      { name: 'd', value: 5, max: Number.POSITIVE_INFINITY },
+    ])
+    expect(w.find('.pbar-stack-foot .ok').text()).toBe('100.0%')
+  })
+
+  it('footer: false removes the stacked footer', async () => {
+    const w = await mountW(
+      ProgressBarWidget,
+      [
+        { name: 'a', value: 1, max: 2 },
+        { name: 'b', value: 1, max: 2 },
+      ],
+      { footer: false },
+    )
+    expect(w.find('.pbar-stack-foot').exists()).toBe(false)
+  })
+
+  it('absent footer keeps the stacked footer', async () => {
+    const w = await mountW(ProgressBarWidget, [
+      { name: 'a', value: 1, max: 2 },
+      { name: 'b', value: 1, max: 2 },
+    ])
+    expect(w.find('.pbar-stack-foot').exists()).toBe(true)
+  })
 })
