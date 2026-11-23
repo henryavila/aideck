@@ -49,6 +49,50 @@ export async function fetchProjects(consumerId: string): Promise<ProjectSummary[
   return data.projects ?? []
 }
 
+export interface DataSourceErrorOptions {
+  code?: string
+  suggestion?: string
+}
+
+/** A failed data-source read, carrying the server's ErrorResponse fields. */
+export class DataSourceError extends Error {
+  readonly code?: string
+  readonly suggestion?: string
+
+  constructor(message: string, options: DataSourceErrorOptions = {}) {
+    super(message)
+    this.name = 'DataSourceError'
+    this.code = options.code
+    this.suggestion = options.suggestion
+  }
+}
+
+async function readDataSourceError(res: Response): Promise<DataSourceError> {
+  let body: unknown
+  try {
+    body = await res.json()
+  } catch {
+    return new DataSourceError(`Failed to load data source (HTTP ${res.status}).`)
+  }
+
+  const error =
+    body && typeof body === 'object' && 'error' in body
+      ? (body as { error?: unknown }).error
+      : undefined
+  if (!error || typeof error !== 'object') {
+    return new DataSourceError(`Failed to load data source (HTTP ${res.status}).`)
+  }
+
+  const { code, message, suggestion } = error as Record<string, unknown>
+  return new DataSourceError(
+    typeof message === 'string' ? message : `Failed to load data source (HTTP ${res.status}).`,
+    {
+      code: typeof code === 'string' ? code : undefined,
+      suggestion: typeof suggestion === 'string' ? suggestion : undefined,
+    },
+  )
+}
+
 export async function fetchDataSource(
   consumerId: string,
   dataSourceId: string,
@@ -61,7 +105,7 @@ export async function fetchDataSource(
     ? `${BASE}/api/consumers/${consumerId}/projects/${projectId}/data/${dataSourceId}`
     : `${BASE}/api/consumers/${consumerId}/data/${dataSourceId}`
   const res = await fetch(url)
-  if (!res.ok) return []
+  if (!res.ok) throw await readDataSourceError(res)
   const data = await res.json()
   return data.records ?? []
 }
