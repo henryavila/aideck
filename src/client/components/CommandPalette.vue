@@ -185,7 +185,13 @@ async function buildIndex(): Promise<void> {
       // which collections to surface as ⌘K targets, and how to title/route each.
       const palette = m.commandPalette as { records?: PaletteRecordDecl[] } | undefined
       for (const spec of palette?.records ?? []) {
-        const records = await fetchDataSource(c.id, spec.ref)
+        let records: Record<string, unknown>[]
+        try {
+          records = await fetchDataSource(c.id, spec.ref)
+        } catch {
+          // An unreadable spec contributes nothing; the other specs still index.
+          continue
+        }
         for (const r of records) {
           const name = String(r[spec.titleField ?? 'title'] ?? r.id ?? r.slug ?? '')
           if (!name) continue
