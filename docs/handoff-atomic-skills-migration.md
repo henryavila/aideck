@@ -47,9 +47,12 @@ id: atomic-skills          # required — string, 1-64 chars, used in API paths
 mcpNamespace: atomic_skills # required — regex [a-z][a-z0-9_]{0,31}, used in MCP tool names
 title: "Project Status"    # required
 icon: mdi:clipboard-check  # optional — MDI icon name, shown in nav
+locale: pt-BR              # optional — en (default) | pt-BR, language of aiDeck's own labels
 ```
 
 The `mcpNamespace` is load-bearing. Consumer tools are registered as `aideck_<mcpNamespace>_<tool.name>`. For `atomic_skills` + `mark_task_done` that becomes `aideck_atomic_skills_mark_task_done`.
+
+The `locale` key is optional and only translates aiDeck's own generic chrome labels (connection state, widget live/stale/retry, row counts, progress-bar defaults). It never translates values the consumer supplies — `title`, `label`, `unit`, `emptyNote`, status labels and record content stay exactly as written. With no `locale`, every label renders in English, identical to a manifest that predates the key. Any value other than `en` or `pt-BR` is rejected by the manifest schema like any other invalid manifest value.
 
 ### dataSources
 
