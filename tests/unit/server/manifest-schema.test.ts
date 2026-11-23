@@ -880,3 +880,27 @@ describe('parseManifest — §2b slots & §2c composite param', () => {
     expect(parseManifest(raw).ok).toBe(false)
   })
 })
+
+describe('manifest locale', () => {
+  it('accepts pt-BR', () => {
+    const result = parseManifest({ ...minimalManifest, locale: 'pt-BR' })
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.value.locale).toBe('pt-BR')
+  })
+
+  it('accepts an explicit en', () => {
+    const result = parseManifest({ ...minimalManifest, locale: 'en' })
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.value.locale).toBe('en')
+  })
+
+  it('accepts its absence', () => {
+    const result = parseManifest({ ...minimalManifest })
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.value.locale).toBeUndefined()
+  })
+
+  it('rejects an unsupported locale', () => {
+    expect(parseManifest({ ...minimalManifest, locale: 'fr' }).ok).toBe(false)
+  })
+})
