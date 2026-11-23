@@ -141,7 +141,9 @@ watchEffect(async () => {
       const records = await fetchDataSource(props.consumerId, firstWidgetSource)
       visibilityResults[i] = evaluateVisibility(records, section.visible)
     } catch {
-      visibilityResults[i] = true
+      // A failed read contributes no records, so evaluate the expression against
+      // an empty result (the behaviour before unreadable sources threw).
+      visibilityResults[i] = evaluateVisibility([], section.visible)
     }
   }
 })
