@@ -138,6 +138,29 @@ describe('SectionsLayout visibility', () => {
     expect(sections[0].element.style.display).toBe('none')
   })
 
+  it('keeps a visible-expression section rendered when its source read fails', async () => {
+    const { fetchDataSource } = await import('../../../src/client/api.js')
+    vi.mocked(fetchDataSource).mockRejectedValueOnce(new Error('cannot read tasks'))
+
+    const router = makeRouter('/alpha/overview')
+    await router.isReady()
+
+    const wrapper = mount(SectionsLayout, {
+      props: {
+        sections: [makeSection({ visible: 'status=active' })],
+        consumerId: 'alpha',
+      },
+      global: { plugins: [router] },
+    })
+    await flushPromises()
+
+    expect(fetchDataSource).toHaveBeenCalledWith('alpha', 'tasks')
+    // The expression would be false on empty records; the failed read must not hide the
+    // section, so its widget can show the read error instead.
+    const sections = wrapper.findAll('.section')
+    expect(sections[0].element.style.display).not.toBe('none')
+  })
+
   it('shows section when visible is a string but first widget has no source', async () => {
     const router = makeRouter('/alpha/overview')
     await router.isReady()
