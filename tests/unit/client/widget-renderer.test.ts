@@ -5,6 +5,7 @@ import { ref } from 'vue'
 import { createRouter, createWebHashHistory } from 'vue-router'
 import WidgetRenderer from '../../../src/client/components/WidgetRenderer.vue'
 import { PROJECT_ID_KEY } from '../../../src/client/composables/useProjectScope.js'
+import { useLiveBus } from '../../../src/client/composables/useLiveBus.js'
 
 vi.mock('../../../src/client/api.js', () => ({
   fetchDataSource: vi.fn().mockResolvedValue([]),
@@ -759,6 +760,38 @@ describe('WidgetRenderer', () => {
     expect(failed.find('.is-error').exists()).toBe(true)
     expect(healthy.find('.is-error').exists()).toBe(false)
     expect(healthy.text()).toContain('Task One')
+  })
+
+  it('re-fetches and renders data when a live event arrives after a failed read', async () => {
+    const { fetchDataSource } = await import('../../../src/client/api.js')
+    vi.mocked(fetchDataSource)
+      .mockRejectedValueOnce(Object.assign(new Error('cannot read plans'), { code: 'io_error' }))
+      .mockResolvedValue([{ id: 'task-1', title: 'Task One' }])
+
+    const router = makeRouter('/alpha/overview')
+    await router.isReady()
+
+    const wrapper = mount(WidgetRenderer, {
+      props: {
+        binding: { widget: 'table', config: { title: 'Plans' }, source: { ref: 'plans' } },
+        consumerId: 'alpha',
+      },
+      global: { plugins: [router] },
+    })
+    await flushPromises()
+    expect(wrapper.find('.is-error').exists()).toBe(true)
+
+    const callsAfterFailure = vi.mocked(fetchDataSource).mock.calls.length
+    const { lastEvent } = useLiveBus()
+    lastEvent.value = { kind: 'data_changed', consumer: 'alpha' }
+    await flushPromises()
+
+    expect(vi.mocked(fetchDataSource).mock.calls.length).toBeGreaterThan(callsAfterFailure)
+    expect(wrapper.find('.is-error').exists()).toBe(false)
+    expect(wrapper.text()).toContain('Task One')
+
+    lastEvent.value = null
+    await flushPromises()
   })
 
   it('resolves $parent.<field> tokens in source.filter against the parent record (mode 2)', async () => {
