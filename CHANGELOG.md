@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- Optional manifest `locale` (`en`, `pt-BR`) translating a subset of aiDeck's labels.
+- `progress-bar` `footer: false` hides the stacked footer.
+
+### Changed
+
+- The stacked `progress-bar` average is now weighted by each row's `max`.
+
+### Fixed
+
+- Widgets refresh on named SSE data events.
+- Failed data-source reads show an error state instead of a false empty state (except `scope: all-projects`).
+
 ## [0.2.0] - 2026-06-24
 
 ### Added

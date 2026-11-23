@@ -58,7 +58,7 @@ Consumers own their domain. aiDeck has zero knowledge of any domain type -- all 
 
 ## Consumers
 
-A consumer is any tool that publishes a `manifest.yaml` under `~/.aideck/consumers/<id>/`. aiDeck scans this directory at startup and watches for new consumers at runtime.
+A consumer is any tool that publishes a `manifest.yaml` under `~/.aideck/consumers/<id>/`. aiDeck scans this directory when the server starts. After adding a consumer or editing a `manifest.yaml` (including `locale`), restart `aideck serve` and reload the browser. Changes to data files are picked up live.
 
 ### manifest.yaml
 
@@ -112,6 +112,8 @@ pages:
             config: { fields: ['title', 'status', 'owner'] }
 ```
 
+Optional top-level `locale: en | pt-BR` (default `en`) translates a subset of aiDeck's labels. `progress-bar` options go under `config`: `valueText`/`valueTextField`, `caption`/`captionField`, `segmented`, `tone`, and `footer: false` to hide the stacked footer. A `footer` key outside `config` is silently ignored.
+
 Supported data formats: `yaml`, `json`, `jsonl`, `frontmatter`.
 
 ### Schema validation
@@ -134,6 +136,8 @@ Consumers publish a `schema.json` (JSON Schema) alongside the manifest. aiDeck v
 | **Specialized** | `graph-dag` (Mermaid) |
 
 Consumers can also register custom Vue or Web Components for anything not covered by the built-in set.
+
+When a data source read fails, the widget shows an error frame with its title, the server's message, any suggestion and a retry action. A missing file or a glob with no matches is not an error and renders the normal empty state. `scope: all-projects` reads still render empty on failure. A section with a `visible` expression stays shown if its read fails.
 
 ## Layout Modes
 

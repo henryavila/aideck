@@ -413,6 +413,7 @@ export const manifestSchema = z.object({
   mcpNamespace: mcpNamespaceSchema,
   title: z.string().min(1),
   icon: z.string().optional(),
+  locale: z.enum(['en', 'pt-BR']).optional(),
   dataSources: z.array(dataSourceSchema),
   nav: navSchema.optional(),
   // Slug of the page the chrome `?` button opens (a catalog/help page reached

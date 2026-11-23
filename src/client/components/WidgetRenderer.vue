@@ -1,5 +1,12 @@
 <template>
-  <template v-if="binding.repeat && repeatGroups.length > 0">
+  <WidgetFrame
+    v-if="loadError"
+    state="error"
+    :title="widgetTitle"
+    :error="loadError"
+    @retry="loadData"
+  />
+  <template v-else-if="binding.repeat && repeatGroups.length > 0">
     <div
       class="repeat-container"
       :style="repeatContainerStyle"
@@ -45,6 +52,7 @@ import { PROJECT_ID_KEY } from '../composables/useProjectScope.js'
 import { STATUS_MAP_KEY, type StatusOverrides } from '../utils/status.js'
 import { aggregate, applyFieldMap, type AggResult, type AggKind, type Where, type RatioFormat } from '../utils/aggregate.js'
 import { PAGE_STATE_KEY, type PageState } from '../composables/usePageState.js'
+import WidgetFrame from './WidgetFrame.vue'
 import AccordionWidget from './widgets/AccordionWidget.vue'
 import BadgeWidget from './widgets/BadgeWidget.vue'
 import BarChartWidget from './widgets/BarChartWidget.vue'
@@ -229,6 +237,25 @@ const effectiveConfig = computed<Record<string, unknown>>(() => {
   return config
 })
 
+interface WidgetLoadError {
+  message: string
+  suggestion?: string
+}
+
+const widgetTitle = computed(() => {
+  const title = effectiveConfig.value.title
+  return typeof title === 'string' ? title : undefined
+})
+
+function toLoadError(error: unknown): WidgetLoadError {
+  const err = error as { message?: unknown; suggestion?: unknown }
+  return {
+    message: typeof err?.message === 'string' ? err.message : 'Failed to load data source.',
+    ...(typeof err?.suggestion === 'string' ? { suggestion: err.suggestion } : {}),
+  }
+}
+
+const loadError = ref<WidgetLoadError | null>(null)
 const sourceData = ref<Record<string, unknown>[]>([])
 const repeatGroups = ref<RepeatGroup[]>([])
 
@@ -347,7 +374,17 @@ function applyRouteParam(
   return records
 }
 
+let loadSeq = 0
+
+function failLoad(error: unknown): void {
+  loadError.value = toLoadError(error)
+  sourceData.value = []
+  repeatGroups.value = []
+  aggResult.value = null
+}
+
 async function loadData(): Promise<void> {
+  const seq = ++loadSeq
   // Snapshot reactive deps (route params + injected projectId) synchronously
   // BEFORE the first await — watchEffect only registers dependencies touched
   // before it suspends. Reading route.params after the fetch would miss sibling
@@ -380,7 +417,16 @@ async function loadData(): Promise<void> {
 
   const rep = props.binding.repeat
   if (rep && typeof rep === 'object') {
-    let recs = await fetchScoped(rep.ref, rep.scope)
+    let recs: Record<string, unknown>[]
+    try {
+      recs = await fetchScoped(rep.ref, rep.scope)
+    } catch (e) {
+      if (seq === loadSeq) failLoad(e)
+      return
+    }
+    // A newer load started while this read was pending — let it own the state.
+    if (seq !== loadSeq) return
+    loadError.value = null
     recs = applyFilter(recs, rep.filter, props.parentRecord)
     recs = applyRouteParam(recs, rep.param, params, state, resolveParam)
     repeatGroups.value = recs.map((r, i) => ({ key: String(r.id ?? r.slug ?? i), records: [r] }))
@@ -392,13 +438,23 @@ async function loadData(): Promise<void> {
   // §2b mode 1: a source-less child renders against the parent record (the
   // row / card / item it sits in). No fetch, no repeat.
   if (!props.binding.source?.ref) {
+    loadError.value = null
     sourceData.value = props.parentRecord ? [props.parentRecord] : []
     repeatGroups.value = []
     aggResult.value = null
     return
   }
 
-  const records = await fetchScoped(props.binding.source.ref as string, props.binding.source.scope)
+  let records: Record<string, unknown>[]
+  try {
+    records = await fetchScoped(props.binding.source.ref as string, props.binding.source.scope)
+  } catch (e) {
+    if (seq === loadSeq) failLoad(e)
+    return
+  }
+  if (seq !== loadSeq) return
+  loadError.value = null
+
   let filtered = applyFilter(records, props.binding.source.filter, props.parentRecord)
   filtered = applyRouteParam(filtered, props.binding.source.param, params, state, resolveParam)
 
