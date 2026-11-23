@@ -102,6 +102,7 @@ import { useRouter, RouterLink } from 'vue-router'
 import WidgetFrame from '../WidgetFrame.vue'
 import WidgetSlot from '../WidgetSlot.vue'
 import { useMediaQuery } from '../../composables/useMediaQuery.js'
+import { useT } from '../../i18n.js'
 import { resolveRowLink } from '../../utils/link.js'
 import { statusInfo, type Tone } from '../../utils/status.js'
 import { useStatuses } from '../../composables/useStatuses.js'
@@ -116,6 +117,7 @@ const props = defineProps<{
 }>()
 
 const router = useRouter()
+const { t } = useT()
 const linkTo = computed(() => props.config.linkTo as string | undefined)
 const statuses = useStatuses(props)
 
@@ -159,11 +161,12 @@ const columns = computed<string[]>(() => {
 
 const meta = computed(() => {
   const ref = props.config.sourceRef as string | undefined
-  const rows = props.source.length + ' rows'
-  return ref ? `source · ${ref} · ${rows}` : rows
+  const count = props.source.length
+  const rows = count === 1 ? t('rows.one', { count }) : t('rows.other', { count })
+  return ref ? `${t('table.sourcePrefix')} ${ref} · ${rows}` : rows
 })
 
-const emptyNote = computed(() => String(props.config.emptyNote ?? '0 rows'))
+const emptyNote = computed(() => String(props.config.emptyNote ?? t('table.zeroRows')))
 
 // A `subtitles` config maps a columnId -> the field whose value renders as a
 // muted second line under that column's primary value (e.g. a task `title` with

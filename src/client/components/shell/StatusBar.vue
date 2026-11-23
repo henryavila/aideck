@@ -9,7 +9,7 @@
     <span class="grow" />
 
     <span class="sb-item" :class="{ success: connected }">
-      <span class="dot" /><span class="sb-em">sse</span> {{ connected ? 'live' : 'offline' }}
+      <span class="dot" /><span class="sb-em">sse</span> {{ connected ? t('connection.live') : t('connection.offline') }}
     </span>
     <span class="sep sb-d-only">·</span>
     <span class="sb-item sb-d-only">MIT</span>
@@ -18,6 +18,9 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useT } from '../../i18n.js'
+
+const { t } = useT()
 
 withDefaults(
   defineProps<{ consumerCount: number; connected: boolean; version?: string }>(),

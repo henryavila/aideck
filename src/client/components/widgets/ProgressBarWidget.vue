@@ -6,7 +6,7 @@
     :meta="meta"
     :live="live"
     :state="rows.length ? 'ready' : 'empty'"
-    empty-note="no rows to chart"
+    :empty-note="t('progress.empty')"
   >
     <!-- Stacked variant: one bar per row -->
     <div v-if="stacked" class="pbar-stack">
@@ -19,9 +19,9 @@
         <div v-if="row.caption" class="pbar-caption">{{ row.caption }}</div>
       </div>
       <div v-if="showFooter" class="pbar-stack-foot">
-        <span>weighted avg</span>
+        <span>{{ t('progress.weightedAvg') }}</span>
         <span class="ok">{{ weightedAvg }}%</span>
-        <span class="foot-tail">{{ rows.length }} of {{ rows.length }} {{ unit }}</span>
+        <span class="foot-tail">{{ t('progress.ratio', { value: rows.length, max: rows.length, unit }) }}</span>
       </div>
     </div>
 
@@ -44,6 +44,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import WidgetFrame from '../WidgetFrame.vue'
+import { useT } from '../../i18n.js'
 import { statusInfo, toneForValue, type Tone, type ToneBand } from '../../utils/status.js'
 
 interface PBarRow {
@@ -65,13 +66,15 @@ const props = defineProps<{
   consumerId?: string
 }>()
 
+const { t } = useT()
+
 const title = computed(() => props.config.title as string | undefined)
 const icon = computed(() => (props.config.icon as string | undefined) ?? '▭')
 const live = computed(() => props.config.live === true)
 // Inline (frameless) mode for embedding in a card body (config.frame: false).
 const framed = computed(() => props.config.frame !== false)
 const showPct = computed(() => props.config.pct === true)
-const unit = computed(() => String(props.config.unit ?? 'items'))
+const unit = computed(() => String(props.config.unit ?? t('progress.defaultUnit')))
 // DS v2.1: render the single bar as `max` discrete units instead of a fill.
 const segmented = computed(() => props.config.segmented === true)
 // The stacked summary footer can be hidden when rows use different units.
@@ -105,7 +108,7 @@ const PBAR_BANDS: ToneBand[] = [
 ]
 
 const rows = computed<PBarRow[]>(() => {
-  const fallbackName = String(props.config.label ?? 'Progress')
+  const fallbackName = String(props.config.label ?? t('progress.defaultLabel'))
   return props.source.map((r, i) => {
     const value = Number(r[valueField.value] ?? 0)
     const max = Number(r[maxField.value] ?? props.config.max ?? 100)
@@ -128,9 +131,13 @@ const rows = computed<PBarRow[]>(() => {
 
 const stacked = computed(() => rows.value.length > 1)
 
+function rowCountLabel(count: number): string {
+  return count === 1 ? t('rows.one', { count }) : t('rows.other', { count })
+}
+
 const meta = computed(() => {
   if (props.config.meta) return String(props.config.meta)
-  if (stacked.value) return `${rows.value.length} rows`
+  if (stacked.value) return rowCountLabel(rows.value.length)
   const r = rows.value[0]
   return r ? `${r.value} / ${r.max}` : undefined
 })

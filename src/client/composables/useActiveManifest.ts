@@ -1,6 +1,7 @@
 import { ref, computed, watch, type Ref } from 'vue'
 import { fetchConsumerManifest } from '../api.js'
 import { normalizeStatusMap, type StatusOverrides } from '../utils/status.js'
+import { activeLocale } from '../i18n.js'
 
 export interface NavConfig {
   style?: 'tabs' | 'sidebar' | 'projects'
@@ -63,6 +64,13 @@ async function load(id: string | undefined, force = false): Promise<void> {
  */
 export function useActiveManifest(consumerId: Ref<string | undefined>) {
   watch(consumerId, (id) => void load(id), { immediate: true })
+  watch(
+    manifest,
+    (loaded) => {
+      activeLocale.value = loaded?.locale === 'pt-BR' ? 'pt-BR' : 'en'
+    },
+    { immediate: true },
+  )
 
   const nav = computed<NavConfig>(() => (manifest.value?.nav as NavConfig) ?? {})
   const pages = computed<PageMeta[]>(() => (manifest.value?.pages as PageMeta[]) ?? [])
@@ -112,4 +120,5 @@ export function __resetActiveManifest(): void {
   loading.value = false
   inflight = null
   inflightId = undefined
+  activeLocale.value = 'en'
 }
