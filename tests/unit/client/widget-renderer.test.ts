@@ -11,6 +11,16 @@ vi.mock('../../../src/client/api.js', () => ({
   fetchDataSourceAllProjects: vi.fn().mockResolvedValue([]),
 }))
 
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res
+    reject = rej
+  })
+  return { promise, resolve, reject }
+}
+
 function makeRouter(path: string) {
   const router = createRouter({
     history: createWebHashHistory(),
@@ -24,8 +34,10 @@ function makeRouter(path: string) {
 }
 
 describe('WidgetRenderer', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
+  beforeEach(async () => {
+    const api = await import('../../../src/client/api.js')
+    vi.mocked(api.fetchDataSource).mockReset().mockResolvedValue([])
+    vi.mocked(api.fetchDataSourceAllProjects).mockReset().mockResolvedValue([])
   })
 
   it('renders unknown widget message for unrecognized widget type', async () => {
@@ -609,6 +621,144 @@ describe('WidgetRenderer', () => {
     expect(fetchDataSource).not.toHaveBeenCalled()
     const data = (wrapper.vm as unknown as { sourceData: Record<string, unknown>[] }).sourceData
     expect(data).toEqual([{ id: 'p1', title: 'Parent' }])
+  })
+
+  it('renders the server message and suggestion when a source read fails', async () => {
+    const { fetchDataSource } = await import('../../../src/client/api.js')
+    vi.mocked(fetchDataSource).mockRejectedValue(
+      Object.assign(new Error('failed to parse data source "plans": Unexpected token'), {
+        code: 'io_error',
+        suggestion: 'Fix the JSON file at data/plans.json and retry.',
+      }),
+    )
+
+    const router = makeRouter('/alpha/overview')
+    await router.isReady()
+
+    const wrapper = mount(WidgetRenderer, {
+      props: {
+        binding: { widget: 'table', config: { title: 'Plans' }, source: { ref: 'plans' } },
+        consumerId: 'alpha',
+      },
+      global: { plugins: [router] },
+    })
+    await flushPromises()
+
+    expect(wrapper.find('.is-error').exists()).toBe(true)
+    expect(wrapper.find('.w-title').text()).toContain('Plans')
+    expect(wrapper.find('.err-1').text()).toContain('failed to parse data source')
+    expect(wrapper.find('.err-3').text()).toContain('Fix the JSON file')
+    expect(wrapper.find('table').exists()).toBe(false)
+  })
+
+  it('shows the normal empty state when a source reads successfully with zero records', async () => {
+    const { fetchDataSource } = await import('../../../src/client/api.js')
+    vi.mocked(fetchDataSource).mockResolvedValue([])
+
+    const router = makeRouter('/alpha/overview')
+    await router.isReady()
+
+    const wrapper = mount(WidgetRenderer, {
+      props: {
+        binding: { widget: 'table', config: { title: 'Plans' }, source: { ref: 'plans' } },
+        consumerId: 'alpha',
+      },
+      global: { plugins: [router] },
+    })
+    await flushPromises()
+
+    expect(wrapper.find('.is-error').exists()).toBe(false)
+    expect(wrapper.find('.w-empty').exists()).toBe(true)
+    expect(wrapper.text()).toContain('0 rows')
+  })
+
+  it('renders the data again after retrying a failed read', async () => {
+    const { fetchDataSource } = await import('../../../src/client/api.js')
+    vi.mocked(fetchDataSource)
+      .mockRejectedValueOnce(Object.assign(new Error('cannot read plans'), { code: 'io_error' }))
+      .mockResolvedValueOnce([{ id: 'task-1', title: 'Task One' }])
+
+    const router = makeRouter('/alpha/overview')
+    await router.isReady()
+
+    const wrapper = mount(WidgetRenderer, {
+      props: {
+        binding: { widget: 'table', config: { title: 'Plans' }, source: { ref: 'plans' } },
+        consumerId: 'alpha',
+      },
+      global: { plugins: [router] },
+    })
+    await flushPromises()
+    expect(wrapper.find('.is-error').exists()).toBe(true)
+
+    await wrapper.find('.retry').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('.is-error').exists()).toBe(false)
+    expect(wrapper.text()).toContain('Task One')
+    expect(fetchDataSource).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not let a stale failed response replace a newer successful one', async () => {
+    const { fetchDataSource } = await import('../../../src/client/api.js')
+    const stale = deferred<Record<string, unknown>[]>()
+    vi.mocked(fetchDataSource)
+      .mockReturnValueOnce(stale.promise)
+      .mockResolvedValueOnce([{ id: 'task-1', title: 'Task One' }])
+
+    const router = makeRouter('/alpha/overview')
+    await router.isReady()
+
+    const wrapper = mount(WidgetRenderer, {
+      props: {
+        binding: { widget: 'table', config: { title: 'Plans' }, source: { ref: 'plans' } },
+        consumerId: 'alpha',
+      },
+      global: { plugins: [router] },
+    })
+    const vm = wrapper.vm as unknown as { loadData: () => Promise<void> }
+
+    // A second load starts while the first read is still pending; it succeeds.
+    await vm.loadData()
+    await flushPromises()
+    expect(wrapper.text()).toContain('Task One')
+
+    // The older read now fails. It must be ignored, not overwrite the newer data.
+    stale.reject(Object.assign(new Error('stale io_error'), { code: 'io_error', suggestion: 'stale hint' }))
+    await flushPromises()
+
+    expect(wrapper.find('.is-error').exists()).toBe(false)
+    expect(wrapper.text()).toContain('Task One')
+  })
+
+  it('keeps a failure isolated to the widget whose source failed', async () => {
+    const { fetchDataSource } = await import('../../../src/client/api.js')
+    vi.mocked(fetchDataSource)
+      .mockRejectedValueOnce(new Error('broken source'))
+      .mockResolvedValueOnce([{ id: 'task-1', title: 'Task One' }])
+
+    const router = makeRouter('/alpha/overview')
+    await router.isReady()
+
+    const failed = mount(WidgetRenderer, {
+      props: {
+        binding: { widget: 'table', config: { title: 'Broken' }, source: { ref: 'broken' } },
+        consumerId: 'alpha',
+      },
+      global: { plugins: [router] },
+    })
+    const healthy = mount(WidgetRenderer, {
+      props: {
+        binding: { widget: 'table', config: { title: 'Healthy' }, source: { ref: 'healthy' } },
+        consumerId: 'alpha',
+      },
+      global: { plugins: [router] },
+    })
+    await flushPromises()
+
+    expect(failed.find('.is-error').exists()).toBe(true)
+    expect(healthy.find('.is-error').exists()).toBe(false)
+    expect(healthy.text()).toContain('Task One')
   })
 
   it('resolves $parent.<field> tokens in source.filter against the parent record (mode 2)', async () => {
