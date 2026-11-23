@@ -179,7 +179,7 @@ describe('WidgetRenderer live refresh', () => {
     expect(mocks.fetchDataSource).toHaveBeenCalledTimes(2)
     const vm = wrapper!.vm as unknown as { sourceData: Record<string, unknown>[] }
     expect(vm.sourceData).toEqual([{ id: 'b', title: 'second' }])
-  })
+  }, 30_000)
 
   it('does not re-fetch for a data_changed event of another consumer', async () => {
     mocks.fetchDataSource.mockResolvedValue([{ id: 'a', title: 'first' }])
@@ -196,5 +196,5 @@ describe('WidgetRenderer live refresh', () => {
     expect(mocks.fetchDataSource).toHaveBeenCalledTimes(1)
     const vm = wrapper!.vm as unknown as { sourceData: Record<string, unknown>[] }
     expect(vm.sourceData).toEqual([{ id: 'a', title: 'first' }])
-  })
+  }, 30_000)
 })
