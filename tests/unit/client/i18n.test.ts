@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createRouter, createWebHashHistory } from 'vue-router'
-import { ref } from 'vue'
+import { nextTick, ref } from 'vue'
 import { messages, activeLocale, useT } from '../../../src/client/i18n.js'
 import { useActiveManifest, __resetActiveManifest } from '../../../src/client/composables/useActiveManifest.js'
 import { fetchConsumerManifest } from '../../../src/client/api.js'
@@ -72,6 +72,14 @@ describe('i18n message table', () => {
     expect(t('rows.other', { count: 3 })).toBe('3 rows')
     activeLocale.value = 'pt-BR'
     expect(t('rows.other', { count: 3 })).toBe('3 linhas')
+  })
+
+  it('updates mounted labels when the locale changes', async () => {
+    const wrapper = mountProgress(STACKED)
+    expect(wrapper.find('.w-meta').text()).toContain('2 rows')
+    activeLocale.value = 'pt-BR'
+    await nextTick()
+    expect(wrapper.find('.w-meta').text()).toContain('2 linhas')
   })
 })
 
