@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createRouter, createWebHashHistory } from 'vue-router'
-import { nextTick, ref } from 'vue'
+import { effectScope, nextTick, ref, type EffectScope, type Ref } from 'vue'
 import { messages, activeLocale, useT } from '../../../src/client/i18n.js'
 import { useActiveManifest, __resetActiveManifest } from '../../../src/client/composables/useActiveManifest.js'
 import { fetchConsumerManifest } from '../../../src/client/api.js'
@@ -17,6 +17,8 @@ vi.mock('../../../src/client/api.js', () => ({
   fetchDataSourceAllProjects: vi.fn().mockResolvedValue([]),
 }))
 
+let scope: EffectScope | undefined
+
 beforeEach(() => {
   activeLocale.value = 'en'
   __resetActiveManifest()
@@ -24,10 +26,19 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  scope?.stop()
+  scope = undefined
   activeLocale.value = 'en'
   __resetActiveManifest()
   vi.mocked(fetchConsumerManifest).mockReset()
 })
+
+// `useActiveManifest` installs watchers on module-scoped refs; running it in a
+// scope that is stopped after each test keeps them from leaking into later ones.
+function useActiveManifestInScope(consumerId: Ref<string | undefined>) {
+  scope = effectScope()
+  scope.run(() => useActiveManifest(consumerId))
+}
 
 function mountFrame(props: Record<string, unknown>) {
   return mount(WidgetFrame, {
@@ -198,7 +209,7 @@ describe('useActiveManifest locale', () => {
   it('applies locale from the loaded manifest', async () => {
     vi.mocked(fetchConsumerManifest).mockResolvedValue({ locale: 'pt-BR' })
     const consumerId = ref<string | undefined>('alpha')
-    useActiveManifest(consumerId)
+    useActiveManifestInScope(consumerId)
     await flushPromises()
     expect(activeLocale.value).toBe('pt-BR')
   })
@@ -206,7 +217,7 @@ describe('useActiveManifest locale', () => {
   it('returns to en when the manifest has no locale', async () => {
     vi.mocked(fetchConsumerManifest).mockResolvedValue({ title: 'Alpha' })
     const consumerId = ref<string | undefined>('alpha')
-    useActiveManifest(consumerId)
+    useActiveManifestInScope(consumerId)
     await flushPromises()
     expect(activeLocale.value).toBe('en')
   })
@@ -214,7 +225,7 @@ describe('useActiveManifest locale', () => {
   it('returns to en when no manifest is active', async () => {
     vi.mocked(fetchConsumerManifest).mockResolvedValue({ locale: 'pt-BR' })
     const consumerId = ref<string | undefined>('alpha')
-    useActiveManifest(consumerId)
+    useActiveManifestInScope(consumerId)
     await flushPromises()
     expect(activeLocale.value).toBe('pt-BR')
 
