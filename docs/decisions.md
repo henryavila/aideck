@@ -521,9 +521,9 @@ as built.
   still works. Empty state now also considers `eyebrow`.
 - **`progress-bar`** — added `tone` (forced fill: a DS tone or a status value; per-row `colorField` still
   wins), `valueText`/`valueTextField` (custom right-aligned head text, e.g. `5/12`), `caption`/`captionField`
-  (subtle line below), `segmented` (max ≤ 40 discrete cells, value filled) for discrete counts, and
+  (subtle line below), `segmented` (max ≤ 40 discrete cells, value filled) for discrete counts (literal `valueText` and `caption` apply to the first row only, so use `valueTextField`/`captionField` for per-row text in a stacked bar; `segmented` applies only to a single-row bar), and
   `footer: false` (hide the stacked summary footer; any other value, including absent, keeps it). The
-  stacked footer's `weighted avg` is `sum(clamp(value, 0, max)) / sum(max)` — not a mean of row percentages.
+  stacked footer's `weighted avg` is `100 * sum(clamp(value, 0, max)) / sum(max)` over rows with a finite `max > 0`; a non-numeric `value` counts as 0. It is not a mean of row percentages.
 - **`card`** already supported `header`/`body`/`footer` slot composition (the record-card preset is a
   consumer composition, not new code).
 

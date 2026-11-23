@@ -47,12 +47,12 @@ id: atomic-skills          # required — string, 1-64 chars, used in API paths
 mcpNamespace: atomic_skills # required — regex [a-z][a-z0-9_]{0,31}, used in MCP tool names
 title: "Project Status"    # required
 icon: mdi:clipboard-check  # optional — MDI icon name, shown in nav
-locale: pt-BR              # optional — en (default) | pt-BR, language of aiDeck's own labels
+locale: pt-BR              # optional — en (default) | pt-BR, translates a subset of aiDeck's labels (see below)
 ```
 
 The `mcpNamespace` is load-bearing. Consumer tools are registered as `aideck_<mcpNamespace>_<tool.name>`. For `atomic_skills` + `mark_task_done` that becomes `aideck_atomic_skills_mark_task_done`.
 
-The `locale` key is optional and only translates aiDeck's own generic chrome labels (connection state, widget live/stale/retry, row counts, progress-bar defaults). It never translates values the consumer supplies — `title`, `label`, `unit`, `emptyNote`, status labels and record content stay exactly as written. With no `locale`, every label renders in English, identical to a manifest that predates the key. Any value other than `en` or `pt-BR` is rejected by the manifest schema like any other invalid manifest value.
+The `locale` key is optional and translates only these labels: the status-bar connection state, the widget frame's live/stale/retry and default `no data`, row counts, the table's `0 rows` and `source ·`, and the progress-bar defaults. Other aiDeck text stays in English, including other widgets' empty notes, the search placeholder, command-palette commands and data-load error messages. With no active consumer, labels are English. It never translates values the consumer supplies: `title`, `label`, `unit`, status labels, record content and `emptyNote` (read only by `table`, `list`, `bar-chart`, `line-chart` and `sparkline`; `progress-bar` ignores it) stay exactly as written. With no `locale`, every label renders in English, identical to a manifest that predates the key. Any value other than `en` or `pt-BR` is rejected by the manifest schema like any other invalid manifest value.
 
 ### dataSources
 

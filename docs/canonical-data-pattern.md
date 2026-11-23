@@ -54,8 +54,10 @@ aiDeck's runtime is **domain-agnostic**: it hardcodes no consumer path conventio
 (`plans/`, `initiatives/`, …). When a file changes under a registered project's
 `.atomic-skills/` tree, the watcher classifies it by matching the path against the
 **globs declared in each consumer's `manifest.yaml`** (`root: 'project'` dataSources) and
-emits a generic `data_changed` event keyed by the matched consumer. The dashboard re-fetches
-the affected dataSource. The only directory names aiDeck recognizes by itself are its own
+emits a generic `data_changed` event keyed by the matched consumer. Every mounted widget of
+that consumer then re-fetches its own source. Limitation: the dashboard subscribes to `/sse`
+without a `project` filter, so changes in any project other than the first registered one do
+not refresh live; reload the page to see them. The only directory names aiDeck recognizes by itself are its own
 universal append-only subdirs (`annotations/`, `highlights/`, `inbox/`), attributed by the
 explicit `<consumer>/` path segment.
 

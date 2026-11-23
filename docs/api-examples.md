@@ -194,10 +194,12 @@ Response (404):
 ```json
 {
   "schemaVersion": "0.1",
-  "code": "consumer_unknown",
-  "message": "No registered consumer with id 'unknown-consumer'.",
-  "suggestion": "Available consumers: project-status. Check spelling or register via consumer.yaml (v0.2+).",
-  "details": { "consumerId": "unknown-consumer" }
+  "error": {
+    "code": "consumer_unknown",
+    "message": "No registered consumer with id 'unknown-consumer'.",
+    "suggestion": "Available consumers: project-status. Check spelling or register via consumer.yaml (v0.2+).",
+    "details": { "consumerId": "unknown-consumer" }
+  }
 }
 ```
 
@@ -212,10 +214,12 @@ Response (500 — server cannot serve content):
 ```json
 {
   "schemaVersion": "0.1",
-  "code": "schema_version_mismatch",
-  "message": "Plan 'old-plan' uses schemaVersion '0.0.9'; expected '0.1'.",
-  "suggestion": "Run migration: aideck migrate --from=0.0.9 --to=0.1",
-  "details": { "found": "0.0.9", "expected": "0.1" }
+  "error": {
+    "code": "schema_version_mismatch",
+    "message": "Plan 'old-plan' uses schemaVersion '0.0.9'; expected '0.1'.",
+    "suggestion": "Run migration: aideck migrate --from=0.0.9 --to=0.1",
+    "details": { "found": "0.0.9", "expected": "0.1" }
+  }
 }
 ```
 
@@ -230,14 +234,24 @@ Response: `text/event-stream` with events as below. Each event is a separate SSE
 
 ### Event types
 
-#### `state-change`
+#### `data_changed`
 
-Emitted when an entity file changes (added/modified/deleted).
+Emitted when a watched data file changes. `projectId` is present only for project watchers; consumer data files use `payload.dataSourceHint`.
 
 ```
-event: state-change
+event: data_changed
 id: 1684509012345
-data: {"consumer":"project-status","slug":"v3-f0-foundation-repair","kind":"initiative","changeType":"change","entity":{...full Initiative payload...}}
+data: {"kind":"data_changed","consumer":"project-status","projectId":"p1","payload":{"file":".atomic-skills/project-status/plans/a.md","dataSourceId":"tasks"},"id":1684509012345,"emittedAt":"2026-01-01T00:00:00.000Z"}
+```
+
+#### `consumer_manifest_changed`
+
+Emitted when a consumer manifest is added, changed or removed. `aideck serve` does not reload the manifest; restart it to apply the change.
+
+```
+event: consumer_manifest_changed
+id: 1684509012400
+data: {"kind":"consumer_manifest_changed","consumer":"project-status","changeType":"change","id":1684509012400,"emittedAt":"2026-01-01T00:00:00.000Z"}
 ```
 
 #### `annotation-added`
@@ -260,7 +274,7 @@ data: {"consumer":"project-status","highlight":{...Highlight payload...}}
 
 #### `error`
 
-Emitted when parsing fails for a watched file. UI displays a non-blocking toast; file path included.
+Emitted when parsing fails for a watched file, with the file path. The bundled client does not subscribe to it. A native connection failure also fires `error` on `EventSource`, without `data`.
 
 ```
 event: error
@@ -286,13 +300,14 @@ SSE has built-in `Last-Event-ID` reconnection. aiDeck retains events from the la
 
 ```typescript
 const sse = new EventSource('/sse')
-sse.addEventListener('state-change', (event) => {
-  const { consumer, slug, entity } = JSON.parse(event.data)
-  store.applyStateChange(consumer, slug, entity)
+sse.addEventListener('data_changed', (event) => {
+  const { consumer } = JSON.parse(event.data)
+  refetch(consumer)
 })
 sse.addEventListener('error', (event) => {
+  if (!event.data) return // native connection failure
   const err = JSON.parse(event.data)
-  toast.warning(`Parse error in ${err.path}: ${err.message}`)
+  console.warn(err.path, err.message)
 })
 ```
 
